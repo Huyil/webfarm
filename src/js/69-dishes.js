@@ -202,7 +202,8 @@ function autoTick(dt){
   if(autoActive('donkey')){
     K.mill.busy = true; K.mill.dur = AUTO_DEVICES.donkey.per;
     K.mill.t = state.autoAcc.donkey || 0;
-  } else if(!K.mill.busy){
+  } else {
+    K.mill.busy = false;                     /* 驴停了/没买：进度条归零，别一直显示成"还在磨" */
     K.mill.t = 0;
   }
   for(const id of AUTO_IDS){

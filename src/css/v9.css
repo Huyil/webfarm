@@ -92,7 +92,8 @@
 .slot-btns{display:flex;gap:calc(8px*var(--ui-scale));margin-top:calc(10px*var(--ui-scale));flex-wrap:wrap}
 
 /* ---------- 厨房 ---------- */
-.modal-box.kitchen{max-width:calc(680px*var(--ui-scale));width:calc(94vw)}
+/* 厨房：宽度上限写死，且不许横向溢出（以前锅里食材一多，右边那列控件就被顶出弹层外） */
+.modal-box.kitchen{max-width:min(calc(680px*var(--ui-scale)),calc(100vw - 24px));width:min(calc(680px*var(--ui-scale)),calc(94vw));overflow-x:hidden}
 .k-fallback{font-size:calc(12px*var(--ui-scale));color:#a8b6a8}
 .k-row{display:flex;align-items:center;gap:calc(8px*var(--ui-scale));flex-wrap:wrap;padding:calc(8px*var(--ui-scale)) 0;border-bottom:1px dashed #333f34}
 

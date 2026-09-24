@@ -114,6 +114,7 @@
   -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
   min-height:max(44px,calc(44px*var(--ui-scale)));     /* 触屏热区 ≥44px */
   transition:transform .14s,border-color .14s,box-shadow .14s;
+  min-width:0;overflow:hidden;
 }
 .k-station.k-drop{
   border-color:#7fe08a;transform:translateY(calc(-2px*var(--ui-scale)));
@@ -135,8 +136,8 @@
 .k-st-state.perfect{color:#ffd76e;background:rgba(255,215,110,.16);animation:v9pop .5s ease-out}
 .k-st-state.burnt{color:#ff9c7a;background:rgba(224,107,107,.16)}
 
-.k-st-body{display:flex;align-items:center;gap:calc(9px*var(--ui-scale));min-height:calc(58px*var(--ui-scale))}
-.k-st-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(5px*var(--ui-scale))}
+.k-st-body{display:flex;align-items:center;gap:calc(9px*var(--ui-scale));min-height:calc(58px*var(--ui-scale));min-width:0;overflow:hidden}
+.k-st-info{flex:0 0 auto;width:min(46%,calc(168px*var(--ui-scale)));min-width:0;display:flex;flex-direction:column;gap:calc(5px*var(--ui-scale))}
 .k-st-line{font-size:calc(11px*var(--ui-scale));color:#a8b6a8;line-height:1.4;word-break:break-all}
 .k-st-flow{display:flex;align-items:center;gap:calc(4px*var(--ui-scale))}
 .k-arrow{font-size:calc(12px*var(--ui-scale));color:#6d7a70}
@@ -169,13 +170,14 @@
 /* 烤箱的升级按钮（价格会变，给点宽度别抖） */
 .k-st-actions [data-act="upgrade-oven"]{white-space:nowrap}
 .k-slot-empty{font-size:calc(10px*var(--ui-scale));color:#69756c;text-align:center;line-height:1.3;padding:0 calc(3px*var(--ui-scale))}
+.k-slot-empty{opacity:.45}                     /* 空输入位：半透明，别抢戏 */
 .k-board-slot{border-color:rgba(180,200,255,.28)}
 
 /* 锅里的料 */
 .k-pot-slot{
   /* 食材多了只在**这一块**里滚：以前会一直往下长，把整个工位/弹层撑高，
      结果整页出现滚动条。现在限高（约两行）+ 内部纵向滚动，且不外溢把父级撑宽。 */
-  flex:1 1 auto;min-width:0;
+  flex:1 1 0;min-width:0;                    /* 基准 0：只吃剩下的空间，绝不把右边顶出去 */
   min-height:calc(56px*var(--ui-scale));
   max-height:calc(66px*var(--ui-scale));
   overflow-y:auto;overflow-x:hidden;
@@ -313,4 +315,121 @@
   .k-auto-desc{white-space:normal}
   .k-auto-row{flex-wrap:wrap}
   .k-auto-state{order:3}
+}
+
+
+/* ============================================================
+ * 六、v9.17 布局重做：顶部「食材 | 菜品」左右分栏 + 两行缩略工位
+ *   · 缩略行：切菜板 / 石磨 / 拉磨的驴 / 自动切块机，锅 / 烤箱
+ *   · 每行左侧一个小展开按钮，点开把「旧的详细界面」展开在下方
+ *   · 缩略卡的计时用「绕边框转圈」的四段圆角矩形（上→右→下→左）
+ * ============================================================ */
+.k-wrap{max-width:100%;min-width:0}
+.k-wrap *{min-width:0}                        /* 谁也不许把父级顶宽 */
+.k-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:calc(10px*var(--ui-scale))}
+.k-pane{
+  display:flex;flex-direction:column;min-width:0;
+  background:linear-gradient(180deg,rgba(46,58,48,.6),rgba(30,38,32,.72));
+  border:1px solid #35422f;border-radius:calc(14px*var(--ui-scale));
+  padding:calc(10px*var(--ui-scale));backdrop-filter:blur(6px);
+}
+.k-scroll{overflow:auto;overscroll-behavior:contain;min-width:0}
+.k-scroll::-webkit-scrollbar{width:calc(6px*var(--ui-scale));height:calc(6px*var(--ui-scale))}
+.k-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:999px}
+.k-pane-ing .k-scroll,.k-pane-dish .k-scroll{max-height:calc(184px*var(--ui-scale))}
+.k-pane .k-cards{grid-template-columns:repeat(auto-fill,minmax(calc(58px*var(--ui-scale)),1fr));gap:calc(6px*var(--ui-scale))}
+.k-pane .k-card{padding:calc(6px*var(--ui-scale)) calc(4px*var(--ui-scale)) calc(4px*var(--ui-scale))}
+.k-pane .k-card-ico{--k-ico:calc(34px*var(--ui-scale))}
+.k-selected{margin-top:calc(6px*var(--ui-scale))}
+
+/* 菜品栏：紧凑成两行，按钮固定在右侧，窄了先换行 */
+.k-dish-list{display:flex;flex-direction:column;gap:calc(5px*var(--ui-scale))}
+.k-dish-list .k-dish-row{
+  padding:calc(6px*var(--ui-scale)) calc(8px*var(--ui-scale));margin-bottom:0;
+  gap:calc(7px*var(--ui-scale));flex-wrap:wrap;font-size:calc(12px*var(--ui-scale));
+}
+.k-dish-list .k-dish-ico{--k-ico:calc(26px*var(--ui-scale));width:calc(30px*var(--ui-scale));height:calc(30px*var(--ui-scale))}
+.k-dish-btns{display:flex;gap:calc(4px*var(--ui-scale));flex:none}
+.k-dish-btns .mini{font-size:calc(10.5px*var(--ui-scale));padding:0 calc(7px*var(--ui-scale))}
+
+/* 缩略工位行 */
+.k-line-sec{display:flex;align-items:stretch;gap:calc(6px*var(--ui-scale))}
+.k-exp{
+  flex:none;width:max(24px,calc(22px*var(--ui-scale)));align-self:stretch;
+  display:grid;place-items:center;
+  background:rgba(255,255,255,.05);border:1px solid #35422f;border-radius:calc(9px*var(--ui-scale));
+  color:#9fb0a0;font-size:calc(10px*var(--ui-scale));cursor:pointer;touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.k-exp:hover{background:rgba(127,224,138,.14);color:#c8f7c5;border-color:#4d8a4a}
+.k-exp.on{color:#c8f7c5;border-color:#4d8a4a;background:rgba(127,224,138,.1)}
+.k-cells{flex:1;min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:calc(8px*var(--ui-scale))}
+.k-cells-4{grid-template-columns:repeat(4,minmax(0,1fr))}   /* 备料行：切菜板 / 石磨 / 驴 / 切块机 */
+.k-cells-2{grid-template-columns:repeat(2,minmax(0,1fr))}   /* 烹饪行：锅 / 烤箱 */
+.k-cell{
+  position:relative;display:flex;flex-direction:column;gap:calc(3px*var(--ui-scale));
+  padding:calc(8px*var(--ui-scale)) calc(9px*var(--ui-scale));
+  min-height:max(58px,calc(64px*var(--ui-scale)));
+  overflow:hidden;border-radius:calc(11px*var(--ui-scale));
+}
+.k-cell-head{display:flex;align-items:center;gap:calc(4px*var(--ui-scale));min-width:0;flex-wrap:wrap}
+.k-cell-ico{font-size:calc(14px*var(--ui-scale));line-height:1;flex:none}
+.k-cell-name{font-size:calc(12px*var(--ui-scale));font-weight:700;color:#e2ecdf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-cell-state{
+  margin-left:auto;flex:none;font-size:calc(9.5px*var(--ui-scale));color:#8b9a8d;
+  background:rgba(0,0,0,.3);border-radius:999px;padding:calc(1px*var(--ui-scale)) calc(6px*var(--ui-scale));
+  white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+}
+.k-cell-state.busy{color:#9fe07a}
+.k-cell-state.ok{color:#8fd68f}
+.k-cell-state.off{color:#77837a}
+.k-cell-state.ready{color:#7fd0ff}
+.k-cell-state.perfect{color:#ffd76e;background:rgba(255,215,110,.16)}
+.k-cell-state.burnt{color:#ff9c7a;background:rgba(224,107,107,.16)}
+.k-cell-sub{font-size:calc(9.5px*var(--ui-scale));color:#8b9a8d;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.k-cell-btns{display:flex;align-items:center;gap:calc(4px*var(--ui-scale));flex-wrap:wrap;margin-top:auto}
+.k-cell-btns .mini{font-size:calc(10.5px*var(--ui-scale));padding:0 calc(8px*var(--ui-scale));min-height:max(26px,calc(24px*var(--ui-scale)))}
+.k-auto-tag{display:none;font-size:calc(9.5px*var(--ui-scale));color:#ffd76e;white-space:nowrap}
+.k-dev{background:linear-gradient(180deg,rgba(40,48,42,.72),rgba(24,30,26,.82));border-style:dashed;cursor:default}
+
+/* 绕边框转圈的四段进度 */
+.k-ring{position:absolute;inset:0;pointer-events:none;border-radius:inherit}
+.k-ring i{position:absolute;background:#3a4a3c;border-radius:2px;transform:scale(0);transition:transform .1s linear}
+.k-ring i:nth-child(1){top:0;left:0;right:0;height:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:left center}
+.k-ring i:nth-child(2){top:0;right:0;bottom:0;width:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:top center}
+.k-ring i:nth-child(3){bottom:0;left:0;right:0;height:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:right center}
+.k-ring i:nth-child(4){top:0;left:0;bottom:0;width:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:bottom center}
+.k-ring[data-tone="run"] i{background:linear-gradient(90deg,#5cbf3a,#9fe07a)}
+.k-ring[data-tone="ready"] i{background:#7fd0ff}
+.k-ring[data-tone="perfect"] i{background:#ffd76e;box-shadow:0 0 calc(6px*var(--ui-scale)) rgba(255,215,110,.85)}
+.k-ring[data-tone="burnt"] i{background:#c0563a}
+.k-ring[data-tone="normal"] i{background:linear-gradient(90deg,#7fd67f,#c8f7c5)}
+.k-ring[data-tone="off"] i,.k-ring[data-tone="idle"] i{background:#3a4a3c}
+
+/* 展开区（就是旧的详细界面） */
+.k-expand{display:none;margin:calc(8px*var(--ui-scale)) 0 0}
+.k-expand.open{display:block}
+.k-expand .k-stations{margin-bottom:calc(8px*var(--ui-scale))}
+.k-mill-slots{align-content:center}
+.k-pot-slot-x{max-height:calc(78px*var(--ui-scale))}   /* 展开后的锅：三行高度 */
+
+/* 空输入位：半透明小方块（没有物品时不该像个实心输入框） */
+.k-add,.k-slot-dim{
+  display:grid;place-items:center;
+  width:calc(26px*var(--ui-scale));height:calc(26px*var(--ui-scale));
+  border-radius:calc(6px*var(--ui-scale));border:1px dashed #3d4a3f;background:rgba(0,0,0,.22);
+  color:#69756c;font-size:calc(12px*var(--ui-scale));opacity:.45;
+}
+.k-slot.k-slot-dim{width:calc(56px*var(--ui-scale));height:calc(56px*var(--ui-scale));--k-ico:calc(30px*var(--ui-scale))}
+
+/* 窄屏：顶部两栏上下叠，缩略工位一行两个 */
+@media (orientation:portrait),(max-width:620px){
+  .k-top{grid-template-columns:1fr}
+  .k-cells{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .k-pane-ing .k-scroll,.k-pane-dish .k-scroll{max-height:calc(140px*var(--ui-scale))}
+}
+@media (max-width:560px){
+  .k-cells{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .k-pane .k-cards{grid-template-columns:repeat(auto-fill,minmax(calc(54px*var(--ui-scale)),1fr))}
 }

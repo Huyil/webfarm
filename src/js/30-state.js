@@ -64,6 +64,7 @@ function newState(){
     autoUntil: { donkey: 0, chopper: 0 },      /* 限时自动化设备的到期时间戳 */
     autoCount: { donkey: 0, chopper: 0 },      /* 各养了几台（每轮产几份） */
     autoAcc: { donkey: 0, chopper: 0 },
+    kExpand: { prep: false, cook: false },   /* 厨房两行工位的展开状态（缩略行 ↔ 大界面） */
     hover: null, box: null, jobBox: null, expandPreview: null,
     lastSave: Date.now(),
   };

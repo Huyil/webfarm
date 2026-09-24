@@ -25,6 +25,7 @@ function serialize(st){
     kitchenAuto: { oven: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.auto),
                    pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto) },
     autoUntil: st.autoUntil, autoAcc: st.autoAcc, autoCount: st.autoCount, ovenSlots: st.ovenSlots,
+    kExpand: st.kExpand,
     tiles: st.tiles.map(t=>({
       gx: t.gx, gy: t.gy, terrain: t.terrain, state: t.state, crop: t.crop,
       growth: Math.round(t.growth), watered: !!t.watered, fertile: !!t.fertile,
@@ -127,6 +128,7 @@ function unpackState(d){
   st.autoUntil = Object.assign({ donkey:0, chopper:0 }, d.autoUntil || {});
   st.autoCount = Object.assign({ donkey:0, chopper:0 }, d.autoCount || {});
   st.autoAcc = Object.assign({ donkey:0, chopper:0 }, d.autoAcc || {});
+  st.kExpand = { prep: !!(d.kExpand && d.kExpand.prep), cook: !!(d.kExpand && d.kExpand.cook) };
   st.tiles = d.tiles.map(t=>{
     const tt = newTile(t.gx, t.gy, t.terrain, t.stone);
     tt.state = t.state || 'wild';

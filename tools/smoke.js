@@ -1499,25 +1499,25 @@ const frames = n => new Promise(res => {
   {
     api.openSheet('kitchen');
     st().bag.carrot = 3;
-    const d0 = W.document.querySelector('#kitchenBody .k-dishes');
+    const d0 = W.document.querySelector('#kitchenBody .k-pane-dish');
     ok(!!d0, '找得到菜品仓库');
     d0.__keep = 'keep';        // 用 JS 属性打标记（写成属性会改变 outerHTML，反而触发重建）
     api.cook.boardPut('carrot');                       // 放入：只该动货架/菜块
     D.api.renderKitchen && D.api.renderKitchen();
-    const d1 = W.document.querySelector('#kitchenBody .k-dishes');
+    const d1 = W.document.querySelector('#kitchenBody .k-pane-dish');
     eq(d1.__keep, 'keep', '放入后菜品仓库是同一个 DOM（没有重画）');
     ok(d1 === d0, '节点身份不变（滚动位置与已画的图标都保住）');
     /* 换到工位区也一样：菜板/锅的内部状态变化不该连累菜品仓库 */
     st().pieces.potato = 1;
     api.cook.potAdd({ piece: 'potato' });
     D.api.renderKitchen && D.api.renderKitchen();
-    const d2 = W.document.querySelector('#kitchenBody .k-dishes');
+    const d2 = W.document.querySelector('#kitchenBody .k-pane-dish');
     eq(d2.__keep, 'keep', '下锅后菜品仓库同样没被重画');
     /* 真出了菜 → 这时候才允许它更新 */
     api.kitchenTick(api.POT_MS + api.POT_BURN_MS + 100);
     api.cook.potTake(false);
     D.api.renderKitchen && D.api.renderKitchen();
-    const d3 = W.document.querySelector('#kitchenBody .k-dishes');
+    const d3 = W.document.querySelector('#kitchenBody .k-pane-dish');
     ok(d3 !== d2, '真的出锅出新菜时，菜品仓库才重建');
     api.closeSheet();
   }
@@ -1991,6 +1991,7 @@ const frames = n => new Promise(res => {
     api.kitchenTick(api.AUTO_DEVICES.donkey.per * 3);
     eq(st().prep.flour || 0, flour1, '到期后不再产出（限时消耗品）');
     ok(!api.autoActive('donkey'), '到期状态正确');
+    ok(api.KITCHEN.mill.busy === false && api.KITCHEN.mill.t === 0, '驴到期后石磨不再显示成「还在磨」（进度条归零）');
 
     /* ④ 切块机：优先切库存最多的作物 */
     st().bag.carrot = 5; st().bag.potato = 2; st().coins = 6000;
@@ -2033,11 +2034,68 @@ const frames = n => new Promise(res => {
     /* ⑧ 厨房面板里有自动化区块（两个设备各一行 + 购买按钮） */
     api.openSheet('kitchen');
     eq(W.document.querySelectorAll('#kitchenBody .k-auto-row').length, 2, '厨房里有 2 个自动化设备');
-    ok(W.document.querySelectorAll('#kitchenBody [data-act="buy-auto"]').length === 2, '每个设备都有购买按钮');
+    {
+      const buy = [...W.document.querySelectorAll('#kitchenBody [data-act="buy-auto"]')];
+      const ids = Object.keys(api.AUTO_DEVICES);
+      ok(ids.every(id => buy.some(b => b.dataset.dev === id)), '每个设备都有购买按钮（缩略卡 + 大界面各一个）', 'btns=' + buy.length);
+      ok(buy.length >= ids.length * 2, '购买按钮在缩略行与展开区都能点到', 'btns=' + buy.length);
+    }
     /* 全自动与自动出已经合并成一个开关：每台设备只有一个 auto 勾选，没有多余的 loop 勾选 */
     ok(!!W.document.querySelector('#kitchenBody [data-auto="oven"]'), '烤箱有「全自动」勾选');
     eq(W.document.querySelectorAll('#kitchenBody [data-auto="oven"]').length, 1, '烤箱只有一个自动开关（已合并）');
     ok(!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '不再有单独的「同配方循环」勾选');
+    api.closeSheet();
+    api.applyPayload(backup);
+  }
+
+  section('厨房 v9.17：顶部「食材 | 菜品」+ 两行缩略工位 + 左侧展开');
+  {
+    const backup = JSON.parse(JSON.stringify(api.serialize(st())));
+    st().bag.carrot = 2; st().bag.wheat = 1; st().prep.flour = 1; st().pieces.potato = 1;
+    api.openSheet('kitchen');
+    api.renderKitchen && api.renderKitchen();
+    const body = $('kitchenBody');
+    ok(!!body.querySelector('.k-pane-ing') && !!body.querySelector('.k-pane-dish'), '顶部左「食材」右「菜品」两栏');
+    ok(body.querySelector('.k-top').dataset.patchGroup === 'top', '顶部两栏是独立刷新的分组（食材变动不重画菜品）');
+    eq(body.querySelectorAll('.k-cell[data-station]').length, 4, '缩略工位 4 个（切菜板 / 石磨 / 锅 / 烤箱）');
+    eq(body.querySelectorAll('.k-cell.k-dev').length, 2, '自动化设备缩略卡 2 个（驴 / 切块机）');
+    eq(body.querySelectorAll('.k-cell[data-station="board"]').length, 1, '切菜板在缩略行里（石磨改成同样的瞬发模式）');
+    const linePrep = [...body.querySelectorAll('.k-cell[data-station]')].filter(c => c.closest('[data-line]'));
+    ok(linePrep.length === 4, '4 个缩略工位都在带展开按钮的行里');
+    eq(body.querySelectorAll('.k-expand').length, 2, '两行各有一个可展开的详细界面');
+    ok([...body.querySelectorAll('.k-expand')].every(e => !e.classList.contains('open')), '默认是缩略行（展开区收起）');
+    /* 左侧小按钮 → 展开大界面 */
+    const eb = body.querySelector('[data-act="expand"][data-line="cook"]');
+    ok(!!eb, '烹饪行左侧有展开按钮');
+    click(eb);
+    const ec = body.querySelector('[data-expand="cook"]');
+    ok(ec.classList.contains('open'), '点一下就把旧的锅/烤箱大界面展开在下方');
+    ok(!!ec.querySelector('[data-bar="pot"]') && !!ec.querySelector('[data-bar="oven"]'), '展开区里有锅与烤箱的进度条');
+    eq(body.querySelector('[data-act="expand"][data-line="cook"]').getAttribute('aria-expanded'), 'true', '展开按钮 aria-expanded=true');
+    ok(ec.querySelector('.k-check input[data-auto="pot"]'), '展开区里有「自动烹饪」勾选');
+    ok(ec.textContent.includes('自动烹饪') && !ec.textContent.includes('全自动'), '开关改名为「自动烹饪」');
+    /* 环形进度：缩略卡的边框拆成 4 段 */
+    const ring = body.querySelector('[data-ring="pot"]');
+    ok(!!ring && ring.children.length === 4, '缩略卡的进度是绕边框的四段');
+    ring.dataset.tone = 'run';
+    D.api.renderKitchen && D.api.renderKitchen();
+    const t = api.KITCHEN.pot.t;
+    api.cook.potAdd({ piece: 'potato' });
+    api.kitchenTick(api.POT_MS);
+    ok(api.KITCHEN.pot.t > t, '锅在缩略卡模式下照样计时');
+    D.api.renderKitchen && D.api.renderKitchen();
+    const segs = [...body.querySelector('[data-ring="pot"]').children];
+    ok(segs.some(i => parseFloat(String(i.style.transform).replace(/[^0-9.]/g, '')) > 0), '四段进度有填充（不是全 0）',
+      segs.map(i => i.style.transform).join(' '));
+    /* 空输入位：半透明小方块，而不是实心输入框 */
+    api.KITCHEN.pot.pieces = [];
+    D.api.renderKitchen && D.api.renderKitchen();
+    ok(!!body.querySelector('.k-add'), '没有物品时是半透明的小方块（k-add）');
+    ok(!body.querySelector('.k-pot-slot .k-slot-empty'), '不再渲染「输入框」样式的空槽文字');
+    /* 展开状态写进存档 */
+    ok(api.serialize(st()).kExpand && api.serialize(st()).kExpand.cook === true, '展开状态写进存档');
+    click(body.querySelector('[data-act="expand"][data-line="cook"]'));
+    ok(!body.querySelector('[data-expand="cook"]').classList.contains('open'), '再点一下收起');
     api.closeSheet();
     api.applyPayload(backup);
   }

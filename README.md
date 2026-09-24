@@ -307,3 +307,10 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 - 装饰物只影响观感（会占住地块，需锄掉才能种），没有加成。
 - 没有音效资源文件，全部是 WebAudio 现场合成的方波/正弦音。
 - 移动端可用（Pointer Events + UI 缩放），但没有做横竖屏专门布局。
+
+## 开源协议
+
+**MIT**（见 [LICENSE](LICENSE)）—— 最开放的一档：随便用、随便改、可以闭源商用，只要保留版权声明与许可证副本。
+选它的原因：一是足够开放（比 Apache-2.0 少一堆专利/声明条款），二是 **Minecraft 模组社区最常用的就是 MIT**（Forge / Fabric 生态里占绝对多数）。
+
+> 想更"公共领域"一点可以换 **Unlicense / CC0**（等于放弃一切权利）；要专利保护就换 **Apache-2.0**；想强制衍生作品也开源就换 **GPL-3.0**。改一行 `LICENSE` + `package.json` 里的 `"license"` 就行。

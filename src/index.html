@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>小田园 · v@VERSION@</title>
+<!-- build: @BUILD_INFO@ -->
+<!--@DEV_CSS_BEGIN@-->
+<!-- 源码版：这是一份按清单顺序拼接好的产物（tools/devbundle.js 生成）。
+     不构建也能直接打开本文件；改完源码后重跑 node tools/devbundle.js，
+     或开着 node tools/serve.js 直接访问 /dev（服务器会按需重新生成）。 -->
+<link rel="stylesheet" href="dev-bundle.css">
+<!--@DEV_CSS_END@-->
+<style>
+/*@INJECT_CSS@*/
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="hud-item" title="金币">
+    <span class="hud-ico">💰</span>
+    <span class="hud-val" id="hudMoney">30</span>
+  </div>
+  <div class="hud-item" title="普通肥料">
+    <span class="hud-ico">🧪</span>
+    <span class="hud-val" id="hudFert">0</span>
+  </div>
+  <div class="hud-item" title="高级肥料（可立即催熟）">
+    <span class="hud-ico">✨</span>
+    <span class="hud-val" id="hudPremium">0</span>
+  </div>
+  <div class="hud-sep"></div>
+  <button class="hud-icon-btn" id="achBtn" title="成就">🏆</button>
+  <button class="hud-icon-btn" id="lbBtn" title="排行榜">🏅</button>
+  <button class="hud-icon-btn" id="noticeBtn" title="公告">📢</button>
+  <button class="hud-icon-btn" id="moreBtn" title="更多信息">⋯</button>
+</div>
+
+<div class="hud-more" id="hudMore">
+  <div class="hud-more-row"><span class="hud-ico">💤</span><span>挂机</span><b id="hudIdle">1.0</b><span class="hud-unit">金/分</span></div>
+  <div class="hud-more-row"><span class="hud-ico" id="hudWeather">☀️</span><span>时间</span><b id="hudClock">08:00</b></div>
+  <div class="hud-more-row"><span class="hud-ico">🌾</span><span>农场</span><b id="hudFarm">3×3</b></div>
+</div>
+
+<div class="side-panel" id="sidePanel">
+  <button id="btnShop"><span class="si">🛒</span><span class="sl">商店</span></button>
+  <button id="btnStore"><span class="si">📦</span><span class="sl">仓库</span><span class="badge" id="storeBadge" style="display:none"></span></button>
+  <button id="btnKitchen"><span class="si">🍳</span><span class="sl">厨房</span><span class="badge" id="kitchenBadge" style="display:none"></span></button>
+  <button id="btnDecor"><span class="si">🏡</span><span class="sl">装饰</span></button>
+  <button id="btnLeaderboard"><span class="si">🏅</span><span class="sl">排行</span></button>
+  <button id="btnExpand"><span class="si">💰</span><span class="sl">扩建</span></button>
+  <button id="btnGrid"><span class="si">🔧</span><span class="sl">网格</span><span class="st" id="gridState">关</span></button>
+  <button id="btnPan"><span class="si">✋</span><span class="sl">平移</span></button>
+  <button id="btnZoom"><span class="si">🔍</span><span class="sl">缩放</span><span class="st" id="zoomState">自动</span></button>
+  <button id="btnSettings"><span class="si">⚙️</span><span class="sl">设置</span></button>
+</div>
+
+<div class="toolbar" id="toolbar">
+  <button data-tool="hoe"><span class="ti">⛏️</span>锄头</button>
+  <button data-tool="seed"><span class="ti">🌱</span>种子</button>
+  <button data-tool="water"><span class="ti">💧</span>浇水</button>
+  <button data-tool="fert"><span class="ti">🧪</span>肥料</button>
+  <button data-tool="premium"><span class="ti">✨</span>催熟</button>
+  <button data-tool="sickle"><span class="ti">✂️</span>收获</button>
+</div>
+<div class="tool-hint" id="toolHint">锄头 · 开垦荒地；顺手把装饰物收回仓库</div>
+
+<div class="modal" id="seedModal">
+  <div class="modal-box">
+    <h4>🌱 选择种子</h4>
+    <div id="seedList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="shopModal">
+  <div class="modal-box">
+    <h4>🛒 商店</h4>
+    <div id="shopList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="storeModal">
+  <div class="modal-box">
+    <h4>📦 我的仓库</h4>
+    <div class="wh-toggle">
+      <div class="wh-info">
+        <div class="wh-title">仓储模式</div>
+        <div class="wh-desc" id="whDesc">开启：收获存入仓库</div>
+      </div>
+      <button class="wh-btn on" id="whBtn">已开启</button>
+    </div>
+    <div class="tabs" id="storeTabs"></div>
+    <div id="storeList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="settingsModal">
+  <div class="modal-box">
+    <h4>⚙️ 设置</h4>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">音效</div>
+        <div class="setting-desc">播种、浇水、收获、购买时播放</div>
+      </div>
+      <div class="toggle on" id="toggleSound"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">粒子特效</div>
+        <div class="setting-desc">浇水水花、收获星星、金币飘散</div>
+      </div>
+      <div class="toggle on" id="toggleParticles"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">全屏特效</div>
+        <div class="setting-desc">催熟爆闪、成就庆祝、金币迸射</div>
+      </div>
+      <div class="toggle on" id="toggleEffects"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">仓储模式</div>
+        <div class="setting-desc">关闭后收获时自动出售</div>
+      </div>
+      <div class="toggle on" id="toggleWarehouse"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">厨房火候小游戏</div>
+        <div class="setting-desc">关闭后烤箱与锅不再判定精品/焦糊，直接按正常出锅</div>
+      </div>
+      <div class="toggle on" id="toggleMiniGame"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">存档槽位</div>
+        <div class="setting-desc" id="settingsVersion">v9</div>
+      </div>
+      <button class="mini primary" id="btnOpenSlots">管理存档</button>
+    </div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="decorModal">
+  <div class="modal-box">
+    <h4>🏡 装饰仓库</h4>
+    <div id="decorList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="kitchenModal">
+  <div class="modal-box kitchen">
+    <h4>🍳 厨房</h4>
+    <div id="kitchenBody"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="expand-bar" id="expandBar"></div>
+
+<div class="modal" id="slotsModal">
+  <div class="modal-box">
+    <h4>💾 存档槽位</h4>
+    <div id="slotsBody"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="achievementModal">
+  <div class="modal-box">
+    <h4>🏆 成就与任务</h4>
+    <button class="claim-all" id="claimAllAchBtn" style="display:none">🏆 一键领取成就奖励</button>
+    <button class="claim-all" id="claimAllBtn" style="display:none">✨ 一键领取任务奖励</button>
+    <div class="tabs">
+      <button class="tab active" id="tabAch">成就</button>
+      <button class="tab" id="tabTask">任务</button>
+    </div>
+    <div id="achList"></div>
+    <div id="taskList" style="display:none"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="noticeModal">
+  <div class="modal-box">
+    <h4>📢 更新公告</h4>
+    <div id="logList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+<div class="modal" id="leaderboardModal">
+  <div class="modal-box lb-box">
+    <h4>🏅 排行榜 <span class="lb-sub">全服 · 五榜合一</span></h4>
+    <div id="lbBody"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!--@DEV_JS_BEGIN@-->
+<script src="dev-bundle.js"></script>
+<!--@DEV_JS_END@-->
+<script>
+/*@INJECT_JS@*/
+</script>
+</body>
+</html>

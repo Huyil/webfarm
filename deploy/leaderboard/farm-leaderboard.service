@@ -1,0 +1,19 @@
+[Unit]
+Description=小田园排行榜服务 (farm leaderboard, python3 stdlib)
+After=network.target
+
+[Service]
+Type=simple
+Environment=FARM_LB_PORT=8095
+Environment=FARM_LB_DIR=/var/lib/farm-leaderboard
+ExecStart=/usr/bin/python3 /opt/farm-leaderboard/server.py
+Restart=always
+RestartSec=2
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

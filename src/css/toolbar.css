@@ -1,0 +1,21 @@
+/* 工具栏 */
+.toolbar{
+  position:fixed;bottom:calc(20px*var(--ui-scale));left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:calc(4px*var(--ui-scale));
+  background:rgba(28,34,26,.94);backdrop-filter:blur(12px);
+  border-radius:999px;padding:calc(8px*var(--ui-scale));
+  box-shadow:0 12px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);
+  z-index:10;max-width:calc(100vw - 16px);
+}
+.toolbar button{
+  background:transparent;border:2px solid transparent;border-radius:999px;
+  color:#93a894;padding:calc(8px*var(--ui-scale));cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  gap:calc(2px*var(--ui-scale));
+  font-size:calc(10px*var(--ui-scale));font-family:inherit;transition:.15s;
+  min-width:calc(48px*var(--ui-scale));
+}
+.toolbar button .ti{font-size:calc(19px*var(--ui-scale))}
+.toolbar button:hover{background:rgba(255,255,255,.06)}
+.toolbar button.active{border-color:#7fd67f;background:rgba(80,150,80,.25);color:#c8f7c5}
+

@@ -1,0 +1,58 @@
+/* ============ 排行榜 ============ */
+.lb-box{max-width:calc(520px*var(--ui-scale))}
+.lb-box h4{display:flex;align-items:baseline;gap:calc(8px*var(--ui-scale))}
+.lb-sub{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;font-weight:400;letter-spacing:0}
+
+/* 五个项目：点一下换排序 */
+.lb-chips{display:flex;flex-wrap:wrap;gap:calc(6px*var(--ui-scale));margin:calc(4px*var(--ui-scale)) 0 calc(10px*var(--ui-scale))}
+.lb-chip{
+  flex:1 1 auto;min-width:calc(74px*var(--ui-scale));
+  padding:calc(7px*var(--ui-scale)) calc(8px*var(--ui-scale));
+  border-radius:calc(10px*var(--ui-scale));
+  background:rgba(255,255,255,.05);border:1px solid #35422f;color:#c8d6c9;
+  font-size:calc(12px*var(--ui-scale));cursor:pointer;white-space:nowrap;
+  transition:border-color .15s,background .15s,transform .12s;
+}
+.lb-chip:hover{border-color:#7fd67f;transform:translateY(-1px)}
+.lb-chip.on{border-color:#7fd67f;background:rgba(80,150,80,.28);color:#eaffe6;font-weight:700}
+.lb-toolbar{display:flex;justify-content:space-between;align-items:center;gap:calc(8px*var(--ui-scale));margin-bottom:calc(8px*var(--ui-scale))}
+.lb-count{font-size:calc(11px*var(--ui-scale));color:#8b9a8d}
+.lb-actions{display:flex;gap:calc(6px*var(--ui-scale))}
+
+/* 名次表 */
+.lb-table{max-height:46vh;overflow-y:auto;border:1px solid #2b352c;border-radius:calc(10px*var(--ui-scale))}
+.lb-row{display:flex;align-items:center;gap:calc(8px*var(--ui-scale));padding:calc(7px*var(--ui-scale)) calc(10px*var(--ui-scale));border-bottom:1px solid rgba(255,255,255,.05)}
+.lb-row:last-child{border-bottom:0}
+.lb-row.me{background:rgba(80,150,80,.22)}
+.lb-rank{width:calc(24px*var(--ui-scale));text-align:center;color:#8b9a8d;font-variant-numeric:tabular-nums;font-weight:700}
+.lb-rank.top1{color:#ffd76e}.lb-rank.top2{color:#dfe6ee}.lb-rank.top3{color:#e0a86a}
+.lb-name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-val{color:#ffd76e;font-variant-numeric:tabular-nums;white-space:nowrap}
+.lb-myrank{margin-top:calc(8px*var(--ui-scale));font-size:calc(12px*var(--ui-scale));color:#c8d6c9}
+.lb-myrank b{color:#ffd76e}
+.lb-mine-wrap{margin-top:calc(10px*var(--ui-scale));display:flex;flex-wrap:wrap;gap:calc(8px*var(--ui-scale));font-size:calc(11px*var(--ui-scale));color:#8b9a8d}
+.lb-mine{background:rgba(255,255,255,.05);border-radius:999px;padding:calc(3px*var(--ui-scale)) calc(8px*var(--ui-scale))}
+.lb-mine i{font-style:normal;margin-right:calc(3px*var(--ui-scale))}
+.lb-empty,.lb-loading,.lb-offline{padding:calc(14px*var(--ui-scale));border-radius:calc(10px*var(--ui-scale));background:rgba(255,255,255,.04);color:#c8d6c9;font-size:calc(12px*var(--ui-scale));text-align:center}
+.lb-offline{background:rgba(150,90,40,.18);color:#ffd0a0}
+
+/* 起名字 */
+.lb-name-box{padding:calc(10px*var(--ui-scale)) 0}
+.lb-prompt-title{font-size:calc(14px*var(--ui-scale));color:#eaffe6;font-weight:700;margin-bottom:calc(4px*var(--ui-scale))}
+.lb-prompt-sub{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-bottom:calc(10px*var(--ui-scale))}
+.lb-prompt-row{display:flex;gap:calc(8px*var(--ui-scale))}
+.lb-input{
+  flex:1 1 auto;min-width:0;padding:calc(8px*var(--ui-scale)) calc(10px*var(--ui-scale));
+  border-radius:calc(10px*var(--ui-scale));border:1px solid #35422f;background:#1b221c;color:#e8e8f0;
+  font-size:calc(14px*var(--ui-scale));outline:none;
+}
+.lb-input:focus{border-color:#7fd67f}
+.lb-err{min-height:calc(16px*var(--ui-scale));margin-top:calc(6px*var(--ui-scale));font-size:calc(11px*var(--ui-scale));color:#e08b8b}
+
+/* 手机：项目按钮两列，表格更紧凑 */
+@media (orientation: portrait), (max-width: 620px){
+  .lb-chip{flex:1 1 calc(50% - 6px);min-width:0;font-size:max(12px, calc(12px*var(--ui-scale)))}
+  .lb-table{max-height:40vh}
+  .lb-row{padding:max(7px, calc(8px*var(--ui-scale))) max(8px, calc(10px*var(--ui-scale)))}
+  .lb-name{font-size:max(13px, calc(13px*var(--ui-scale)))}
+}

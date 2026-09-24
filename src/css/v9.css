@@ -1,0 +1,342 @@
+/* =====================================================================
+ * v9 追加样式：侧栏文字、HUD 扩展、厨房、存档槽位、任务/公告、UI 动效
+ * （放在清单最后，覆盖前面的基础样式）
+ * ===================================================================== */
+
+/* ---------- 侧栏：图标 + 文字 ---------- */
+.side-panel{gap:calc(5px*var(--ui-scale))}
+.side-panel button{
+  width:auto;min-width:calc(84px*var(--ui-scale));
+  height:calc(34px*var(--ui-scale));
+  flex-direction:row;justify-content:flex-start;
+  gap:calc(7px*var(--ui-scale));
+  padding:0 calc(9px*var(--ui-scale));
+  font-size:calc(12px*var(--ui-scale));
+  border-radius:calc(9px*var(--ui-scale));
+  white-space:nowrap;
+}
+.side-panel button .si{font-size:calc(15px*var(--ui-scale));line-height:1}
+.side-panel button .sl{letter-spacing:.5px}
+.side-panel button:active{transform:scale(.97)}
+
+/* ---------- HUD 扩展 ---------- */
+.hud-item.hud-idle .hud-val{color:#4a8fb8}
+.hud-item.hud-clock .hud-val{color:#3a6a3a;min-width:calc(46px*var(--ui-scale))}
+.hud-unit{font-size:calc(11px*var(--ui-scale));color:#8a8272;margin-left:calc(-2px*var(--ui-scale))}
+.hud-item{transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
+.hud-item.bump{transform:scale(1.12)}
+
+/* ---------- 工具提示条 ---------- */
+.tool-hint{
+  position:fixed;bottom:calc(92px*var(--ui-scale));left:50%;transform:translateX(-50%);
+  font-size:calc(11px*var(--ui-scale));color:#9fb0a0;
+  background:rgba(20,26,20,.72);backdrop-filter:blur(8px);
+  padding:calc(5px*var(--ui-scale)) calc(12px*var(--ui-scale));
+  border-radius:999px;z-index:9;pointer-events:none;
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+  transition:opacity .2s;opacity:.92;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* ---------- 通用小组件 ---------- */
+.tag{
+  font-size:calc(10px*var(--ui-scale));color:#8fd68f;
+  background:rgba(80,150,80,.18);border-radius:999px;
+  padding:calc(1px*var(--ui-scale)) calc(6px*var(--ui-scale));
+  margin-left:calc(4px*var(--ui-scale));font-weight:600;
+}
+.mini.primary{background:#3d8a4b;color:#eaffe6}
+.mini.primary:hover{background:#4aa35a}
+.mini.danger{background:#7a2f2f;color:#ffd6d6}
+.mini.danger:hover{background:#964040}
+.mini:disabled{opacity:.4;cursor:not-allowed}
+.wh-actions{display:flex;justify-content:flex-end;margin-top:calc(10px*var(--ui-scale))}
+
+/* ---------- 公告 ---------- */
+.log-box{
+  background:#232c24;border:1px solid #333f34;border-radius:calc(10px*var(--ui-scale));
+  padding:calc(10px*var(--ui-scale));margin-bottom:calc(10px*var(--ui-scale));
+}
+.log-head{display:flex;align-items:center;gap:calc(8px*var(--ui-scale));margin-bottom:calc(6px*var(--ui-scale))}
+.log-ver{
+  font-size:calc(11px*var(--ui-scale));font-weight:700;color:#c8f7c5;
+  background:rgba(80,150,80,.2);border-radius:999px;padding:1px calc(8px*var(--ui-scale));
+}
+.log-items{margin:0;padding-left:calc(18px*var(--ui-scale));color:#a8b6a8;font-size:calc(12px*var(--ui-scale));line-height:1.75}
+
+/* ---------- 任务 ---------- */
+.task-row{
+  display:flex;align-items:center;gap:calc(10px*var(--ui-scale));
+  background:#232c24;border:1px solid #333f34;border-radius:calc(10px*var(--ui-scale));
+  padding:calc(10px*var(--ui-scale));margin-bottom:calc(8px*var(--ui-scale));
+  transition:.18s;
+}
+.task-row.done{border-color:#4d8a4a;box-shadow:0 0 0 1px rgba(77,138,74,.35)}
+.task-row.claimed{opacity:.5}
+.task-main{flex:1;min-width:0}
+.task-bar{height:calc(6px*var(--ui-scale));background:#1b221c;border-radius:999px;overflow:hidden;margin:calc(6px*var(--ui-scale)) 0}
+.task-bar i{display:block;height:100%;background:linear-gradient(90deg,#6fc46f,#c8f7c5);transition:width .3s}
+
+/* ---------- 存档槽位 ---------- */
+.slot-card{
+  background:#232c24;border:1px solid #333f34;border-radius:calc(12px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale));margin-bottom:calc(10px*var(--ui-scale));
+}
+.slot-card.current{border-color:#4d8a4a;box-shadow:0 0 0 1px rgba(77,138,74,.4),0 8px 26px rgba(0,0,0,.3)}
+.slot-head{display:flex;align-items:center;gap:calc(8px*var(--ui-scale));margin-bottom:calc(6px*var(--ui-scale))}
+.slot-no{font-weight:700;color:#e8e8f0;font-size:calc(13px*var(--ui-scale))}
+.slot-cur{font-size:calc(10px*var(--ui-scale));color:#c8f7c5;background:rgba(80,150,80,.22);border-radius:999px;padding:1px calc(8px*var(--ui-scale))}
+.slot-body{color:#a8b6a8;font-size:calc(12px*var(--ui-scale));line-height:1.7}
+.slot-btns{display:flex;gap:calc(8px*var(--ui-scale));margin-top:calc(10px*var(--ui-scale));flex-wrap:wrap}
+
+/* ---------- 厨房 ---------- */
+.modal-box.kitchen{max-width:calc(680px*var(--ui-scale));width:calc(94vw)}
+.k-fallback{font-size:calc(12px*var(--ui-scale));color:#a8b6a8}
+.k-row{display:flex;align-items:center;gap:calc(8px*var(--ui-scale));flex-wrap:wrap;padding:calc(8px*var(--ui-scale)) 0;border-bottom:1px dashed #333f34}
+
+/* ---------- UI 动效 ---------- */
+/* 基础样式用 display:none 切换，过渡不会触发；这里改成常驻渲染 + visibility 控制 */
+.modal{
+  display:flex;opacity:0;pointer-events:none;visibility:hidden;
+  transition:opacity .2s ease,visibility .2s;
+}
+.modal.show{opacity:1;pointer-events:auto;visibility:visible}
+.modal .modal-box{transform:translateY(14px) scale(.975);opacity:0;transition:transform .24s cubic-bezier(.2,1.2,.4,1),opacity .2s}
+.modal.show .modal-box{transform:translateY(0) scale(1);opacity:1}
+.row,.mini,.tab,.side-panel button,.toolbar button,.hud-icon-btn{will-change:transform}
+.mini:active{transform:scale(.95)}
+.tab:active{transform:scale(.97)}
+.hud-val{transition:color .2s}
+@keyframes v9pop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+.pop{animation:v9pop .32s ease-out}
+@keyframes v9fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.modal.show .row,.modal.show .ach-card,.modal.show .task-row,.modal.show .slot-card{animation:v9fadeup .26s backwards}
+.modal.show .row:nth-child(2){animation-delay:.03s}
+.modal.show .row:nth-child(3){animation-delay:.06s}
+.modal.show .row:nth-child(4){animation-delay:.09s}
+.modal.show .row:nth-child(5){animation-delay:.12s}
+
+/* =====================================================================
+ * v9.1：扩建面板、商店分隔、以及桌面端自定义指针
+ * ===================================================================== */
+
+/* ---------- 扩建面板 ---------- */
+.exp-head{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:calc(8px*var(--ui-scale));
+  margin-bottom:calc(12px*var(--ui-scale));
+}
+.exp-stat{
+  background:#232c24;border:1px solid #333f34;border-radius:calc(10px*var(--ui-scale));
+  padding:calc(8px*var(--ui-scale)) calc(4px*var(--ui-scale));text-align:center;
+}
+.exp-stat b{display:block;font-size:calc(16px*var(--ui-scale));color:#ffd76e;font-variant-numeric:tabular-nums}
+.exp-stat span{font-size:calc(10px*var(--ui-scale));color:#8b9a8d}
+.exp-grid{display:grid;grid-template-columns:1fr 1fr;gap:calc(10px*var(--ui-scale))}
+.exp-btn{
+  display:flex;flex-direction:column;align-items:center;gap:calc(2px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale)) calc(8px*var(--ui-scale));
+  background:#232c24;border:1px solid #3a4a3c;border-radius:calc(12px*var(--ui-scale));
+  color:#dbe4dc;font-family:inherit;cursor:pointer;transition:.15s;
+}
+.exp-btn:hover{background:#2c3a2e;border-color:#7fd67f;transform:translateY(-1px)}
+.exp-btn:active{transform:scale(.98)}
+.exp-btn .exp-dir{font-size:calc(13px*var(--ui-scale));font-weight:700}
+.exp-btn .exp-kind{font-size:calc(11px*var(--ui-scale));color:#9fe07a}
+.exp-btn .exp-price{font-size:calc(12px*var(--ui-scale));color:#ffd76e;font-weight:700;font-variant-numeric:tabular-nums}
+.exp-btn.stone .exp-kind{color:#c8c8d6}
+.exp-btn.stone{border-style:dashed}
+.exp-btn.poor{opacity:.5}
+
+/* ---------- 商店分隔 ---------- */
+.shop-sep{
+  margin:calc(14px*var(--ui-scale)) 0 calc(6px*var(--ui-scale));
+  padding-top:calc(10px*var(--ui-scale));border-top:1px solid #333f34;
+  font-size:calc(11px*var(--ui-scale));color:#8b9a8d;
+}
+
+/* ---------- 桌面端指针（触屏不显示，靠 media query 排除） ---------- */
+@media (hover:hover) and (pointer:fine){
+  /* 田间指针：白芯深边的箭头，比默认 crosshair 好看也更好定位 */
+  canvas#game{
+    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cpath d='M5 2 L5 20 L9.5 15.6 L12.6 22.4 L15.6 21 L12.6 14.4 L19 14 Z' fill='%23fdfcf6' stroke='%23241d18' stroke-width='1.6' stroke-linejoin='round'/%3E%3Ccircle cx='19.5' cy='19.5' r='3.2' fill='%237fd67f' stroke='%23241d18' stroke-width='1.2'/%3E%3C/svg%3E") 5 2, auto;
+  }
+  /* 平移模式：抓手 */
+  body.pan-mode canvas#game{
+    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M9 15 L9 8.5 a1.6 1.6 0 0 1 3.2 0 L12.2 14 L12.2 6.5 a1.6 1.6 0 0 1 3.2 0 L15.4 14 L15.4 7.5 a1.6 1.6 0 0 1 3.2 0 L18.6 15 L18.6 10 a1.6 1.6 0 0 1 3.2 0 L21.8 18 c0 5 -3.4 8 -8 8 c-4.6 0 -8 -3 -8 -7 L5.8 16 a1.6 1.6 0 0 1 3.2 -1 z' fill='%23fdfcf6' stroke='%23241d18' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 10 4, grab;
+  }
+  body.pan-mode canvas#game:active{cursor:grabbing}
+  .side-panel button,.toolbar button,.hud-icon-btn,.mini,.tab,.exp-btn,.modal-close{cursor:pointer}
+  .exp-btn{cursor:crosshair}
+}
+
+/* 网格按钮的开/关状态标记 */
+.side-panel button .st{
+  margin-left:auto;font-size:calc(10px*var(--ui-scale));font-weight:700;
+  color:#7d8f7f;background:rgba(255,255,255,.06);
+  border-radius:999px;padding:1px calc(6px*var(--ui-scale));
+}
+.side-panel button .st.on{color:#0f1a10;background:#7fd67f}
+
+/* ---------- 扩建模式：底部信息条 ---------- */
+.expand-bar{
+  /* 放在 HUD 下方，避免和底部工具栏/提示条打架 */
+  position:fixed;top:calc(74px*var(--ui-scale));left:50%;transform:translateX(-50%) translateY(-12px);
+  background:rgba(18,26,18,.94);backdrop-filter:blur(12px);
+  border:1px solid #4d8a4a;border-radius:calc(14px*var(--ui-scale));
+  padding:calc(8px*var(--ui-scale)) calc(14px*var(--ui-scale));
+  box-shadow:0 12px 40px rgba(0,0,0,.55);
+  z-index:11;font-size:calc(12px*var(--ui-scale));color:#cfe6cf;
+  opacity:0;pointer-events:none;transition:.2s;max-width:94vw;
+}
+.expand-bar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+.expand-bar .eb-row{display:flex;align-items:center;gap:calc(10px*var(--ui-scale));flex-wrap:wrap;justify-content:center}
+.expand-bar .eb-title{font-weight:700;color:#ffd76e}
+.expand-bar .eb-item{
+  background:rgba(255,255,255,.06);border-radius:999px;
+  padding:calc(3px*var(--ui-scale)) calc(9px*var(--ui-scale));white-space:nowrap;
+}
+.expand-bar .eb-item b{color:#ffd76e}
+.expand-bar .eb-item.poor{opacity:.5}
+.expand-bar .eb-sub{margin-top:calc(4px*var(--ui-scale));font-size:calc(10px*var(--ui-scale));color:#8b9a8d}
+
+
+/* ---------- HUD「⋯」展开面板 + 窄屏 ---------- */
+.hud-more{
+  position:fixed;top:calc(62px*var(--ui-scale));left:50%;
+  transform:translateX(-50%) translateY(-8px);
+  background:rgba(28,34,26,.95);backdrop-filter:blur(12px);
+  border-radius:calc(12px*var(--ui-scale));
+  padding:calc(8px*var(--ui-scale)) calc(12px*var(--ui-scale));
+  box-shadow:0 12px 32px rgba(0,0,0,.5);
+  z-index:10;opacity:0;pointer-events:none;transition:.2s;
+  display:flex;flex-direction:column;gap:calc(5px*var(--ui-scale));
+  font-size:calc(12px*var(--ui-scale));color:#cfe6cf;
+}
+.hud-more.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+.hud-more-row{display:flex;align-items:center;gap:calc(6px*var(--ui-scale));white-space:nowrap}
+.hud-more-row b{color:#ffd76e;font-variant-numeric:tabular-nums;min-width:calc(38px*var(--ui-scale));text-align:right}
+.hud-more-row .hud-unit{font-size:calc(10px*var(--ui-scale));color:#8b9a8d}
+#moreBtn{font-size:calc(19px*var(--ui-scale));line-height:1;font-weight:700}
+
+/* 窄屏：HUD 只留一行，压缩内边距与图标，避免字太小 */
+@media (max-width:560px){
+  .hud{gap:calc(3px*var(--ui-scale));padding:calc(5px*var(--ui-scale))}
+  .hud-item{padding:calc(5px*var(--ui-scale)) calc(8px*var(--ui-scale));gap:calc(3px*var(--ui-scale))}
+  .hud-ico{font-size:calc(14px*var(--ui-scale))}
+  .hud-val{min-width:calc(20px*var(--ui-scale))}
+  .hud-icon-btn{width:calc(28px*var(--ui-scale));height:calc(28px*var(--ui-scale));font-size:calc(14px*var(--ui-scale))}
+  .hud-sep{height:calc(16px*var(--ui-scale))}
+  .tool-hint{font-size:calc(10px*var(--ui-scale));max-width:94vw}
+}
+
+
+/* ---------- 成就：奖励行与领取按钮 ---------- */
+.ach-reward{font-size:calc(10px*var(--ui-scale));color:#ffd76e;margin-top:calc(2px*var(--ui-scale))}
+.ach-card{position:relative}
+.ach-card .ach-claim{
+  position:absolute;right:calc(8px*var(--ui-scale));top:50%;transform:translateY(-50%);
+  min-width:calc(52px*var(--ui-scale));
+}
+.ach-card .ach-info{padding-right:calc(66px*var(--ui-scale))}
+.ach-card.claimed{opacity:.62}
+
+/* =====================================================================
+ * 竖屏 / 手机：顶栏与工具栏自适应到屏幕宽度，按钮加大更好点
+ * （UI 缩放 --ui-scale 在手机上最小会到 0.6，所以关键尺寸用 max() 兜底）
+ * ===================================================================== */
+@media (orientation: portrait), (max-width: 620px){
+  /* 手机上一律用固定尺寸兜底：--ui-scale 会被压到 0.6，calc(12px*0.6)=7px 根本看不清。
+     这套变量把「顶栏 / 工具栏 / 提示条 / 飘字」的位置串成一条链，改一个数不会互相打架。 */
+  :root{
+    --m-edge: max(6px, calc(8px*var(--ui-scale)));
+    --m-safe-b: env(safe-area-inset-bottom, 0px);
+    --m-safe-t: env(safe-area-inset-top, 0px);
+    --m-hud-h: calc(max(34px, calc(36px*var(--ui-scale))) + 2*max(5px, calc(6px*var(--ui-scale))));
+    --m-toolbar-btn: max(46px, calc(48px*var(--ui-scale)));
+    --m-toolbar-h: calc(var(--m-toolbar-btn) + 2*max(4px, calc(6px*var(--ui-scale))));
+    --m-toolbar-bottom: calc(max(12px, calc(18px*var(--ui-scale))) + var(--m-safe-b));
+    --m-hint-bottom: calc(var(--m-toolbar-bottom) + var(--m-toolbar-h) + 8px);   /* 提示条贴工具栏上沿 */
+    --m-toast-bottom: calc(var(--m-hint-bottom) + 44px);                         /* 飘字在提示条上方 */
+    --m-bottom-reserve: calc(var(--m-toast-bottom) + 34px);                      /* 屏幕底部「别放东西」的高度 */
+  }
+
+  .hud{
+    top: calc(max(6px, calc(8px*var(--ui-scale))) + var(--m-safe-t));
+    left: var(--m-edge); right: var(--m-edge); transform: none;
+    justify-content: space-between;
+    border-radius: calc(14px*var(--ui-scale));
+    padding: max(5px, calc(6px*var(--ui-scale)));
+  }
+  .hud-item{
+    flex: 1 1 auto; justify-content: center;
+    padding: max(5px, calc(7px*var(--ui-scale))) max(4px, calc(6px*var(--ui-scale)));
+    font-size: max(13px, calc(14px*var(--ui-scale)));
+  }
+  .hud-ico{ font-size: max(15px, calc(16px*var(--ui-scale))) }
+  .hud-val{ min-width: max(22px, calc(26px*var(--ui-scale))) }
+  .hud-icon-btn{
+    width: max(34px, calc(36px*var(--ui-scale)));
+    height: max(34px, calc(36px*var(--ui-scale)));
+    font-size: max(16px, calc(17px*var(--ui-scale)));
+  }
+  .hud-sep{ display: none }
+  /* 手机上顶栏已经很满：🏅 排行榜入口收进侧栏（侧栏那个入口一直在），别把顶栏挤变形 */
+  #lbBtn{ display: none }
+
+  .toolbar{
+    left: var(--m-edge); right: var(--m-edge); transform: none;
+    justify-content: space-between;
+    border-radius: calc(16px*var(--ui-scale));
+    padding: max(4px, calc(6px*var(--ui-scale)));
+    bottom: var(--m-toolbar-bottom);
+  }
+  .toolbar button{
+    flex: 1 1 0; min-width: 0;
+    min-height: var(--m-toolbar-btn);
+    padding: max(4px, calc(7px*var(--ui-scale))) 2px;
+    font-size: max(11px, calc(11px*var(--ui-scale)));
+  }
+  .toolbar button .ti{ font-size: max(22px, calc(22px*var(--ui-scale))) }
+
+  /* 提示条：紧贴工具栏上沿、按内容自适应宽度（不再横贯整屏、也不飘到屏幕中间） */
+  .tool-hint{
+    left: 50%; right: auto; transform: translateX(-50%);
+    bottom: var(--m-hint-bottom);
+    max-width: min(92vw, calc(100vw - 108px));
+    white-space: normal; text-align: center;
+    font-size: max(11px, calc(12px*var(--ui-scale)));
+    line-height: 1.35;
+    padding: max(4px, calc(5px*var(--ui-scale))) max(10px, calc(13px*var(--ui-scale)));
+  }
+  /* 飘字：在提示条上方，同样按内容自适应宽度 */
+  #toast{
+    left: 50%; right: auto; transform: translate(-50%, 14px);
+    bottom: var(--m-toast-bottom);
+    max-width: 92vw; white-space: normal; text-align: center;
+    font-size: max(12px, calc(13px*var(--ui-scale)));
+    padding: max(7px, calc(9px*var(--ui-scale))) max(14px, calc(20px*var(--ui-scale)));
+  }
+  #toast.show{ transform: translate(-50%, 0) }
+  .expand-bar{
+    left: var(--m-edge); right: var(--m-edge); transform: translateY(-12px);
+    max-height: 42vh; overflow-y: auto;
+  }
+  .expand-bar.show{ transform: translateY(0) }
+  .expand-bar .eb-sub{ font-size: max(10px, calc(10px*var(--ui-scale))) }
+  .hud-more{ left: var(--m-edge); right: var(--m-edge); transform: translateY(-8px); align-items: center }
+  .hud-more.show{ transform: translateY(0) }
+
+  /* 侧栏：从顶栏下方开始，底部给提示条/飘字留位（位置由 placeSidePanel() 按这些边界算） */
+  .side-panel{
+    right: var(--m-edge); padding: max(5px, calc(6px*var(--ui-scale)));
+    gap: max(3px, calc(4px*var(--ui-scale)));
+    max-height: calc(100vh - var(--m-hud-h) - var(--m-bottom-reserve) - 28px);
+    overflow-y: auto;
+  }
+  .side-panel button{
+    min-width: max(72px, calc(84px*var(--ui-scale)));
+    height: max(32px, calc(34px*var(--ui-scale)));
+    font-size: max(12px, calc(12px*var(--ui-scale)));
+  }
+  .side-panel button .st{ font-size: max(10px, calc(10px*var(--ui-scale))); color:#9fd6a2; opacity:.95 }
+  .modal-box{ max-width: calc(100vw - 12px); max-height: 78vh }
+}

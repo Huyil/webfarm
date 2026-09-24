@@ -1,0 +1,22 @@
+/* 仓储 */
+.wh-toggle{
+  display:flex;align-items:center;gap:calc(10px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale)) calc(14px*var(--ui-scale));
+  margin-bottom:calc(12px*var(--ui-scale));
+  background:rgba(255,215,110,.06);
+  border:1px solid rgba(255,215,110,.2);
+  border-radius:calc(11px*var(--ui-scale));
+}
+.wh-info{flex:1}
+.wh-title{font-size:calc(13px*var(--ui-scale));font-weight:700;color:#dbe4dc}
+.wh-desc{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-top:2px}
+.wh-btn{
+  padding:calc(7px*var(--ui-scale)) calc(14px*var(--ui-scale));
+  border-radius:999px;border:none;
+  font-size:calc(12px*var(--ui-scale));font-weight:700;
+  cursor:pointer;font-family:inherit;
+  min-width:calc(76px*var(--ui-scale));
+}
+.wh-btn.on{background:#2f6b3a;color:#d8ffd8}
+.wh-btn.off{background:#5c4a1e;color:#ffd76e}
+

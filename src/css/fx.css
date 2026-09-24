@@ -1,0 +1,54 @@
+/* Toast */
+#toast{
+  position:fixed;left:50%;bottom:calc(136px*var(--ui-scale));   /* 让开下方的工具提示条 */
+  transform:translate(-50%,16px);
+  background:rgba(15,20,16,.97);
+  border:1px solid rgba(120,180,120,.25);
+  color:#e4f2e4;
+  padding:calc(9px*var(--ui-scale)) calc(20px*var(--ui-scale));
+  border-radius:999px;font-size:calc(13px*var(--ui-scale));
+  opacity:0;pointer-events:none;transition:.25s;z-index:999;white-space:nowrap;
+  box-shadow:0 8px 28px rgba(0,0,0,.6);
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 浮字 */
+.float-plus{
+  position:fixed;z-index:95;pointer-events:none;
+  font-size:calc(22px*var(--ui-scale));font-weight:900;color:#ffd76e;
+  -webkit-text-stroke:2px #1a1f1a;paint-order:stroke fill;
+  animation:floatUp .95s ease-out forwards;
+}
+@keyframes floatUp{
+  0%{opacity:0;transform:translate(-50%,0) scale(.8)}
+  25%{opacity:1;transform:translate(-50%,-16px) scale(1.22)}
+  100%{opacity:0;transform:translate(-50%,-66px) scale(.95)}
+}
+.fly-item{
+  position:fixed;width:calc(42px*var(--ui-scale));height:calc(42px*var(--ui-scale));
+  z-index:95;pointer-events:none;
+  margin-left:calc(-21px*var(--ui-scale));margin-top:calc(-21px*var(--ui-scale));
+  display:grid;place-items:center;font-size:calc(32px*var(--ui-scale));
+}
+
+/* 成就解锁浮条 */
+.ach-toast{
+  position:fixed;top:calc(80px*var(--ui-scale));left:50%;
+  transform:translateX(-50%) translateY(-20px);
+  background:linear-gradient(135deg,#2f6b3a,#1f3520);
+  border:1px solid #7fd67f;
+  border-radius:calc(14px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale)) calc(20px*var(--ui-scale));
+  display:flex;align-items:center;gap:calc(10px*var(--ui-scale));
+  color:#d8ffd8;font-weight:700;
+  z-index:200;opacity:0;transition:.4s;
+  box-shadow:0 8px 28px rgba(0,0,0,.5);
+  pointer-events:none;white-space:nowrap;
+}
+.ach-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.ach-toast-icon{font-size:calc(28px*var(--ui-scale))}
+.ach-toast-label{
+  font-size:calc(10px*var(--ui-scale));
+  color:#7fd67f;letter-spacing:2px;
+}
+.ach-toast-name{font-size:calc(14px*var(--ui-scale))}

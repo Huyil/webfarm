@@ -1,0 +1,2245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>小田园 · v8.0</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+:root{--ui-scale:1}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:radial-gradient(circle at 50% 0%,#2c3a2a,#1a1f1a 60%,#121512 100%);
+  color:#e8e8f0;-webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;touch-action:none;
+}
+canvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+
+/* HUD */
+.hud{
+  position:fixed;top:calc(16px*var(--ui-scale));left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:calc(6px*var(--ui-scale));
+  background:rgba(248,243,228,.85);backdrop-filter:blur(12px);
+  border-radius:999px;padding:calc(8px*var(--ui-scale));
+  box-shadow:0 8px 28px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.6);
+  z-index:10;
+}
+.hud-item{
+  display:flex;align-items:center;gap:calc(6px*var(--ui-scale));
+  padding:calc(6px*var(--ui-scale)) calc(16px*var(--ui-scale));
+  border-radius:999px;background:rgba(255,255,255,.55);
+  font-size:calc(14px*var(--ui-scale));font-weight:700;color:#3a3020;
+}
+.hud-ico{font-size:calc(16px*var(--ui-scale))}
+.hud-val{color:#b8720a;font-variant-numeric:tabular-nums;min-width:calc(26px*var(--ui-scale));text-align:right}
+.hud-icon-btn{
+  width:calc(36px*var(--ui-scale));height:calc(36px*var(--ui-scale));
+  border-radius:50%;border:none;
+  background:rgba(255,255,255,.55);cursor:pointer;
+  display:grid;place-items:center;
+  font-size:calc(17px*var(--ui-scale));
+  position:relative;
+  transition:.15s;
+}
+.hud-icon-btn:hover{background:rgba(255,255,255,.85)}
+.hud-icon-btn .badge{
+  position:absolute;top:calc(-4px*var(--ui-scale));right:calc(-4px*var(--ui-scale));
+  min-width:calc(16px*var(--ui-scale));height:calc(16px*var(--ui-scale));
+  border-radius:calc(8px*var(--ui-scale));
+  background:#e06b6b;color:#fff;
+  font-size:calc(10px*var(--ui-scale));font-weight:700;
+  display:grid;place-items:center;padding:0 calc(4px*var(--ui-scale));
+  font-variant-numeric:tabular-nums;border:1.5px solid #1c231d;
+}
+.hud-sep{width:1px;height:calc(20px*var(--ui-scale));background:rgba(58,48,32,.2);margin:0 calc(2px*var(--ui-scale))}
+
+/* 工具栏 */
+.toolbar{
+  position:fixed;bottom:calc(20px*var(--ui-scale));left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:calc(4px*var(--ui-scale));
+  background:rgba(28,34,26,.94);backdrop-filter:blur(12px);
+  border-radius:999px;padding:calc(8px*var(--ui-scale));
+  box-shadow:0 12px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);
+  z-index:10;max-width:calc(100vw - 16px);
+}
+.toolbar button{
+  background:transparent;border:2px solid transparent;border-radius:999px;
+  color:#93a894;padding:calc(8px*var(--ui-scale));cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  gap:calc(2px*var(--ui-scale));
+  font-size:calc(10px*var(--ui-scale));font-family:inherit;transition:.15s;
+  min-width:calc(48px*var(--ui-scale));
+}
+.toolbar button .ti{font-size:calc(19px*var(--ui-scale))}
+.toolbar button:hover{background:rgba(255,255,255,.06)}
+.toolbar button.active{border-color:#7fd67f;background:rgba(80,150,80,.25);color:#c8f7c5}
+
+/* 侧栏 */
+.side-panel{
+  position:fixed;right:calc(18px*var(--ui-scale));
+  display:flex;flex-direction:column;gap:calc(6px*var(--ui-scale));
+  background:rgba(28,34,26,.94);backdrop-filter:blur(12px);
+  border-radius:calc(14px*var(--ui-scale));padding:calc(10px*var(--ui-scale));
+  box-shadow:0 12px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);
+  z-index:10;cursor:grab;touch-action:none;
+}
+.side-panel:active{cursor:grabbing}
+.side-panel button{
+  width:calc(40px*var(--ui-scale));height:calc(40px*var(--ui-scale));
+  border-radius:calc(10px*var(--ui-scale));
+  background:rgba(255,255,255,.04);border:2px solid transparent;
+  color:#93a894;font-size:calc(15px*var(--ui-scale));
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:.15s;font-family:inherit;position:relative;
+}
+.side-panel button:hover{background:rgba(255,255,255,.08)}
+.side-panel button.active{border-color:#7fd67f;background:rgba(80,150,80,.25);color:#c8f7c5}
+.side-panel button .badge{
+  position:absolute;top:calc(-4px*var(--ui-scale));right:calc(-4px*var(--ui-scale));
+  min-width:calc(16px*var(--ui-scale));height:calc(16px*var(--ui-scale));
+  border-radius:calc(8px*var(--ui-scale));
+  background:#e06b6b;color:#fff;
+  font-size:calc(10px*var(--ui-scale));font-weight:700;
+  display:grid;place-items:center;padding:0 calc(4px*var(--ui-scale));
+  font-variant-numeric:tabular-nums;border:1.5px solid #1c231d;
+}
+
+/* 弹层 */
+.modal{
+  position:fixed;inset:0;background:rgba(8,10,8,.82);
+  display:none;align-items:center;justify-content:center;
+  z-index:100;padding:20px;backdrop-filter:blur(3px);
+}
+.modal.show{display:flex}
+.modal-box{
+  background:linear-gradient(180deg,#262e27,#1c231d);
+  border:1px solid #35422f;border-radius:calc(18px*var(--ui-scale));
+  padding:calc(20px*var(--ui-scale));max-width:420px;width:100%;
+  max-height:82vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.7);
+}
+.modal-box h4{
+  font-size:calc(14px*var(--ui-scale));color:#c8d6c9;
+  margin-bottom:calc(14px*var(--ui-scale));letter-spacing:1px;
+}
+.modal-close{
+  width:100%;margin-top:calc(10px*var(--ui-scale));
+  background:transparent;border:1px solid #3a4a3c;
+  color:#7d8f7f;border-radius:calc(10px*var(--ui-scale));
+  padding:calc(9px*var(--ui-scale));font-size:calc(12px*var(--ui-scale));
+  cursor:pointer;font-family:inherit;transition:.15s;
+}
+.modal-close:hover{border-color:#e06b6b;color:#e06b6b}
+
+/* 设置面板行 */
+.setting-row{
+  display:flex;align-items:center;gap:calc(12px*var(--ui-scale));
+  padding:calc(14px*var(--ui-scale)) calc(16px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;
+  border-radius:calc(12px*var(--ui-scale));
+  margin-bottom:calc(8px*var(--ui-scale));
+}
+.setting-info{flex:1}
+.setting-title{font-size:calc(14px*var(--ui-scale));font-weight:700;color:#dbe4dc}
+.setting-desc{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-top:2px}
+.toggle{
+  width:calc(48px*var(--ui-scale));height:calc(26px*var(--ui-scale));
+  background:#3a4a3c;border-radius:999px;
+  position:relative;cursor:pointer;transition:.2s;flex-shrink:0;
+}
+.toggle.on{background:#2f6b3a}
+.toggle::after{
+  content:'';position:absolute;top:calc(3px*var(--ui-scale));
+  left:calc(3px*var(--ui-scale));
+  width:calc(20px*var(--ui-scale));height:calc(20px*var(--ui-scale));
+  border-radius:50%;background:#e8e8f0;transition:.2s;
+}
+.toggle.on::after{left:calc(25px*var(--ui-scale))}
+
+/* 通用行 */
+.row{
+  display:flex;align-items:center;gap:calc(9px*var(--ui-scale));
+  padding:calc(11px*var(--ui-scale)) calc(13px*var(--ui-scale));
+  margin-bottom:calc(6px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;
+  border-radius:calc(11px*var(--ui-scale));
+  font-size:calc(13px*var(--ui-scale));color:#c2cfc4;
+}
+.row.clickable{cursor:pointer;transition:.15s}
+.row.clickable:hover{background:#2f3a30;border-color:#4d8a4a}
+.row.active{background:#1f3520;box-shadow:inset 0 0 0 1px #4d8a4a}
+.r-ico{
+  width:calc(38px*var(--ui-scale));height:calc(38px*var(--ui-scale));
+  flex:none;border-radius:calc(9px*var(--ui-scale));
+  display:grid;place-items:center;font-size:calc(20px*var(--ui-scale));
+  background:rgba(0,0,0,.25);
+}
+.r-name{flex:1;font-weight:700;color:#dbe4dc}
+.r-meta{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-top:2px}
+.r-count{color:#ffd76e;font-weight:700;font-size:calc(13px*var(--ui-scale))}
+.r-price{
+  color:#ffd76e;font-weight:700;font-size:calc(12px*var(--ui-scale));
+  background:rgba(255,215,110,.15);
+  padding:calc(3px*var(--ui-scale)) calc(9px*var(--ui-scale));
+  border-radius:999px;
+}
+.mini{
+  background:#2f6b3a;border:none;color:#d8ffd8;
+  font-size:calc(11px*var(--ui-scale));
+  padding:calc(5px*var(--ui-scale)) calc(10px*var(--ui-scale));
+  border-radius:calc(7px*var(--ui-scale));
+  cursor:pointer;font-family:inherit;white-space:nowrap;
+}
+.mini:hover{background:#3d8a4b}
+.mini.sell{background:#5c4a1e;color:#ffd76e}
+.empty{font-size:calc(12px*var(--ui-scale));color:#5d6675;padding:calc(14px*var(--ui-scale)) 4px;text-align:center}
+
+/* 仓储 */
+.wh-toggle{
+  display:flex;align-items:center;gap:calc(10px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale)) calc(14px*var(--ui-scale));
+  margin-bottom:calc(12px*var(--ui-scale));
+  background:rgba(255,215,110,.06);
+  border:1px solid rgba(255,215,110,.2);
+  border-radius:calc(11px*var(--ui-scale));
+}
+.wh-info{flex:1}
+.wh-title{font-size:calc(13px*var(--ui-scale));font-weight:700;color:#dbe4dc}
+.wh-desc{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-top:2px}
+.wh-btn{
+  padding:calc(7px*var(--ui-scale)) calc(14px*var(--ui-scale));
+  border-radius:999px;border:none;
+  font-size:calc(12px*var(--ui-scale));font-weight:700;
+  cursor:pointer;font-family:inherit;
+  min-width:calc(76px*var(--ui-scale));
+}
+.wh-btn.on{background:#2f6b3a;color:#d8ffd8}
+.wh-btn.off{background:#5c4a1e;color:#ffd76e}
+
+/* Toast */
+#toast{
+  position:fixed;left:50%;bottom:calc(100px*var(--ui-scale));
+  transform:translate(-50%,16px);
+  background:rgba(15,20,16,.97);
+  border:1px solid rgba(120,180,120,.25);
+  color:#e4f2e4;
+  padding:calc(9px*var(--ui-scale)) calc(20px*var(--ui-scale));
+  border-radius:999px;font-size:calc(13px*var(--ui-scale));
+  opacity:0;pointer-events:none;transition:.25s;z-index:999;white-space:nowrap;
+  box-shadow:0 8px 28px rgba(0,0,0,.6);
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 浮字 */
+.float-plus{
+  position:fixed;z-index:95;pointer-events:none;
+  font-size:calc(22px*var(--ui-scale));font-weight:900;color:#ffd76e;
+  -webkit-text-stroke:2px #1a1f1a;paint-order:stroke fill;
+  animation:floatUp .95s ease-out forwards;
+}
+@keyframes floatUp{
+  0%{opacity:0;transform:translate(-50%,0) scale(.8)}
+  25%{opacity:1;transform:translate(-50%,-16px) scale(1.22)}
+  100%{opacity:0;transform:translate(-50%,-66px) scale(.95)}
+}
+.fly-item{
+  position:fixed;width:calc(42px*var(--ui-scale));height:calc(42px*var(--ui-scale));
+  z-index:95;pointer-events:none;
+  margin-left:calc(-21px*var(--ui-scale));margin-top:calc(-21px*var(--ui-scale));
+  display:grid;place-items:center;font-size:calc(32px*var(--ui-scale));
+}
+
+/* 成就 / 任务 / 公告 */
+.tabs{display:flex;gap:calc(6px*var(--ui-scale));margin-bottom:calc(14px*var(--ui-scale))}
+.tab{
+  flex:1;padding:calc(8px*var(--ui-scale));
+  border-radius:calc(10px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;color:#8b9a8d;
+  font-family:inherit;font-size:calc(13px*var(--ui-scale));font-weight:700;cursor:pointer;
+  transition:.15s;
+  position:relative;
+}
+.tab.active{background:#1f3520;border-color:#4d8a4a;color:#c8f7c5}
+.tab .badge{
+  position:absolute;top:calc(-4px*var(--ui-scale));right:calc(-4px*var(--ui-scale));
+  min-width:calc(16px*var(--ui-scale));height:calc(16px*var(--ui-scale));
+  border-radius:calc(8px*var(--ui-scale));
+  background:#e06b6b;color:#fff;
+  font-size:calc(10px*var(--ui-scale));font-weight:700;
+  display:grid;place-items:center;padding:0 calc(4px*var(--ui-scale));
+  font-variant-numeric:tabular-nums;border:1.5px solid #1c231d;
+}
+
+.ach-card{
+  display:flex;gap:calc(12px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;
+  border-radius:calc(12px*var(--ui-scale));
+  margin-bottom:calc(8px*var(--ui-scale));
+  opacity:.5;transition:.2s;
+}
+.ach-card.unlocked{
+  opacity:1;
+  background:linear-gradient(135deg,#1f3520,#252c26);
+  border-color:#4d8a4a;
+}
+.ach-icon{
+  width:calc(44px*var(--ui-scale));height:calc(44px*var(--ui-scale));
+  flex-shrink:0;border-radius:50%;
+  background:rgba(0,0,0,.3);
+  display:grid;place-items:center;
+  font-size:calc(22px*var(--ui-scale));
+  filter:grayscale(1);
+}
+.ach-card.unlocked .ach-icon{
+  filter:none;background:rgba(255,215,110,.15);
+  box-shadow:0 0 12px rgba(255,215,110,.3);
+}
+.ach-info{flex:1;min-width:0}
+.ach-name{font-size:calc(14px*var(--ui-scale));font-weight:700;color:#dbe4dc}
+.ach-desc{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-top:2px}
+.ach-progress{
+  font-size:calc(11px*var(--ui-scale));color:#ffd76e;
+  margin-top:4px;font-variant-numeric:tabular-nums;
+}
+
+.task-card{
+  padding:calc(12px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;
+  border-radius:calc(12px*var(--ui-scale));
+  margin-bottom:calc(8px*var(--ui-scale));
+  transition:.2s;
+}
+.task-card.done{
+  background:linear-gradient(135deg,#1f3520,#252c26);
+  border-color:#4d8a4a;
+}
+.task-top{
+  display:flex;justify-content:space-between;
+  align-items:center;margin-bottom:calc(6px*var(--ui-scale));
+}
+.task-desc{font-size:calc(13px*var(--ui-scale));color:#dbe4dc;font-weight:700}
+.task-reward{font-size:calc(12px*var(--ui-scale));color:#ffd76e;font-weight:700}
+.task-bar{
+  height:calc(8px*var(--ui-scale));
+  background:#1a1f1a;border-radius:999px;
+  overflow:hidden;margin-top:calc(8px*var(--ui-scale));
+}
+.task-bar-fill{
+  height:100%;border-radius:999px;
+  background:linear-gradient(90deg,#7fd67f,#4d8a4a);
+  transition:width .3s;
+}
+.task-btn{
+  margin-top:calc(8px*var(--ui-scale));width:100%;
+  padding:calc(8px*var(--ui-scale));
+  border-radius:calc(8px*var(--ui-scale));
+  background:#5c4a1e;color:#ffd76e;border:none;
+  font-weight:700;font-family:inherit;
+  font-size:calc(12px*var(--ui-scale));cursor:pointer;
+}
+.task-btn.ready{background:#2f6b3a;color:#d8ffd8}
+.task-btn:disabled{opacity:.4;cursor:not-allowed}
+.claim-all{
+  width:100%;margin-bottom:calc(12px*var(--ui-scale));
+  padding:calc(10px*var(--ui-scale));
+  border-radius:calc(10px*var(--ui-scale));
+  background:linear-gradient(135deg,#2f6b3a,#4d8a4a);
+  color:#e8ffe8;border:none;
+  font-weight:700;font-family:inherit;
+  font-size:calc(13px*var(--ui-scale));cursor:pointer;
+  transition:.15s;
+  box-shadow:0 4px 12px rgba(80,150,80,.3);
+}
+.claim-all:hover{
+  background:linear-gradient(135deg,#3d8a4b,#5ea85e);
+  transform:translateY(-1px);
+}
+
+.log-item{
+  padding:calc(14px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;
+  border-radius:calc(12px*var(--ui-scale));
+  margin-bottom:calc(10px*var(--ui-scale));
+}
+.log-header{
+  display:flex;justify-content:space-between;
+  align-items:baseline;margin-bottom:calc(8px*var(--ui-scale));
+}
+.log-version{
+  font-size:calc(14px*var(--ui-scale));font-weight:900;color:#c8f7c5;
+  background:#2f6b3a;
+  padding:calc(2px*var(--ui-scale)) calc(10px*var(--ui-scale));
+  border-radius:999px;
+}
+.log-date{font-size:calc(11px*var(--ui-scale));color:#8b9a8d}
+.log-title{
+  font-size:calc(13px*var(--ui-scale));color:#dbe4dc;
+  font-weight:700;margin-bottom:calc(6px*var(--ui-scale));
+}
+.log-list{list-style:none;padding:0}
+.log-list li{
+  font-size:calc(12px*var(--ui-scale));color:#a8b5a9;
+  padding-left:calc(16px*var(--ui-scale));
+  position:relative;margin-bottom:calc(4px*var(--ui-scale));line-height:1.5;
+}
+.log-list li::before{
+  content:'·';position:absolute;
+  left:calc(6px*var(--ui-scale));
+  color:#7fd67f;font-weight:900;
+}
+
+/* 成就解锁浮条 */
+.ach-toast{
+  position:fixed;top:calc(80px*var(--ui-scale));left:50%;
+  transform:translateX(-50%) translateY(-20px);
+  background:linear-gradient(135deg,#2f6b3a,#1f3520);
+  border:1px solid #7fd67f;
+  border-radius:calc(14px*var(--ui-scale));
+  padding:calc(12px*var(--ui-scale)) calc(20px*var(--ui-scale));
+  display:flex;align-items:center;gap:calc(10px*var(--ui-scale));
+  color:#d8ffd8;font-weight:700;
+  z-index:200;opacity:0;transition:.4s;
+  box-shadow:0 8px 28px rgba(0,0,0,.5);
+  pointer-events:none;white-space:nowrap;
+}
+.ach-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.ach-toast-icon{font-size:calc(28px*var(--ui-scale))}
+.ach-toast-label{
+  font-size:calc(10px*var(--ui-scale));
+  color:#7fd67f;letter-spacing:2px;
+}
+.ach-toast-name{font-size:calc(14px*var(--ui-scale))}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="hud-item">
+    <span class="hud-ico">💰</span>
+    <span class="hud-val" id="hudMoney">30</span>
+  </div>
+  <div class="hud-item">
+    <span class="hud-ico">🧪</span>
+    <span class="hud-val" id="hudFert">0</span>
+  </div>
+  <div class="hud-sep"></div>
+  <button class="hud-icon-btn" id="achBtn" title="成就">🏆</button>
+  <button class="hud-icon-btn" id="noticeBtn" title="公告">📢</button>
+</div>
+
+<div class="side-panel" id="sidePanel">
+  <button id="btnGrid" title="网格线">🔧</button>
+  <button id="btnShop" title="商店">🛒</button>
+  <button id="btnStore" title="仓库">
+    📦<span class="badge" id="storeBadge" style="display:none"></span>
+  </button>
+  <button id="btnPan" title="平移">✋</button>
+  <button id="btnSettings" title="设置">⚙️</button>
+</div>
+
+<div class="toolbar" id="toolbar">
+  <button data-tool="hoe"><span class="ti">⛏️</span>锄头</button>
+  <button data-tool="seed"><span class="ti">🌱</span>种子</button>
+  <button data-tool="water"><span class="ti">💧</span>水壶</button>
+  <button data-tool="fert"><span class="ti">🧪</span>肥料</button>
+  <button data-tool="sickle"><span class="ti">✂️</span>收获</button>
+</div>
+
+<div class="modal" id="seedModal">
+  <div class="modal-box">
+    <h4>🌱 选择种子</h4>
+    <div id="seedList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="shopModal">
+  <div class="modal-box">
+    <h4>🛒 商店</h4>
+    <div id="shopList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="storeModal">
+  <div class="modal-box">
+    <h4>📦 我的仓库</h4>
+    <div class="wh-toggle">
+      <div class="wh-info">
+        <div class="wh-title">仓储模式</div>
+        <div class="wh-desc" id="whDesc">开启：收获存入仓库</div>
+      </div>
+      <button class="wh-btn on" id="whBtn">已开启</button>
+    </div>
+    <div id="storeList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="settingsModal">
+  <div class="modal-box">
+    <h4>⚙️ 设置</h4>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">音效</div>
+        <div class="setting-desc">播种、浇水、收获、购买时播放</div>
+      </div>
+      <div class="toggle on" id="toggleSound"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">粒子特效</div>
+        <div class="setting-desc">浇水水花、收获星星、金币飘散</div>
+      </div>
+      <div class="toggle on" id="toggleParticles"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-title">仓储模式</div>
+        <div class="setting-desc">关闭后收获时自动出售</div>
+      </div>
+      <div class="toggle on" id="toggleWarehouse"></div>
+    </div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="achievementModal">
+  <div class="modal-box">
+    <h4>🏆 成就与任务</h4>
+    <button class="claim-all" id="claimAllBtn" style="display:none">✨ 一键领取全部奖励</button>
+    <div class="tabs">
+      <button class="tab active" id="tabAch">成就</button>
+      <button class="tab" id="tabTask">任务</button>
+    </div>
+    <div id="achList"></div>
+    <div id="taskList" style="display:none"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="noticeModal">
+  <div class="modal-box">
+    <h4>📢 更新公告</h4>
+    <div id="logList"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============ 常量 ============ */
+const MAP_W=14, MAP_H=14, FARM_X0=6, FARM_Y0=5, FARM_W=2, FARM_H=3;
+const TILE_W=256, TILE_H=128, HALF_W=128, HALF_H=64, SCALE=0.3, THICKNESS=40;
+const START_COINS=30, WATER_MULT=2, FERT_MULT=1.5, FERT_COST=3;
+const OFFLINE_RATE=0.4, OFFLINE_CAP=8*3600*1000, SAVE_KEY='iso_farm_v8_0';
+
+const CROPS = {
+  carrot:{id:'carrot',name:'胡萝卜',emoji:'🥕',seedCost:4,sellPrice:10,stageMs:12000,tag:'生长快'},
+  potato:{id:'potato',name:'土豆',emoji:'🥔',seedCost:6,sellPrice:16,stageMs:18000,tag:'收益稳'},
+  rice:{id:'rice',name:'水稻',emoji:'🌾',seedCost:10,sellPrice:30,stageMs:30000,tag:'收益高'}
+};
+const CROP_IDS = Object.keys(CROPS);
+
+/* ===== 装饰物 ===== */
+const DEFAULT_DECORATIONS = [
+  { type:'tree',   gx:0,  gy:0,  seed:0 },
+  { type:'tree',   gx:13, gy:0,  seed:1 },
+  { type:'tree',   gx:0,  gy:13, seed:2 },
+  { type:'tree',   gx:13, gy:13, seed:3 },
+  { type:'tree',   gx:2,  gy:11, seed:4 },
+  { type:'tree',   gx:11, gy:2,  seed:5 },
+  { type:'rock',   gx:1,  gy:3,  seed:10 },
+  { type:'rock',   gx:4,  gy:0,  seed:11 },
+  { type:'rock',   gx:10, gy:13, seed:12 },
+  { type:'rock',   gx:12, gy:4,  seed:13 },
+  { type:'bush',   gx:3,  gy:1,  seed:20 },
+  { type:'bush',   gx:8,  gy:0,  seed:21 },
+  { type:'bush',   gx:0,  gy:7,  seed:22 },
+  { type:'bush',   gx:13, gy:8,  seed:23 },
+  { type:'bush',   gx:5,  gy:13, seed:24 },
+  { type:'flower', gx:2,  gy:4,  seed:30 },
+  { type:'flower', gx:4,  gy:2,  seed:31 },
+  { type:'flower', gx:6,  gy:1,  seed:32 },
+  { type:'flower', gx:9,  gy:1,  seed:33 },
+  { type:'flower', gx:12, gy:1,  seed:34 },
+  { type:'flower', gx:2,  gy:9,  seed:35 },
+  { type:'flower', gx:11, gy:10, seed:36 },
+  { type:'flower', gx:4,  gy:12, seed:37 },
+];
+
+/* ===== 更新公告 ===== */
+const CHANGELOG = [
+  {
+    version: 'v8.0', date: '2026-09-23', title: '装饰、小人与稳定性修复',
+    items: [
+      '新增装饰物：树 / 石头 / 灌木 / 花，按深度排序绘制',
+      '新增小人角色：Q 版大头 + 黑发 + 蓝衣 + 草帽',
+      '点击地块时小人会瞬移过去做出动作',
+      '修复若干脚本错误，提高稳定性',
+    ],
+  },
+  {
+    version: 'v7.9', date: '2026-09-23', title: '成就、任务与公告',
+    items: [
+      '新增 10 个成就，解锁时弹条提示',
+      '新增每日任务，每天从 12 个池子刷新 3 个，可领金币奖励',
+      '新增更新公告面板，未读时显示红点',
+      '一键领取全部任务奖励',
+    ],
+  },
+  {
+    version: 'v7.8', date: '2026-09-23', title: '音效、粒子与设置',
+    items: [
+      '新增音效系统：播种 / 浇水 / 收获 / 金币',
+      '新增粒子特效：水花 / 星尘 / 土块',
+      '新增设置面板，可开关音效 / 粒子 / 仓储',
+    ],
+  },
+];
+
+/* ===== 成就定义 ===== */
+const ACHIEVEMENTS = [
+  { id: 'first_harvest', name: '初次收获',  desc: '收获第一株作物',       icon: '🌱', cond: s => s.total.harvest >= 1 },
+  { id: 'harvest_10',    name: '小有收成',  desc: '累计收获 10 株',       icon: '🌾', cond: s => s.total.harvest >= 10 },
+  { id: 'harvest_50',    name: '丰收季节',  desc: '累计收获 50 株',       icon: '🌻', cond: s => s.total.harvest >= 50 },
+  { id: 'harvest_100',   name: '农业大亨',  desc: '累计收获 100 株',      icon: '🏅', cond: s => s.total.harvest >= 100 },
+  { id: 'coins_100',     name: '小富即安',  desc: '累计赚取 100 金币',    icon: '💰', cond: s => s.total.coins >= 100 },
+  { id: 'coins_500',     name: '腰缠万贯',  desc: '累计赚取 500 金币',    icon: '💎', cond: s => s.total.coins >= 500 },
+  { id: 'all_crops',     name: '百花齐放',  desc: '种植过全部 3 种作物',  icon: '🌈', cond: s => Object.keys(s.total.cropTypes || {}).length >= 3 },
+  { id: 'water_master',  name: '勤快农夫',  desc: '累计浇水 20 次',       icon: '💧', cond: s => s.total.water >= 20 },
+  { id: 'fert_master',   name: '化学专家',  desc: '累计施肥 10 次',       icon: '🧪', cond: s => s.total.fert >= 10 },
+  { id: 'till_master',   name: '开垦先锋',  desc: '累计开垦 20 块地',     icon: '⛏️', cond: s => s.total.till >= 20 },
+];
+
+/* ===== 任务池 ===== */
+const TASK_POOL = [
+  { id: 'harvest_5',    target: 5,   reward: 20, type: 'harvest', desc: '收获 5 株作物' },
+  { id: 'harvest_15',   target: 15,  reward: 50, type: 'harvest', desc: '收获 15 株作物' },
+  { id: 'water_3',      target: 3,   reward: 10, type: 'water',   desc: '浇水 3 次' },
+  { id: 'water_10',     target: 10,  reward: 30, type: 'water',   desc: '浇水 10 次' },
+  { id: 'plant_5',      target: 5,   reward: 15, type: 'plant',   desc: '播种 5 次' },
+  { id: 'plant_12',     target: 12,  reward: 40, type: 'plant',   desc: '播种 12 次' },
+  { id: 'sell_30',      target: 30,  reward: 15, type: 'coins',   desc: '卖出获得 30 金币' },
+  { id: 'sell_100',     target: 100, reward: 45, type: 'coins',   desc: '卖出获得 100 金币' },
+  { id: 'fert_2',       target: 2,   reward: 12, type: 'fert',    desc: '施肥 2 次' },
+  { id: 'fert_6',       target: 6,   reward: 35, type: 'fert',    desc: '施肥 6 次' },
+  { id: 'till_5',       target: 5,   reward: 15, type: 'till',    desc: '开垦 5 块地' },
+  { id: 'till_15',      target: 15,  reward: 40, type: 'till',    desc: '开垦 15 块地' },
+];
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+
+/* ============ 音效 ============ */
+const SFX = {
+  ctx: null, enabled: true,
+  init(){
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+  },
+  resume(){
+    if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  tone(freq, dur, type, vol, slideTo){
+    if(!this.enabled || !this.ctx) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    if(slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(t); osc.stop(t + dur);
+  },
+  play(type){
+    if(!this.enabled) return;
+    switch(type){
+      case 'till':   this.tone(220, 0.08, 'square', 0.08, 180); break;
+      case 'plant':  this.tone(520, 0.10, 'sine', 0.12, 660); break;
+      case 'water':  this.tone(880, 0.15, 'sine', 0.10, 400); break;
+      case 'fert':   this.tone(400, 0.12, 'triangle', 0.10, 600); break;
+      case 'harvest':
+        this.tone(660, 0.08, 'sine', 0.14);
+        setTimeout(()=>this.tone(880, 0.12, 'sine', 0.12), 60);
+        break;
+      case 'coin':
+        this.tone(1200, 0.06, 'square', 0.08);
+        setTimeout(()=>this.tone(1600, 0.08, 'square', 0.07), 50);
+        break;
+      case 'buy':    this.tone(700, 0.08, 'square', 0.10); break;
+      case 'error':  this.tone(200, 0.12, 'sawtooth', 0.10); break;
+      case 'click':  this.tone(600, 0.03, 'sine', 0.06); break;
+      case 'achieve':
+        [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.4, 'sine', 0.12), i * 80));
+        break;
+    }
+  }
+};
+
+/* ============ 粒子 ============ */
+const particles = [];
+function spawnParticles(x, y, type){
+  if(!state.particlesEnabled) return;
+  const cfg = {
+    water:   { count: 8,  color: '#5bc8ff', spread: 2,   gravity: 0.15, life: 0.7, size: [2, 4] },
+    harvest: { count: 14, color: '#ffd76e', spread: 2.5, gravity: 0.1,  life: 0.9, size: [2, 5] },
+    coin:    { count: 6,  color: '#ffd76e', spread: 1.5, gravity: -0.05,life: 1.0, size: [2, 3] },
+    till:    { count: 6,  color: '#8a6248', spread: 2,   gravity: 0.2,  life: 0.6, size: [2, 3] },
+  }[type];
+  if(!cfg) return;
+  for(let i = 0; i < cfg.count; i++){
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * cfg.spread,
+      vy: -Math.random() * cfg.spread - 1,
+      gravity: cfg.gravity,
+      life: cfg.life, maxLife: cfg.life,
+      color: cfg.color,
+      size: cfg.size[0] + Math.random() * (cfg.size[1] - cfg.size[0]),
+    });
+  }
+}
+function updateParticles(dt){
+  for(let i = particles.length - 1; i >= 0; i--){
+    const p = particles[i];
+    p.life -= dt / 1000;
+    if(p.life <= 0){ particles.splice(i, 1); continue; }
+    p.x += p.vx * (dt / 16);
+    p.y += p.vy * (dt / 16);
+    p.vy += p.gravity;
+  }
+}
+function drawParticles(){
+  if(!state.particlesEnabled) return;
+  for(const p of particles){
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ============ 状态 ============ */
+function newTile(gx, gy, terrain){
+  return { gx, gy, terrain,
+    state: terrain === 'tilled' ? 'tilled' : 'wild',
+    crop: null, growth: 0, watered: false, fertile: false };
+}
+function newState(){
+  const tiles = [];
+  for(let gy=0; gy<MAP_H; gy++) for(let gx=0; gx<MAP_W; gx++){
+    const isFarm = gx>=FARM_X0 && gx<FARM_X0+FARM_W && gy>=FARM_Y0 && gy<FARM_Y0+FARM_H;
+    tiles.push(newTile(gx, gy, isFarm ? 'tilled' : 'grass'));
+  }
+  return {
+    coins: START_COINS, fertilizer: 0,
+    bag: { carrot:0, potato:0, rice:0 },
+    tiles, tool: 'hoe', selectedSeed: 'carrot',
+    camera: { x: 0, y: 0 }, showGrid: false, sidePanelY: null,
+    warehouseEnabled: true,
+    soundEnabled: true, particlesEnabled: true,
+    stats: {
+      total: { harvest:0, coins:0, plant:0, water:0, fert:0, till:0, cropTypes:{} },
+      today: { date: todayStr(), harvest:0, coins:0, plant:0, water:0, fert:0, till:0 },
+    },
+    achievements: {},
+    tasks: { date: null, list: [] },
+    noticeRead: {},
+    achRead: false,
+    taskRead: true,
+    decorations: DEFAULT_DECORATIONS.map(d => ({...d})),
+    player: { gx: 7, gy: 6, actionType: null, actionUntil: 0 },
+    lastSave: Date.now()
+  };
+}
+let state = newState();
+let drawOrder = [];
+
+function getTile(gx, gy){
+  if(gx<0 || gy<0 || gx>=MAP_W || gy>=MAP_H) return null;
+  return state.tiles[gy*MAP_W + gx];
+}
+function buildDrawOrder(){
+  drawOrder = Array.from({length: state.tiles.length}, (_, i)=>i);
+  drawOrder.sort((a, b) => {
+    const A = state.tiles[a], B = state.tiles[b];
+    return (A.gx + A.gy) - (B.gx + B.gy);
+  });
+}
+
+/* ============ 存档 ============ */
+function save(){
+  state.lastSave = Date.now();
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 81,
+      coins: state.coins, fertilizer: state.fertilizer,
+      bag: state.bag, tool: state.tool, selectedSeed: state.selectedSeed,
+      camera: state.camera, showGrid: state.showGrid, sidePanelY: state.sidePanelY,
+      warehouseEnabled: state.warehouseEnabled,
+      soundEnabled: state.soundEnabled, particlesEnabled: state.particlesEnabled,
+      savedAt: state.lastSave,
+      stats: state.stats,
+      achievements: state.achievements,
+      tasks: state.tasks,
+      noticeRead: state.noticeRead,
+      achRead: state.achRead,
+      taskRead: state.taskRead,
+      player: state.player,
+      decorations: state.decorations,
+      tiles: state.tiles.map(t=>({
+        gx: t.gx, gy: t.gy, terrain: t.terrain,
+        state: t.state, crop: t.crop,
+        growth: Math.round(t.growth),
+        watered: !!t.watered, fertile: !!t.fertile
+      }))
+    }));
+  }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return { state: newState(), offlineMs: 0 };
+    const d = JSON.parse(raw);
+    if(!d || d.v !== 81 || !Array.isArray(d.tiles) || d.tiles.length !== MAP_W*MAP_H)
+      return { state: newState(), offlineMs: 0 };
+    const st = newState();
+    st.coins = typeof d.coins==='number' ? d.coins : START_COINS;
+    st.fertilizer = typeof d.fertilizer==='number' ? d.fertilizer : 0;
+    st.bag = Object.assign({carrot:0,potato:0,rice:0}, d.bag||{});
+    st.tool = d.tool || 'hoe';
+    if(st.tool === 'pan') st.tool = 'hoe';
+    st.selectedSeed = (d.selectedSeed && CROPS[d.selectedSeed]) ? d.selectedSeed : 'carrot';
+    if(d.camera) st.camera = { x: d.camera.x||0, y: d.camera.y||0 };
+    st.showGrid = !!d.showGrid;
+    st.sidePanelY = (typeof d.sidePanelY === 'number') ? d.sidePanelY : null;
+    st.warehouseEnabled = d.warehouseEnabled !== false;
+    st.soundEnabled = d.soundEnabled !== false;
+    st.particlesEnabled = d.particlesEnabled !== false;
+    st.stats = d.stats || {
+      total: { harvest:0, coins:0, plant:0, water:0, fert:0, till:0, cropTypes:{} },
+      today: { date: todayStr(), harvest:0, coins:0, plant:0, water:0, fert:0, till:0 },
+    };
+    if(!st.stats.total.cropTypes) st.stats.total.cropTypes = {};
+    st.achievements = d.achievements || {};
+    st.tasks = d.tasks || { date: null, list: [] };
+    st.noticeRead = d.noticeRead || {};
+    st.achRead = !!d.achRead;
+    st.taskRead = d.taskRead !== false;
+    st.player = d.player || { gx: 7, gy: 6, actionType: null, actionUntil: 0 };
+    st.decorations = Array.isArray(d.decorations)
+      ? d.decorations
+      : DEFAULT_DECORATIONS.map(d => ({...d}));
+    st.tiles = d.tiles.map(t=>{
+      const tt = newTile(t.gx, t.gy, t.terrain);
+      tt.state = t.state || 'wild';
+      tt.crop = t.crop || null;
+      tt.growth = t.growth || 0;
+      tt.watered = !!t.watered;
+      tt.fertile = !!t.fertile;
+      return tt;
+    });
+    const offlineMs = Math.max(0, Date.now() - (d.savedAt || Date.now()));
+    return { state: st, offlineMs };
+  }catch(e){ return { state: newState(), offlineMs: 0 }; }
+}
+function applyOffline(st, offlineMs){
+  if(offlineMs < 1000) return { grown: 0, ripened: 0 };
+  const capped = Math.min(offlineMs, OFFLINE_CAP);
+  let grown = 0, ripened = 0;
+  for(const t of st.tiles){
+    if(t.state !== 'growing') continue;
+    const def = CROPS[t.crop]; if(!def) continue;
+    let speed = OFFLINE_RATE;
+    if(t.watered) speed *= WATER_MULT;
+    if(t.fertile) speed *= FERT_MULT;
+    t.growth += capped * speed;
+    grown++;
+    if(t.growth >= def.stageMs * 3){ t.growth = def.stageMs * 3; t.state = 'ready'; ripened++; }
+  }
+  return { grown, ripened };
+}
+
+/* ============ 等距投影 ============ */
+function iso(gx, gy){ return { sx: (gx-gy)*HALF_W, sy: (gx+gy)*HALF_H }; }
+function unIso(sx, sy){
+  const a = sx/HALF_W, b = sy/HALF_H;
+  return { wx: (a+b)/2, wy: (b-a)/2 };
+}
+
+/* ============ 生长 ============ */
+function advanceGrowth(dtMs){
+  for(const t of state.tiles){
+    if(t.state !== 'growing') continue;
+    const def = CROPS[t.crop]; if(!def) continue;
+    let speed = 1;
+    if(t.watered) speed *= WATER_MULT;
+    if(t.fertile) speed *= FERT_MULT;
+    t.growth += dtMs * speed;
+    if(t.growth >= def.stageMs * 3){
+      t.growth = def.stageMs * 3;
+      t.state = 'ready';
+      save();
+    }
+  }
+}
+
+/* ============ 画布 ============ */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, UI_SCALE = 1;
+function resize(){
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function applyUIScale(){
+  const s = Math.min(1, Math.min(window.innerWidth / 900, window.innerHeight / 700));
+  UI_SCALE = Math.max(0.6, s);
+  document.documentElement.style.setProperty('--ui-scale', UI_SCALE.toFixed(3));
+}
+function centerOn(gx, gy){
+  const { sx, sy } = iso(gx, gy);
+  state.camera.x = -sx * SCALE; state.camera.y = -sy * SCALE;
+}
+
+/* ============ 瓦片 ============ */
+function tileColors(t){
+  if(t.state === 'ready') return { top:'#ffd76e', wallL:'#c4a050', wallR:'#8e7030', noise:'rgba(140,100,30,.35)', noise2:'rgba(255,240,180,.35)' };
+  if(t.state === 'wild')  return { top:'#7fbf5a', wallL:'#5c9440', wallR:'#3e6a28', noise:'rgba(40,80,20,.35)', noise2:'rgba(200,240,160,.4)' };
+  if(t.watered && t.fertile) return { top:'#5e4229', wallL:'#3a2818', wallR:'#241808', noise:'rgba(20,10,0,.4)', noise2:'rgba(120,90,60,.3)' };
+  if(t.watered) return { top:'#775438', wallL:'#543a24', wallR:'#362418', noise:'rgba(30,15,5,.4)', noise2:'rgba(140,110,80,.35)' };
+  if(t.fertile) return { top:'#a38055', wallL:'#7a5d38', wallR:'#503c1e', noise:'rgba(60,40,15,.4)', noise2:'rgba(220,190,140,.35)' };
+  return { top:'#8b6340', wallL:'#654522', wallR:'#432c14', noise:'rgba(40,20,5,.4)', noise2:'rgba(180,150,110,.35)' };
+}
+function hash2(x, y){
+  let h = x * 374761393 + y * 668265263;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+}
+function drawTileBlock(px, py, t){
+  const w = TILE_W*SCALE, h = TILE_H*SCALE, D = THICKNESS*SCALE, c = tileColors(t);
+  const top = {x:px, y:py-h/2}, right = {x:px+w/2, y:py}, bottom = {x:px, y:py+h/2}, left = {x:px-w/2, y:py};
+
+  ctx.beginPath();
+  ctx.moveTo(left.x, left.y); ctx.lineTo(bottom.x, bottom.y);
+  ctx.lineTo(bottom.x, bottom.y+D); ctx.lineTo(left.x, left.y+D);
+  ctx.closePath(); ctx.fillStyle = c.wallL; ctx.fill();
+
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1;
+  for(let i=1; i<=2; i++){
+    const ty = py + h*(i/3) - h*0.15;
+    ctx.beginPath();
+    ctx.moveTo(left.x, ty + D*(i/3));
+    ctx.lineTo(bottom.x, ty + h*0.5 + D*(i/3));
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.moveTo(bottom.x, bottom.y); ctx.lineTo(right.x, right.y);
+  ctx.lineTo(right.x, right.y+D); ctx.lineTo(bottom.x, bottom.y+D);
+  ctx.closePath(); ctx.fillStyle = c.wallR; ctx.fill();
+
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1;
+  for(let i=1; i<=2; i++){
+    const ty = py + h*(i/3) - h*0.15;
+    ctx.beginPath();
+    ctx.moveTo(bottom.x, ty + h*0.5 + D*(i/3));
+    ctx.lineTo(right.x, ty + D*(i/3));
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(top.x, top.y); ctx.lineTo(right.x, right.y);
+  ctx.lineTo(bottom.x, bottom.y); ctx.lineTo(left.x, left.y);
+  ctx.closePath(); ctx.fillStyle = c.top; ctx.fill(); ctx.clip();
+
+  const hb = t.gx * 1000 + t.gy;
+  for(let i=0; i<22; i++){
+    const r1 = hash2(hb+i, 7), r2 = hash2(hb+i, 13);
+    const u = r1*2-1, v = r2*2-1;
+    if(Math.abs(u) + Math.abs(v) > 0.95) continue;
+    ctx.fillStyle = r1 > 0.5 ? c.noise : c.noise2;
+    ctx.fillRect(px + u*w*0.5, py + v*h*0.5, 1+r2*1.5, 1+r2*1.5);
+  }
+  const gl = ctx.createLinearGradient(px-w*0.5, py-h*0.5, px+w*0.5, py+h*0.5);
+  gl.addColorStop(0, 'rgba(255,255,255,.15)');
+  gl.addColorStop(0.5, 'rgba(255,255,255,0)');
+  gl.addColorStop(1, 'rgba(0,0,0,.12)');
+  ctx.fillStyle = gl; ctx.fillRect(px-w/2, py-h/2, w, h);
+
+  ctx.beginPath();
+  ctx.moveTo(top.x, top.y); ctx.lineTo(right.x, right.y);
+  ctx.lineTo(bottom.x, bottom.y); ctx.lineTo(left.x, left.y);
+  ctx.closePath(); ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+}
+function drawTileEdges(px, py, w, h){
+  const topX=px, topY=py-h/2, rightX=px+w/2, rightY=py, leftX=px-w/2, leftY=py;
+  ctx.beginPath(); ctx.moveTo(topX, topY); ctx.lineTo(rightX, rightY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(leftX, leftY); ctx.lineTo(topX, topY); ctx.stroke();
+}
+function drawTerrainBoundaries(cx, cy){
+  const w = TILE_W*SCALE, h = TILE_H*SCALE;
+  ctx.strokeStyle = 'rgba(0,0,0,.32)'; ctx.lineWidth = 1.5;
+  for(const t of state.tiles){
+    const { sx, sy } = iso(t.gx, t.gy);
+    const px = cx + sx*SCALE, py = cy + sy*SCALE;
+    if(px < -w || px > W+w || py < -h || py > H+h) continue;
+    const top={x:px,y:py-h/2}, right={x:px+w/2,y:py}, bottom={x:px,y:py+h/2}, left={x:px-w/2,y:py};
+    const nbTR = getTile(t.gx, t.gy-1), nbBR = getTile(t.gx+1, t.gy);
+    const nbBL = getTile(t.gx, t.gy+1), nbTL = getTile(t.gx-1, t.gy);
+    if(!nbTR || nbTR.terrain !== t.terrain){ ctx.beginPath(); ctx.moveTo(top.x,top.y); ctx.lineTo(right.x,right.y); ctx.stroke(); }
+    if(!nbBR || nbBR.terrain !== t.terrain){ ctx.beginPath(); ctx.moveTo(right.x,right.y); ctx.lineTo(bottom.x,bottom.y); ctx.stroke(); }
+    if(!nbBL || nbBL.terrain !== t.terrain){ ctx.beginPath(); ctx.moveTo(bottom.x,bottom.y); ctx.lineTo(left.x,left.y); ctx.stroke(); }
+    if(!nbTL || nbTL.terrain !== t.terrain){ ctx.beginPath(); ctx.moveTo(left.x,left.y); ctx.lineTo(top.x,top.y); ctx.stroke(); }
+  }
+}
+
+/* ============ 作物绘制 ============ */
+function getAnchorOffset(cropId, ratio){
+  const p = Math.pow(ratio, 1.5);
+  if(cropId === 'carrot') return p * 6;
+  if(cropId === 'potato') return p * 9;
+  if(cropId === 'rice') return p * 14;
+  return 0;
+}
+function drawCarrot(g, x, y, ratio){
+  const stage = ratio<0.33?0:ratio<0.66?1:ratio<1?2:3;
+  const scale = 0.6 + ratio*0.55, rootY = y+2, leafBase = y-2;
+  const leafSpecs = stage===0?[{a:-0.85,len:0.55},{a:0.85,len:0.55}]:
+    stage===1?[{a:-1.0,len:0.75},{a:-0.35,len:0.95},{a:0.35,len:0.95},{a:1.0,len:0.75}]:
+    stage===2?[{a:-1.15,len:0.75},{a:-0.6,len:1.0},{a:-0.15,len:1.1},{a:0.15,len:1.1},{a:0.6,len:1.0},{a:1.15,len:0.75}]:
+    [{a:-1.25,len:0.8},{a:-0.75,len:1.0},{a:-0.35,len:1.15},{a:0,len:1.2},{a:0.35,len:1.15},{a:0.75,len:1.0},{a:1.25,len:0.8}];
+  const maxLen = 12*scale;
+  for(const sp of leafSpecs){
+    const a = sp.a - Math.PI/2, len = maxLen*sp.len;
+    const tipX = x + Math.cos(a)*len, tipY = leafBase + Math.sin(a)*len;
+    g.beginPath(); g.moveTo(x, leafBase);
+    g.quadraticCurveTo(x+Math.cos(a)*len*0.4, leafBase+Math.sin(a)*len*0.55, tipX, tipY);
+    g.lineWidth = 3.2*scale; g.strokeStyle = '#2e5c1a'; g.lineCap = 'round'; g.stroke();
+    g.lineWidth = 2.0*scale; g.strokeStyle = '#4ea832'; g.stroke();
+    g.lineWidth = 0.9*scale; g.strokeStyle = '#7ad654'; g.stroke();
+    g.beginPath(); g.arc(tipX-0.5, tipY-0.5, 0.9*scale, 0, Math.PI*2);
+    g.fillStyle = 'rgba(200,255,160,0.85)'; g.fill();
+  }
+  if(stage >= 2){
+    const rH = (7+ratio*11)*scale*0.85, rW = (4+ratio*4.5)*scale, rTopY = rootY-1;
+    const rootGrad = g.createLinearGradient(x-rW, rTopY, x+rW, rTopY+rH);
+    rootGrad.addColorStop(0, '#ffb066'); rootGrad.addColorStop(0.4, '#ff9040');
+    rootGrad.addColorStop(0.75, '#e86820'); rootGrad.addColorStop(1, '#a83810');
+    g.beginPath(); g.moveTo(x-rW, rTopY+1);
+    g.quadraticCurveTo(x-rW*1.1, rTopY+rH*0.55, x-0.2, rTopY+rH-1);
+    g.quadraticCurveTo(x+0.2, rTopY+rH, x+0.2, rTopY+rH-1);
+    g.quadraticCurveTo(x+rW*1.1, rTopY+rH*0.55, x+rW, rTopY+1);
+    g.closePath(); g.fillStyle = rootGrad; g.fill();
+    g.beginPath(); g.moveTo(x-rW*0.5, rTopY+2);
+    g.quadraticCurveTo(x-rW*0.75, rTopY+rH*0.5, x-rW*0.15, rTopY+rH*0.85);
+    g.lineWidth = 1.6*scale; g.strokeStyle = 'rgba(255,220,180,0.85)'; g.stroke();
+  } else {
+    const rH = (2+ratio*4)*scale;
+    g.beginPath(); g.ellipse(x, rootY+rH*0.5, 2*scale, rH, 0, 0, Math.PI*2);
+    g.fillStyle = '#e87828'; g.fill();
+  }
+}
+function drawPotato(g, x, y, ratio){
+  const stage = ratio<0.33?0:ratio<0.66?1:ratio<1?2:3;
+  const scale = 0.6+ratio*0.55, baseY = y+1, stemH = (8+ratio*17)*scale;
+  g.beginPath(); g.moveTo(x, baseY); g.lineTo(x, baseY-stemH);
+  g.lineWidth = 3.2*scale; g.strokeStyle = '#2e5c1a'; g.lineCap = 'round'; g.stroke();
+  g.lineWidth = 1.8*scale; g.strokeStyle = '#4ea832'; g.stroke();
+  const pairs = stage===0?0:stage===1?1:stage===2?2:3;
+  for(let p=0; p<pairs; p++){
+    const t = (p+1)/(pairs+0.5), ly = baseY - stemH*t;
+    const lw = (5.5+p*1.2)*scale, lh = lw*0.62;
+    for(const side of [-1,1]){
+      const lx = x + side*(lw*0.75), tilt = side*0.32;
+      g.save(); g.translate(lx, ly); g.rotate(tilt);
+      g.beginPath(); g.ellipse(0, 0, lw, lh, 0, 0, Math.PI*2);
+      g.fillStyle = '#1e4410'; g.fill();
+      const lg = g.createLinearGradient(-lw, -lh, lw, lh);
+      lg.addColorStop(0, '#8ae05c'); lg.addColorStop(0.5, '#5cbf3a'); lg.addColorStop(1, '#3a8a20');
+      g.beginPath(); g.ellipse(0, 0, lw-0.5, lh-0.5, 0, 0, Math.PI*2);
+      g.fillStyle = lg; g.fill();
+      g.beginPath(); g.ellipse(-lw*0.35, -lh*0.35, lw*0.28, lh*0.28, 0, 0, Math.PI*2);
+      g.fillStyle = 'rgba(220,255,180,0.55)'; g.fill();
+      g.restore();
+    }
+  }
+  if(stage === 2){
+    const fy = baseY - stemH;
+    for(let i=0; i<5; i++){
+      const a = (i/5)*Math.PI*2 - Math.PI/2;
+      g.beginPath(); g.arc(x+Math.cos(a)*2.8*scale, fy+Math.sin(a)*2.8*scale, 2.1*scale, 0, Math.PI*2);
+      g.fillStyle = '#fff8e8'; g.fill();
+      g.lineWidth = 0.7*scale; g.strokeStyle = '#4a2e1a'; g.stroke();
+    }
+    g.beginPath(); g.arc(x, fy, 1.6*scale, 0, Math.PI*2); g.fillStyle = '#ffce2e'; g.fill();
+  }
+  if(stage >= 3){
+    const tubers = [
+      {x:x-9*scale, y:baseY+2, rw:5.5, rh:4.2, rot:-0.3},
+      {x:x+9*scale, y:baseY+2.5, rw:5, rh:3.8, rot:0.3},
+      {x:x, y:baseY+8*scale, rw:6, rh:4.5, rot:0}
+    ];
+    for(const t of tubers){
+      const tw = t.rw*scale, th = t.rh*scale;
+      g.save(); g.translate(t.x, t.y); g.rotate(t.rot);
+      g.beginPath(); g.ellipse(0.5, 0.5, tw, th, 0, 0, Math.PI*2); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fill();
+      const tg = g.createRadialGradient(-tw*0.35, -th*0.35, 0, 0, 0, tw);
+      tg.addColorStop(0, '#ffe8a0'); tg.addColorStop(0.5, '#e8b860'); tg.addColorStop(1, '#a86828');
+      g.beginPath(); g.ellipse(0, 0, tw, th, 0, 0, Math.PI*2); g.fillStyle = tg; g.fill();
+      g.lineWidth = 0.9*scale; g.strokeStyle = '#6a4020'; g.stroke();
+      g.beginPath(); g.ellipse(-tw*0.35, -th*0.4, tw*0.3, th*0.28, 0, 0, Math.PI*2);
+      g.fillStyle = 'rgba(255,250,220,0.9)'; g.fill();
+      g.restore();
+    }
+  }
+}
+function drawRice(g, x, y, ratio){
+  const stage = ratio<0.33?0:ratio<0.66?1:ratio<1?2:3;
+  const scale = 0.6+ratio*0.55, baseY = y+1, stemH = (10+ratio*22)*scale;
+  const stems = stage===0?2:3;
+  for(let i=0; i<stems; i++){
+    const offset = (i - (stems-1)/2) * 7 * scale;
+    const sx = x + offset, topX = x + offset*1.5, topY = baseY - stemH;
+    g.beginPath(); g.moveTo(sx, baseY);
+    g.quadraticCurveTo(sx + offset*0.1, baseY-stemH*0.5, topX, topY);
+    g.lineWidth = 2.6*scale; g.strokeStyle = '#1e4410'; g.lineCap = 'round'; g.stroke();
+    g.lineWidth = 1.6*scale; g.strokeStyle = '#4ea832'; g.stroke();
+    if(stage >= 1){
+      const lc = stage >= 2 ? 3 : 2;
+      for(let l=0; l<lc; l++){
+        const lt = 0.35 + l*0.2;
+        const ly = baseY - stemH*lt, lx = sx + (topX-sx)*lt;
+        const side = l%2===0?-1:1, leafLen = 8*scale;
+        const leafAngle = side*(0.5 + l*0.08);
+        const leafEndX = lx + Math.cos(leafAngle)*leafLen;
+        const leafEndY = ly + Math.sin(leafAngle)*leafLen*0.55;
+        g.beginPath(); g.moveTo(lx, ly);
+        g.quadraticCurveTo((lx+leafEndX)/2, (ly+leafEndY)/2 - 2*scale, leafEndX, leafEndY);
+        g.lineWidth = 3.2*scale; g.strokeStyle = '#1e4410'; g.stroke();
+        g.lineWidth = 1.9*scale; g.strokeStyle = '#5cbf3a'; g.stroke();
+      }
+    }
+    if(stage >= 2){
+      const grains = stage===2?4:6;
+      for(let k=0; k<grains; k++){
+        const gx = topX + (k%2===0?-1.8:1.8)*scale, gy = topY - k*3.2*scale;
+        const gw = 2.2*scale, gh = 2.8*scale;
+        const gg = g.createLinearGradient(gx-gw, gy-gh, gx+gw, gy+gh);
+        gg.addColorStop(0, '#fff0a8'); gg.addColorStop(0.5, '#ffd64a'); gg.addColorStop(1, '#c89820');
+        g.beginPath(); g.ellipse(gx, gy, gw, gh, 0, 0, Math.PI*2); g.fillStyle = gg; g.fill();
+        g.beginPath(); g.ellipse(gx-gw*0.35, gy-gh*0.4, gw*0.35, gh*0.3, 0, 0, Math.PI*2);
+        g.fillStyle = 'rgba(255,250,220,0.9)'; g.fill();
+      }
+    }
+  }
+}
+function drawCrop(px, py, t){
+  const def = CROPS[t.crop]; if(!def) return;
+  const ratio = Math.min(1, t.growth / (def.stageMs * 3));
+  const anchorOffset = getAnchorOffset(t.crop, ratio);
+  const baseX = px, baseY = py + anchorOffset;
+  ctx.save();
+  if(t.crop === 'carrot') drawCarrot(ctx, baseX, baseY, ratio);
+  else if(t.crop === 'potato') drawPotato(ctx, baseX, baseY, ratio);
+  else if(t.crop === 'rice') drawRice(ctx, baseX, baseY, ratio);
+  ctx.restore();
+  if(t.watered && t.state === 'growing'){
+    ctx.save(); ctx.font = '12px serif'; ctx.textAlign = 'center';
+    ctx.fillText('💧', px+16, py-8); ctx.restore();
+  }
+  if(t.fertile && t.state === 'growing'){
+    ctx.save(); ctx.font = '12px serif'; ctx.textAlign = 'center';
+    ctx.fillText('🧪', px-16, py-8); ctx.restore();
+  }
+}
+
+/* ============ 装饰绘制 ============ */
+function drawTree(g, px, py, seed){
+  const s = 0.85 + (seed % 3) * 0.1;
+  g.beginPath();
+  g.ellipse(px, py + 2, 16*s, 6*s, 0, 0, Math.PI*2);
+  g.fillStyle = 'rgba(0,0,0,.28)'; g.fill();
+
+  g.beginPath();
+  g.moveTo(px - 4*s, py);
+  g.lineTo(px - 3*s, py - 22*s);
+  g.lineTo(px + 3*s, py - 22*s);
+  g.lineTo(px + 4*s, py);
+  g.closePath();
+  g.fillStyle = '#5a3a1a'; g.fill();
+  g.strokeStyle = '#3a2210'; g.lineWidth = 1; g.stroke();
+
+  const cy = py - 30*s;
+  const layers = [
+    { cx: px - 8*s, cy: cy + 4*s, r: 11*s },
+    { cx: px + 8*s, cy: cy + 4*s, r: 11*s },
+    { cx: px,        cy: cy - 4*s, r: 13*s },
+  ];
+  layers.forEach(l => {
+    g.beginPath(); g.arc(l.cx, l.cy + 2, l.r, 0, Math.PI*2);
+    g.fillStyle = '#1e4410'; g.fill();
+  });
+  layers.forEach(l => {
+    const grad = g.createRadialGradient(l.cx - l.r*0.4, l.cy - l.r*0.4, 0, l.cx, l.cy, l.r);
+    grad.addColorStop(0, '#8ae05c'); grad.addColorStop(0.6, '#4ea832'); grad.addColorStop(1, '#2e6c1a');
+    g.beginPath(); g.arc(l.cx, l.cy, l.r, 0, Math.PI*2);
+    g.fillStyle = grad; g.fill();
+    g.strokeStyle = '#1e4410'; g.lineWidth = 0.8; g.stroke();
+  });
+  g.beginPath(); g.arc(px - 5*s, cy - 8*s, 4*s, 0, Math.PI*2);
+  g.fillStyle = 'rgba(200,255,160,.5)'; g.fill();
+}
+function drawRock(g, px, py, seed){
+  const s = 0.9 + (seed % 2) * 0.15;
+  g.beginPath(); g.ellipse(px, py + 2, 12*s, 4*s, 0, 0, Math.PI*2);
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.fill();
+
+  g.beginPath();
+  g.moveTo(px - 10*s, py);
+  g.quadraticCurveTo(px - 12*s, py - 8*s, px - 4*s, py - 10*s);
+  g.quadraticCurveTo(px + 2*s, py - 12*s, px + 8*s, py - 8*s);
+  g.quadraticCurveTo(px + 12*s, py - 4*s, px + 10*s, py);
+  g.closePath();
+  const grad = g.createLinearGradient(px - 8*s, py - 10*s, px + 8*s, py);
+  grad.addColorStop(0, '#b8b8c0'); grad.addColorStop(0.5, '#8888a0'); grad.addColorStop(1, '#505068');
+  g.fillStyle = grad; g.fill();
+  g.strokeStyle = '#3a3a50'; g.lineWidth = 1.2; g.stroke();
+
+  g.beginPath(); g.ellipse(px - 4*s, py - 7*s, 4*s, 2.5*s, -0.3, 0, Math.PI*2);
+  g.fillStyle = 'rgba(230,230,240,.6)'; g.fill();
+}
+function drawBush(g, px, py, seed){
+  const s = 0.9 + (seed % 3) * 0.08;
+  g.beginPath(); g.ellipse(px, py + 1, 12*s, 4*s, 0, 0, Math.PI*2);
+  g.fillStyle = 'rgba(0,0,0,.25)'; g.fill();
+
+  const blobs = [
+    { cx: px - 6*s, cy: py - 6*s, r: 7*s },
+    { cx: px + 6*s, cy: py - 6*s, r: 7*s },
+    { cx: px,       cy: py - 10*s, r: 8*s },
+  ];
+  blobs.forEach(b => {
+    g.beginPath(); g.arc(b.cx, b.cy + 1.5, b.r, 0, Math.PI*2);
+    g.fillStyle = '#1e4410'; g.fill();
+  });
+  blobs.forEach(b => {
+    const grad = g.createRadialGradient(b.cx - b.r*0.3, b.cy - b.r*0.3, 0, b.cx, b.cy, b.r);
+    grad.addColorStop(0, '#7ad654'); grad.addColorStop(0.7, '#4ea832'); grad.addColorStop(1, '#2e6c1a');
+    g.beginPath(); g.arc(b.cx, b.cy, b.r, 0, Math.PI*2);
+    g.fillStyle = grad; g.fill();
+    g.strokeStyle = '#1e4410'; g.lineWidth = 0.7; g.stroke();
+  });
+  g.beginPath(); g.arc(px - 4*s, py - 12*s, 2.5*s, 0, Math.PI*2);
+  g.fillStyle = 'rgba(220,255,180,.7)'; g.fill();
+}
+function drawFlower(g, px, py, seed){
+  const colors = ['#ff7eb5', '#ffd76e', '#b48dff', '#35b8f0'];
+  const c = colors[seed % colors.length];
+  g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - 8);
+  g.strokeStyle = '#4ea832'; g.lineWidth = 1.4; g.lineCap = 'round'; g.stroke();
+
+  g.beginPath(); g.ellipse(px - 2, py - 3, 3, 1.6, -0.4, 0, Math.PI*2); g.fillStyle = '#7ad654'; g.fill();
+  g.beginPath(); g.ellipse(px + 2, py - 5, 3, 1.6, 0.4, 0, Math.PI*2); g.fillStyle = '#7ad654'; g.fill();
+
+  const cy = py - 10;
+  for(let i = 0; i < 5; i++){
+    const a = (i/5) * Math.PI * 2 - Math.PI/2;
+    g.beginPath();
+    g.arc(px + Math.cos(a)*2.5, cy + Math.sin(a)*2.5, 2, 0, Math.PI*2);
+    g.fillStyle = c; g.fill();
+    g.strokeStyle = 'rgba(74,46,26,.6)'; g.lineWidth = 0.6; g.stroke();
+  }
+  g.beginPath(); g.arc(px, cy, 1.5, 0, Math.PI*2); g.fillStyle = '#ffce2e'; g.fill();
+}
+function drawDecoration(g, px, py, d){
+  if(d.type === 'tree') drawTree(g, px, py, d.seed);
+  else if(d.type === 'rock') drawRock(g, px, py, d.seed);
+  else if(d.type === 'bush') drawBush(g, px, py, d.seed);
+  else if(d.type === 'flower') drawFlower(g, px, py, d.seed);
+}
+
+/* ============ 小人绘制 ============ */
+function drawPlayer(g, px, py, p){
+  const now = Date.now();
+  const inAction = now < p.actionUntil;
+  const bob = Math.sin(now / 420) * 1;
+  const squat = inAction ? 2 : 0;
+  const y = py - squat + bob;
+
+  g.beginPath(); g.ellipse(px, py + 2, 11, 4, 0, 0, Math.PI*2);
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.fill();
+
+  // 腿
+  g.fillStyle = '#f5c8a0';
+  g.strokeStyle = '#4a2e1a';
+  g.lineWidth = 1;
+  g.fillRect(px - 5, y - 8, 4, 8); g.strokeRect(px - 5, y - 8, 4, 8);
+  g.fillRect(px + 1, y - 8, 4, 8); g.strokeRect(px + 1, y - 8, 4, 8);
+
+  // 身体（蓝衣）
+  const bodyTop = y - 22;
+  const bodyGrad = g.createLinearGradient(px - 8, bodyTop, px + 8, bodyTop + 14);
+  bodyGrad.addColorStop(0, '#5aa8e0'); bodyGrad.addColorStop(1, '#245090');
+  g.fillStyle = bodyGrad;
+  g.fillRect(px - 8, bodyTop, 16, 14);
+  g.strokeStyle = '#1a3860'; g.lineWidth = 1.2;
+  g.strokeRect(px - 8, bodyTop, 16, 14);
+
+  // 手臂
+  g.fillStyle = '#f5c8a0';
+  g.strokeStyle = '#4a2e1a'; g.lineWidth = 1;
+  g.beginPath(); g.arc(px - 10, bodyTop + 7, 3.5, 0, Math.PI*2); g.fill(); g.stroke();
+  g.beginPath(); g.arc(px + 10, bodyTop + 7, 3.5, 0, Math.PI*2); g.fill(); g.stroke();
+
+  // 头
+  const headCY = bodyTop - 9;
+  const headR = 11;
+  const headGrad = g.createRadialGradient(px - 4, headCY - 4, 0, px, headCY, headR);
+  headGrad.addColorStop(0, '#ffe0c0'); headGrad.addColorStop(0.7, '#f5c8a0'); headGrad.addColorStop(1, '#d0a070');
+  g.fillStyle = headGrad;
+  g.beginPath(); g.arc(px, headCY, headR, 0, Math.PI*2); g.fill();
+  g.strokeStyle = '#4a2e1a'; g.lineWidth = 1.3; g.stroke();
+
+  // 黑发（帽下一圈）
+  g.fillStyle = '#2a1a0e';
+  g.beginPath();
+  g.arc(px, headCY - 1, headR - 0.5, Math.PI, Math.PI * 2);
+  g.lineTo(px + headR - 2, headCY - 2);
+  g.quadraticCurveTo(px, headCY - 8, px - headR + 2, headCY - 2);
+  g.closePath(); g.fill();
+
+  // 眼睛
+  g.fillStyle = '#1a0a04';
+  g.beginPath(); g.ellipse(px - 4, headCY + 2, 1.6, 2, 0, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(px + 4, headCY + 2, 1.6, 2, 0, 0, Math.PI*2); g.fill();
+
+  g.fillStyle = '#fff';
+  g.beginPath(); g.arc(px - 4.5, headCY + 1, 0.6, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.arc(px + 3.5, headCY + 1, 0.6, 0, Math.PI*2); g.fill();
+
+  // 腮红
+  g.fillStyle = 'rgba(255,150,150,.55)';
+  g.beginPath(); g.arc(px - 7, headCY + 4, 2, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.arc(px + 7, headCY + 4, 2, 0, Math.PI*2); g.fill();
+
+  // 草帽
+  const hatY = headCY - headR + 3;
+  g.beginPath(); g.ellipse(px, hatY, headR + 5, 3.5, 0, 0, Math.PI*2);
+  g.fillStyle = '#e8b860'; g.fill();
+  g.strokeStyle = '#8a5a20'; g.lineWidth = 1; g.stroke();
+
+  g.beginPath();
+  g.moveTo(px - headR + 2, hatY);
+  g.quadraticCurveTo(px, hatY - 8, px + headR - 2, hatY);
+  g.closePath();
+  g.fillStyle = '#f0c870'; g.fill();
+  g.strokeStyle = '#8a5a20'; g.stroke();
+
+  g.beginPath();
+  g.moveTo(px - headR + 3, hatY - 1);
+  g.lineTo(px + headR - 3, hatY - 1);
+  g.lineWidth = 2; g.strokeStyle = '#c86828'; g.stroke();
+
+  g.beginPath(); g.ellipse(px - 3, hatY - 6, 3, 2, -0.2, 0, Math.PI*2);
+  g.fillStyle = 'rgba(255,240,200,.7)'; g.fill();
+}
+
+/* ============ 渲染 ============ */
+function render(){
+  ctx.clearRect(0, 0, W, H);
+  const cx = W/2 + state.camera.x, cy = H/2 + state.camera.y;
+  const w = TILE_W*SCALE, h = TILE_H*SCALE, D = THICKNESS*SCALE;
+
+  // 1. 地块
+  for(const idx of drawOrder){
+    const t = state.tiles[idx];
+    const { sx, sy } = iso(t.gx, t.gy);
+    const px = cx + sx*SCALE, py = cy + sy*SCALE;
+    if(px < -w || px > W+w || py < -h-D || py > H+h+D) continue;
+    drawTileBlock(px, py, t);
+  }
+
+  // 2. 网格 / 地形边界
+  if(state.showGrid){
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1;
+    for(const idx of drawOrder){
+      const t = state.tiles[idx];
+      const { sx, sy } = iso(t.gx, t.gy);
+      const px = cx + sx*SCALE, py = cy + sy*SCALE;
+      if(px < -w || px > W+w || py < -h || py > H+h) continue;
+      drawTileEdges(px, py, w, h);
+    }
+  } else drawTerrainBoundaries(cx, cy);
+
+  // 3. 作物
+  for(const idx of drawOrder){
+    const t = state.tiles[idx];
+    if(!t.crop) continue;
+    const { sx, sy } = iso(t.gx, t.gy);
+    const px = cx + sx*SCALE, py = cy + sy*SCALE;
+    if(px < -w || px > W+w || py < -h*2 || py > H+h*2) continue;
+    drawCrop(px, py, t);
+  }
+
+  // 4. 装饰 + 小人（按深度排序，画在作物上方）
+  const sprites = [];
+  for(const d of state.decorations){
+    sprites.push({ type:'deco', d, depth: d.gx + d.gy });
+  }
+  sprites.push({ type:'player', p: state.player, depth: state.player.gx + state.player.gy });
+  sprites.sort((a, b) => a.depth - b.depth);
+
+  for(const s of sprites){
+    if(s.type === 'deco'){
+      const { sx, sy } = iso(s.d.gx, s.d.gy);
+      const px = cx + sx*SCALE, py = cy + sy*SCALE;
+      if(px < -80 || px > W+80 || py < -160 || py > H+80) continue;
+      drawDecoration(ctx, px, py, s.d);
+    } else {
+      const { sx, sy } = iso(s.p.gx, s.p.gy);
+      const px = cx + sx*SCALE, py = cy + sy*SCALE;
+      drawPlayer(ctx, px, py, s.p);
+    }
+  }
+
+  // 5. 粒子
+  drawParticles();
+}
+
+/* ============ 屏幕 → 网格 ============ */
+function screenToGrid(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const sx = (clientX - rect.left - W/2 - state.camera.x) / SCALE;
+  const sy = (clientY - rect.top  - H/2 - state.camera.y) / SCALE;
+  const { wx, wy } = unIso(sx, sy);
+  return { gx: Math.round(wx), gy: Math.round(wy) };
+}
+function worldToScreen(t){
+  const { sx, sy } = iso(t.gx, t.gy);
+  return { x: W/2 + state.camera.x + sx*SCALE, y: H/2 + state.camera.y + sy*SCALE };
+}
+
+/* ============ 移除指定格子上的装饰物 ============ */
+function removeDecorationAt(gx, gy){
+  const before = state.decorations.length;
+  state.decorations = state.decorations.filter(d => !(d.gx === gx && d.gy === gy));
+  return before !== state.decorations.length;
+}
+
+/* ============ 工具应用 ============ */
+function applyToolAt(gx, gy, silent){
+  const t = getTile(gx, gy);
+  if(!t){ if(!silent) toast('超出农场范围'); return; }
+  const tool = state.tool;
+  const sp = worldToScreen(t);
+
+  // 小人瞬移到操作位置
+  state.player.gx = gx;
+  state.player.gy = gy;
+  state.player.actionType = tool;
+  state.player.actionUntil = Date.now() + 280;
+
+  if(tool === 'hoe'){
+    if(t.state === 'wild'){
+      t.state = 'tilled'; t.terrain = 'tilled';
+      removeDecorationAt(gx, gy);
+      trackAction('till');
+      SFX.play('till');
+      spawnParticles(sp.x, sp.y, 'till');
+      save();
+    } else if(t.state === 'tilled'){ if(!silent){ toast('已经开垦过了'); SFX.play('error'); } }
+    else { if(!silent){ toast('地里有作物'); SFX.play('error'); } }
+    return;
+  }
+
+  if(tool === 'seed'){
+    if(t.state === 'wild'){ if(!silent){ toast('先开垦'); SFX.play('error'); } return; }
+    if(t.state !== 'tilled'){ if(!silent){ toast('已有作物'); SFX.play('error'); } return; }
+    const sid = state.selectedSeed;
+    if(!sid){ openSheet('seed'); return; }
+    const def = CROPS[sid];
+    if(state.coins < def.seedCost){ if(!silent){ toast('金币不够'); SFX.play('error'); } return; }
+    state.coins -= def.seedCost;
+    t.state = 'growing'; t.crop = sid; t.growth = 0;
+    t.watered = false; t.fertile = false;
+    trackAction('plant', sid);
+    SFX.play('plant');
+    renderHUD(); save();
+    return;
+  }
+
+  if(tool === 'water'){
+    if(t.state !== 'growing'){ if(!silent){ toast('只能浇生长中的'); SFX.play('error'); } return; }
+    if(t.watered){ if(!silent){ toast('已经浇过'); SFX.play('error'); } return; }
+    t.watered = true;
+    trackAction('water');
+    SFX.play('water');
+    spawnParticles(sp.x, sp.y - 10, 'water');
+    if(!silent) toast('💧 浇水完成');
+    save();
+    return;
+  }
+
+  if(tool === 'fert'){
+    if(t.state !== 'growing'){ if(!silent){ toast('只能施给生长中的'); SFX.play('error'); } return; }
+    if(t.fertile){ if(!silent){ toast('已施过肥'); SFX.play('error'); } return; }
+    if(state.fertilizer <= 0){ if(!silent){ toast('肥料不足'); SFX.play('error'); } return; }
+    state.fertilizer--;
+    t.fertile = true;
+    trackAction('fert');
+    SFX.play('fert');
+    renderHUD();
+    if(!silent) toast('🧪 施肥完成');
+    save();
+    return;
+  }
+
+  if(tool === 'sickle'){
+    if(t.state !== 'ready'){ if(!silent){ toast('还没成熟'); SFX.play('error'); } return; }
+    const cropId = t.crop, def = CROPS[cropId];
+    if(state.warehouseEnabled){
+      state.bag[cropId] = (state.bag[cropId] || 0) + 1;
+      flyToStore(t, def.emoji);
+      if(!silent) floatPlus(t, 1);
+      if(!silent) toast(`收获 ${def.emoji} ${def.name} ×1`);
+    } else {
+      const gain = def.sellPrice;
+      state.coins += gain;
+      trackAction('coins', gain);
+      floatPlusText(t, '+' + gain + '💰');
+      if(!silent) toast(`卖出 +${gain} 金`);
+    }
+    trackAction('harvest');
+    SFX.play('harvest');
+    spawnParticles(sp.x, sp.y - 15, 'harvest');
+    t.state = 'wild'; t.terrain = 'grass'; t.crop = null;
+    t.growth = 0; t.watered = false; t.fertile = false;
+    renderHUD(); save();
+    return;
+  }
+}
+
+/* ============ 指针 ============ */
+let pointerDown=false, pointerMoved=false, startX=0, startY=0;
+let lastTileKey='', toolApplied=false, panMode=false, panStartX=0, panStartY=0;
+
+canvas.addEventListener('pointerdown', e => {
+  if(e.button !== 0 && e.pointerType === 'mouse') return;
+  e.preventDefault();
+  pointerDown = true; pointerMoved = false;
+  toolApplied = false; lastTileKey = '';
+  startX = e.clientX; startY = e.clientY;
+  if(state.tool === 'pan'){
+    panMode = true;
+    panStartX = e.clientX - state.camera.x;
+    panStartY = e.clientY - state.camera.y;
+  } else panMode = false;
+  try { canvas.setPointerCapture(e.pointerId); } catch(_) {}
+});
+canvas.addEventListener('pointermove', e => {
+  if(!pointerDown) return;
+  if(panMode){
+    state.camera.x = e.clientX - panStartX;
+    state.camera.y = e.clientY - panStartY;
+    return;
+  }
+  if(!pointerMoved && Math.hypot(e.clientX-startX, e.clientY-startY) < 6) return;
+  pointerMoved = true;
+  const { gx, gy } = screenToGrid(e.clientX, e.clientY);
+  const key = gx + ',' + gy;
+  if(key !== lastTileKey){
+    lastTileKey = key; toolApplied = true;
+    applyToolAt(gx, gy, true);
+  }
+});
+function onPointerEnd(e){
+  if(!pointerDown) return;
+  pointerDown = false;
+  if(panMode){ panMode = false; try { canvas.releasePointerCapture(e.pointerId); } catch(_) {} return; }
+  if(!toolApplied){
+    const { gx, gy } = screenToGrid(e.clientX, e.clientY);
+    applyToolAt(gx, gy, false);
+  }
+  toolApplied = false; lastTileKey = '';
+  try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
+}
+canvas.addEventListener('pointerup', onPointerEnd);
+canvas.addEventListener('pointercancel', onPointerEnd);
+
+/* ============ HUD ============ */
+function renderHUD(){
+  document.getElementById('hudMoney').textContent = state.coins;
+  document.getElementById('hudFert').textContent = state.fertilizer;
+  const total = state.bag.carrot + state.bag.potato + state.bag.rice;
+  const badge = document.getElementById('storeBadge');
+  if(total > 0){ badge.style.display = 'grid'; badge.textContent = total > 99 ? '99+' : total; }
+  else badge.style.display = 'none';
+}
+function renderToolbar(){
+  document.querySelectorAll('#toolbar button').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === state.tool);
+  });
+  const panBtn = document.getElementById('btnPan');
+  if(panBtn) panBtn.classList.toggle('active', state.tool === 'pan');
+}
+document.getElementById('toolbar').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-tool]');
+  if(!btn) return;
+  const tool = btn.dataset.tool;
+  SFX.play('click');
+  if(tool === 'seed'){ state.tool = 'seed'; renderToolbar(); openSheet('seed'); return; }
+  state.tool = tool; renderToolbar();
+});
+document.getElementById('btnPan').onclick = () => {
+  state.tool = (state.tool === 'pan') ? 'hoe' : 'pan';
+  SFX.play('click'); renderToolbar();
+};
+
+/* ============ 弹层 ============ */
+function openSheet(name){
+  closeSheet();
+  document.getElementById(name + 'Modal').classList.add('show');
+  if(name === 'seed') renderSeedList();
+  if(name === 'shop') renderShop();
+  if(name === 'store') renderStore();
+  if(name === 'achievement') renderAchievements();
+  if(name === 'notice')      renderChangelog();
+}
+function closeSheet(){
+  ['seedModal','shopModal','storeModal','settingsModal','achievementModal','noticeModal'].forEach(id => {
+    document.getElementById(id).classList.remove('show');
+  });
+}
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheet));
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if(e.target === m) closeSheet(); });
+});
+document.getElementById('btnShop').onclick = () => { SFX.play('click'); openSheet('shop'); };
+document.getElementById('btnStore').onclick = () => { SFX.play('click'); openSheet('store'); };
+document.getElementById('btnSettings').onclick = () => { SFX.play('click'); openSheet('settings'); };
+
+/* 种子列表 */
+function renderSeedList(){
+  const el = document.getElementById('seedList'); el.innerHTML = '';
+  CROP_IDS.forEach(id => {
+    const def = CROPS[id];
+    const affordable = state.coins >= def.seedCost;
+    const isCur = state.selectedSeed === id;
+    const row = document.createElement('div');
+    row.className = 'row clickable' + (isCur ? ' active' : '');
+    if(!affordable) row.style.opacity = '0.45';
+    row.innerHTML = `
+      <div class="r-ico">${def.emoji}</div>
+      <div style="flex:1">
+        <div class="r-name">${def.name}${isCur ? ' · 已选' : ''}</div>
+        <div class="r-meta">${def.tag} · 约 ${Math.round(def.stageMs*3/1000)} 秒 · 卖 ${def.sellPrice} 金</div>
+      </div>
+      <div class="r-price">${def.seedCost} 金</div>
+    `;
+    row.onclick = () => {
+      if(!affordable){ toast('金币不够'); SFX.play('error'); return; }
+      state.selectedSeed = id; state.tool = 'seed';
+      SFX.play('click'); renderToolbar(); closeSheet();
+      toast(`已选 ${def.name}`);
+    };
+    el.appendChild(row);
+  });
+}
+
+/* 商店 */
+function renderShop(){
+  const el = document.getElementById('shopList'); el.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <div class="r-ico">🧪</div>
+    <div style="flex:1">
+      <div class="r-name">肥料</div>
+      <div class="r-meta">生长速度 ×1.5，可与浇水叠加</div>
+      <div class="r-meta">当前库存：${state.fertilizer}</div>
+    </div>
+  `;
+  const buy = document.createElement('button');
+  buy.className = 'mini'; buy.textContent = `买 ${FERT_COST} 金`;
+  buy.onclick = e => {
+    e.stopPropagation();
+    if(state.coins < FERT_COST){ toast('金币不够'); SFX.play('error'); return; }
+    state.coins -= FERT_COST; state.fertilizer++;
+    SFX.play('buy');
+    renderHUD(); renderShop(); save();
+    toast('购买成功');
+  };
+  row.appendChild(buy); el.appendChild(row);
+}
+
+/* 仓储开关 */
+function renderWarehouseToggle(){
+  const btn = document.getElementById('whBtn'), desc = document.getElementById('whDesc');
+  if(state.warehouseEnabled){
+    btn.className = 'wh-btn on'; btn.textContent = '已开启';
+    desc.textContent = '开启：收获作物存入仓库';
+  } else {
+    btn.className = 'wh-btn off'; btn.textContent = '已关闭';
+    desc.textContent = '关闭：收获作物自动出售';
+  }
+}
+document.getElementById('whBtn').onclick = () => {
+  state.warehouseEnabled = !state.warehouseEnabled;
+  SFX.play('click'); renderWarehouseToggle(); save();
+  toast(state.warehouseEnabled ? '仓储已开启' : '仓储已关闭');
+};
+
+/* 仓库 */
+function renderStore(){
+  renderWarehouseToggle();
+  const el = document.getElementById('storeList'); el.innerHTML = '';
+  let any = false;
+  CROP_IDS.forEach(id => {
+    const n = state.bag[id] || 0;
+    if(n <= 0) return;
+    any = true;
+    const def = CROPS[id];
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="r-ico">${def.emoji}</div>
+      <div style="flex:1">
+        <div class="r-name">${def.name}</div>
+        <div class="r-meta">单价 ${def.sellPrice} 金</div>
+      </div>
+      <div class="r-count">×${n}</div>
+    `;
+    const s1 = document.createElement('button');
+    s1.className = 'mini sell'; s1.textContent = '卖1';
+    s1.onclick = e => { e.stopPropagation(); sellCrop(id, 1); };
+    const sAll = document.createElement('button');
+    sAll.className = 'mini sell'; sAll.textContent = '全卖';
+    sAll.onclick = e => { e.stopPropagation(); sellCrop(id, n); };
+    row.append(s1, sAll);
+    el.appendChild(row);
+  });
+  if(!any) el.innerHTML = '<div class="empty">仓库空空如也 🌱</div>';
+}
+function sellCrop(cropId, qty){
+  const have = state.bag[cropId] || 0;
+  const n = Math.max(0, Math.min(qty, have));
+  if(n <= 0) return;
+  const gain = n * CROPS[cropId].sellPrice;
+  state.bag[cropId] -= n; state.coins += gain;
+  trackAction('coins', gain);
+  SFX.play('coin');
+  renderHUD(); renderStore(); save();
+  toast(`卖出 ×${n}，+${gain} 金`);
+}
+
+/* ============ 设置面板 ============ */
+function renderSettings(){
+  document.getElementById('toggleSound').classList.toggle('on', state.soundEnabled);
+  document.getElementById('toggleParticles').classList.toggle('on', state.particlesEnabled);
+  document.getElementById('toggleWarehouse').classList.toggle('on', state.warehouseEnabled);
+}
+document.getElementById('toggleSound').onclick = () => {
+  state.soundEnabled = !state.soundEnabled;
+  SFX.enabled = state.soundEnabled;
+  SFX.play('click');
+  renderSettings(); save();
+};
+document.getElementById('toggleParticles').onclick = () => {
+  state.particlesEnabled = !state.particlesEnabled;
+  SFX.play('click');
+  renderSettings(); save();
+};
+document.getElementById('toggleWarehouse').onclick = () => {
+  state.warehouseEnabled = !state.warehouseEnabled;
+  SFX.play('click');
+  renderSettings(); renderWarehouseToggle(); save();
+};
+
+/* 网格开关 */
+const btnGrid = document.getElementById('btnGrid');
+function renderGridBtn(){ btnGrid.classList.toggle('active', state.showGrid); }
+btnGrid.onclick = () => {
+  state.showGrid = !state.showGrid;
+  SFX.play('click'); renderGridBtn(); save();
+};
+
+/* ============ 侧栏拖拽 ============ */
+const sidePanel = document.getElementById('sidePanel');
+function placeSidePanel(){
+  const panelH = sidePanel.offsetHeight || 60;
+  let y = state.sidePanelY;
+  if(y == null) y = window.innerHeight / 2 - panelH / 2;
+  y = Math.max(10, Math.min(window.innerHeight - panelH - 10, y));
+  state.sidePanelY = y;
+  sidePanel.style.top = y + 'px';
+}
+let panelDragging=false, panelStartY=0, panelStartTop=0;
+sidePanel.addEventListener('pointerdown', e => {
+  if(e.target.closest('button')) return;
+  panelDragging = true;
+  panelStartY = e.clientY;
+  panelStartTop = state.sidePanelY || 0;
+  try { sidePanel.setPointerCapture(e.pointerId); } catch(_) {}
+  e.preventDefault();
+});
+sidePanel.addEventListener('pointermove', e => {
+  if(!panelDragging) return;
+  const panelH = sidePanel.offsetHeight;
+  let newY = panelStartTop + (e.clientY - panelStartY);
+  newY = Math.max(10, Math.min(window.innerHeight - panelH - 10, newY));
+  state.sidePanelY = newY;
+  sidePanel.style.top = newY + 'px';
+});
+function endPanelDrag(e){
+  if(!panelDragging) return;
+  panelDragging = false;
+  try { sidePanel.releasePointerCapture(e.pointerId); } catch(_) {}
+  save();
+}
+sidePanel.addEventListener('pointerup', endPanelDrag);
+sidePanel.addEventListener('pointercancel', endPanelDrag);
+
+/* ============ resize ============ */
+function onViewportChange(){
+  resize(); applyUIScale();
+  requestAnimationFrame(placeSidePanel);
+}
+window.addEventListener('resize', onViewportChange);
+window.addEventListener('orientationchange', () => setTimeout(onViewportChange, 120));
+
+/* ============ Toast ============ */
+let toastTimer = 0;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1300);
+}
+
+/* ============ 飞行动画 ============ */
+function flyToStore(t, emoji){
+  const from = worldToScreen(t);
+  const to = document.getElementById('btnStore').getBoundingClientRect();
+  const fly = document.createElement('div');
+  fly.className = 'fly-item';
+  fly.textContent = emoji;
+  fly.style.left = from.x + 'px'; fly.style.top = from.y + 'px';
+  document.body.appendChild(fly);
+  requestAnimationFrame(() => {
+    fly.style.transition = 'left .62s cubic-bezier(.5,0,.75,0), top .62s cubic-bezier(.5,0,.75,0), opacity .62s ease, transform .62s ease';
+    fly.style.left = (to.left + to.width/2) + 'px';
+    fly.style.top = (to.top + to.height/2) + 'px';
+    fly.style.transform = 'scale(.4) rotate(20deg)';
+    fly.style.opacity = '0';
+  });
+  setTimeout(() => fly.remove(), 720);
+}
+function floatPlus(t, n){
+  const { x, y } = worldToScreen(t);
+  const el = document.createElement('div');
+  el.className = 'float-plus'; el.textContent = '+' + n;
+  el.style.left = x + 'px';
+  el.style.top = (y - TILE_H*SCALE*0.3) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 980);
+}
+function floatPlusText(t, text){
+  const { x, y } = worldToScreen(t);
+  const el = document.createElement('div');
+  el.className = 'float-plus'; el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = (y - TILE_H*SCALE*0.3) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 980);
+}
+
+/* ============ 主循环 ============ */
+let lastTick = 0, saveTimer = 0;
+function loop(now){
+  const dt = Math.min(now - lastTick, 2000);
+  lastTick = now;
+  advanceGrowth(dt);
+  updateParticles(dt);
+  render();
+  const absNow = performance.timeOrigin + now;
+  if(absNow - saveTimer > 4000){ saveTimer = absNow; save(); }
+  requestAnimationFrame(loop);
+}
+
+/* ============ 计数与检查 ============ */
+function trackAction(type, payload){
+  const today = todayStr();
+  if(state.stats.today.date !== today){
+    state.stats.today = { date: today, harvest:0, coins:0, plant:0, water:0, fert:0, till:0 };
+  }
+  const t = state.stats.today;
+  const all = state.stats.total;
+
+  switch(type){
+    case 'till':    t.till++;    all.till++;    break;
+    case 'plant':   t.plant++;   all.plant++;
+                    all.cropTypes[payload] = true;  break;
+    case 'water':   t.water++;   all.water++;   break;
+    case 'fert':    t.fert++;    all.fert++;    break;
+    case 'harvest': t.harvest++; all.harvest++; break;
+    case 'coins':   t.coins += payload; all.coins += payload; break;
+  }
+  checkAchievements();
+  checkTasks();
+  updateHudDots();
+}
+
+function checkAchievements(){
+  const unlocked = [];
+  for(const a of ACHIEVEMENTS){
+    if(state.achievements[a.id]) continue;
+    if(a.cond(state.stats)) {
+      state.achievements[a.id] = Date.now();
+      unlocked.push(a);
+    }
+  }
+  if(unlocked.length){
+    state.achRead = false;
+    SFX.play('achieve');
+    unlocked.forEach((a, i) => setTimeout(() => showAchToast(a), i * 400));
+    save();
+  }
+}
+
+function checkTasks(){
+  const today = todayStr();
+  if(state.tasks.date !== today){
+    state.tasks.date = today;
+    const shuffled = [...TASK_POOL].sort(() => Math.random() - 0.5);
+    state.tasks.list = shuffled.slice(0, 3).map(t => ({ id: t.id, claimed: false }));
+    save();
+  }
+}
+
+function getTaskProgress(taskId){
+  const def = TASK_POOL.find(x => x.id === taskId);
+  if(!def) return 0;
+  return Math.min(def.target, state.stats.today[def.type] || 0);
+}
+
+function claimAllTasks(){
+  let claimed = 0, totalReward = 0;
+  state.tasks.list.forEach(t => {
+    if(t.claimed) return;
+    const def = TASK_POOL.find(x => x.id === t.id);
+    if(!def) return;
+    if(getTaskProgress(t.id) >= def.target){
+      t.claimed = true;
+      claimed++;
+      totalReward += def.reward;
+    }
+  });
+  if(claimed === 0) return;
+  state.coins += totalReward;
+  state.stats.today.coins += totalReward;
+  state.stats.total.coins += totalReward;
+  SFX.play('coin');
+  renderHUD();
+  renderTaskList();
+  updateHudDots();
+  checkAchievements();
+  save();
+  toast(`一键领取 ${claimed} 个任务，+${totalReward} 金`);
+}
+
+function claimTask(taskId){
+  const t = state.tasks.list.find(x => x.id === taskId);
+  if(!t || t.claimed) return;
+  const def = TASK_POOL.find(x => x.id === taskId);
+  if(!def) return;
+  if(getTaskProgress(taskId) < def.target) return;
+  t.claimed = true;
+  state.coins += def.reward;
+  state.stats.today.coins += def.reward;
+  state.stats.total.coins += def.reward;
+  SFX.play('coin');
+  renderHUD();
+  renderTaskList();
+  updateHudDots();
+  checkAchievements();
+  save();
+  toast(`任务完成！+${def.reward} 金`);
+}
+
+/* ============ 成就 toast ============ */
+function showAchToast(a){
+  const el = document.createElement('div');
+  el.className = 'ach-toast';
+  el.innerHTML = `
+    <span class="ach-toast-icon">${a.icon}</span>
+    <div>
+      <div class="ach-toast-label">🏆 成就解锁</div>
+      <div class="ach-toast-name">${a.name}</div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 500);
+  }, 2400);
+}
+
+/* ============ 面板渲染 ============ */
+function renderAchievements(){
+  const el = document.getElementById('achList');
+  el.innerHTML = '';
+  ACHIEVEMENTS.forEach(a => {
+    const unlocked = !!state.achievements[a.id];
+    const card = document.createElement('div');
+    card.className = 'ach-card' + (unlocked ? ' unlocked' : '');
+    let progressHtml = '';
+    if(!unlocked){
+      progressHtml = `<div class="ach-progress">${getAchProgress(a.id)}</div>`;
+    }
+    card.innerHTML = `
+      <div class="ach-icon">${a.icon}</div>
+      <div class="ach-info">
+        <div class="ach-name">${a.name}</div>
+        <div class="ach-desc">${a.desc}</div>
+        ${progressHtml}
+      </div>
+    `;
+    el.appendChild(card);
+  });
+}
+
+function getAchProgress(id){
+  const s = state.stats.total;
+  switch(id){
+    case 'first_harvest': return `${s.harvest} / 1`;
+    case 'harvest_10':    return `${s.harvest} / 10`;
+    case 'harvest_50':    return `${s.harvest} / 50`;
+    case 'harvest_100':   return `${s.harvest} / 100`;
+    case 'coins_100':     return `${s.coins} / 100`;
+    case 'coins_500':     return `${s.coins} / 500`;
+    case 'all_crops':     return `${Object.keys(s.cropTypes || {}).length} / 3`;
+    case 'water_master':  return `${s.water} / 20`;
+    case 'fert_master':   return `${s.fert} / 10`;
+    case 'till_master':   return `${s.till} / 20`;
+  }
+  return '';
+}
+
+function renderTaskList(){
+  const el = document.getElementById('taskList');
+  el.innerHTML = '';
+  if(state.tasks.date !== todayStr()){
+    checkTasks();
+  }
+  state.tasks.list.forEach(t => {
+    const def = TASK_POOL.find(x => x.id === t.id);
+    if(!def) return;
+    const cur = getTaskProgress(t.id);
+    const done = cur >= def.target;
+    const pct = Math.min(100, (cur / def.target) * 100);
+
+    const card = document.createElement('div');
+    card.className = 'task-card' + (done ? ' done' : '');
+    card.innerHTML = `
+      <div class="task-top">
+        <div class="task-desc">${def.desc}</div>
+        <div class="task-reward">+${def.reward}💰</div>
+      </div>
+      <div class="task-bar"><div class="task-bar-fill" style="width:${pct}%"></div></div>
+      <button class="task-btn${done && !t.claimed ? ' ready' : ''}"
+              ${done && !t.claimed ? '' : 'disabled'}>
+        ${t.claimed ? '已领取' : (done ? '领取奖励' : `${cur} / ${def.target}`)}
+      </button>
+    `;
+    if(done && !t.claimed){
+      card.querySelector('.task-btn').onclick = () => claimTask(t.id);
+    }
+    el.appendChild(card);
+  });
+
+  // 一键领取按钮显隐（forEach 之后）
+  const claimBtn = document.getElementById('claimAllBtn');
+  const hasClaimable = state.tasks.list.some(task => {
+    if(task.claimed) return false;
+    const def = TASK_POOL.find(x => x.id === task.id);
+    return def && getTaskProgress(task.id) >= def.target;
+  });
+  claimBtn.style.display = hasClaimable ? 'block' : 'none';
+}
+
+function renderChangelog(){
+  const el = document.getElementById('logList');
+  el.innerHTML = '';
+  CHANGELOG.forEach(log => {
+    const item = document.createElement('div');
+    item.className = 'log-item';
+    item.innerHTML = `
+      <div class="log-header">
+        <div class="log-version">${log.version}</div>
+        <div class="log-date">${log.date}</div>
+      </div>
+      <div class="log-title">${log.title}</div>
+      <ul class="log-list">${log.items.map(i => `<li>${i}</li>`).join('')}</ul>
+    `;
+    el.appendChild(item);
+  });
+}
+
+/* ============ 红点更新 ============ */
+function updateHudDots(){
+  const achBtn = document.getElementById('achBtn');
+  const taskBtn = document.getElementById('tabTask');
+
+  // 成就按钮红点
+  let aDot = achBtn.querySelector('.badge');
+  if(state.achRead === false && aDot === null){
+    aDot = document.createElement('span');
+    aDot.className = 'badge';
+    aDot.textContent = '!';
+    achBtn.appendChild(aDot);
+  } else if(state.achRead !== false && aDot){
+    aDot.remove();
+  }
+
+  // 任务 tab 红点（有可领取奖励）
+  if(taskBtn){
+    const hasClaimable = state.tasks.list.some(t => {
+      if(t.claimed) return false;
+      const def = TASK_POOL.find(x => x.id === t.id);
+      return def && getTaskProgress(t.id) >= def.target;
+    });
+    let tDot = taskBtn.querySelector('.badge');
+    if(hasClaimable && !tDot){
+      tDot = document.createElement('span');
+      tDot.className = 'badge';
+      tDot.textContent = '!';
+      taskBtn.appendChild(tDot);
+    } else if(!hasClaimable && tDot){
+      tDot.remove();
+    }
+  }
+}
+
+function updateNoticeDot(){
+  const btn = document.getElementById('noticeBtn');
+  const unread = CHANGELOG.some(l => !state.noticeRead[l.version]);
+  let dot = btn.querySelector('.badge');
+  if(unread && !dot){
+    dot = document.createElement('span');
+    dot.className = 'badge';
+    dot.textContent = '!';
+    btn.appendChild(dot);
+  } else if(!unread && dot){
+    dot.remove();
+  }
+}
+
+/* ============ 面板切换 & 按钮绑定 ============ */
+document.getElementById('tabAch').onclick = () => {
+  SFX.play('click');
+  document.getElementById('tabAch').classList.add('active');
+  document.getElementById('tabTask').classList.remove('active');
+  document.getElementById('achList').style.display = '';
+  document.getElementById('taskList').style.display = 'none';
+  renderAchievements();
+};
+document.getElementById('tabTask').onclick = () => {
+  SFX.play('click');
+  state.taskRead = true;
+  updateHudDots();
+  document.getElementById('tabTask').classList.add('active');
+  document.getElementById('tabAch').classList.remove('active');
+  document.getElementById('taskList').style.display = '';
+  document.getElementById('achList').style.display = 'none';
+  renderTaskList();
+};
+document.getElementById('claimAllBtn').onclick = () => {
+  SFX.play('click');
+  claimAllTasks();
+};
+
+document.getElementById('achBtn').onclick = () => {
+  SFX.play('click');
+  state.achRead = true;
+  updateHudDots();
+  save();
+  openSheet('achievement');
+  document.getElementById('tabAch').classList.add('active');
+  document.getElementById('tabTask').classList.remove('active');
+  document.getElementById('achList').style.display = '';
+  document.getElementById('taskList').style.display = 'none';
+  renderAchievements();
+};
+document.getElementById('noticeBtn').onclick = () => {
+  SFX.play('click');
+  openSheet('notice');
+  renderChangelog();
+  CHANGELOG.forEach(l => state.noticeRead[l.version] = true);
+  updateNoticeDot();
+  save();
+};
+
+/* ============ 初始化 ============ */
+function init(){
+  resize(); applyUIScale();
+  const loaded = load();
+  state = loaded.state;
+  SFX.enabled = state.soundEnabled;
+  SFX.init();
+
+  const off = applyOffline(state, loaded.offlineMs);
+  if(loaded.offlineMs >= 60000 && off.grown > 0){
+    const mins = Math.floor(loaded.offlineMs / 60000);
+    setTimeout(() => toast(`离开 ${mins} 分钟，${off.grown} 块生长` +
+      (off.ripened ? `，${off.ripened} 块成熟` : '')), 500);
+  }
+  buildDrawOrder();
+  if(!loaded.offlineMs || (state.camera.x === 0 && state.camera.y === 0)){
+    centerOn(FARM_X0 + FARM_W/2, FARM_Y0 + FARM_H/2);
+  }
+  renderHUD(); renderToolbar(); renderGridBtn(); renderSettings();
+  checkTasks();
+  updateNoticeDot();
+  updateHudDots();
+  requestAnimationFrame(placeSidePanel);
+  window.addEventListener('beforeunload', save);
+  document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
+
+  const unlockAudio = () => { SFX.resume(); document.removeEventListener('pointerdown', unlockAudio); };
+  document.addEventListener('pointerdown', unlockAudio);
+
+  lastTick = performance.now(); saveTimer = lastTick;
+  requestAnimationFrame(loop);
+}
+init();
+})();
+</script>
+</body>
+</html>

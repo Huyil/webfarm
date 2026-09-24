@@ -1,0 +1,8 @@
+# 打包产物（源码 + 构建脚本才是仓库内容；Gitee 的 Release 附件放 zip/tgz）
+dist/
+node_modules/
+# 部署密钥绝不能进仓库
+deploy/keys/
+*.log
+*.tmp
+.DS_Store

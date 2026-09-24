@@ -1,0 +1,37 @@
+/* ===== 成就定义 =====
+ * cond(s) 里的 s = state.stats；成就解锁后可以**领取奖励**（肥料 / 高级肥料 / 装饰地砖）。
+ * 每个成就还会提高挂机收益（每个 +0.06 金/分）。
+ */
+const ACHIEVEMENTS = [
+  { id:'first_harvest', name:'初次收获',  desc:'收获第一株作物',        icon:'🌱', cond: s => s.total.harvest >= 1,     reward:{ fert:2 } },
+  { id:'harvest_10',    name:'小有收成',  desc:'累计收获 10 株',         icon:'🌾', cond: s => s.total.harvest >= 10,    reward:{ fert:3 } },
+  { id:'harvest_50',    name:'丰收季节',  desc:'累计收获 50 株',         icon:'🌻', cond: s => s.total.harvest >= 50,    reward:{ fert:4, decor:{ path:2 } } },
+  { id:'harvest_100',   name:'农业大亨',  desc:'累计收获 100 株',        icon:'🏅', cond: s => s.total.harvest >= 100,   reward:{ premium:2, decor:{ path:3 } } },
+  { id:'harvest_500',   name:'丰收之王',  desc:'累计收获 500 株',        icon:'👑', cond: s => s.total.harvest >= 500,   reward:{ premium:3, decor:{ tree:2 } } },
+  { id:'coins_100',     name:'小富即安',  desc:'累计赚取 100 金币',      icon:'💰', cond: s => s.total.coins >= 100,     reward:{ fert:3 } },
+  { id:'coins_500',     name:'腰缠万贯',  desc:'累计赚取 500 金币',      icon:'💎', cond: s => s.total.coins >= 500,     reward:{ premium:2 } },
+  { id:'coins_2000',    name:'富甲一方',  desc:'累计赚取 2000 金币',     icon:'🏦', cond: s => s.total.coins >= 2000,    reward:{ premium:3, decor:{ pond:1 } } },
+  { id:'coins_5000',    name:'富可敌国',  desc:'累计赚取 5000 金币',     icon:'🤑', cond: s => s.total.coins >= 5000,    reward:{ premium:4, decor:{ pond:1 } } },
+  { id:'all_crops',     name:'百花齐放',  desc:'种植过全部 7 种作物',    icon:'🌈', cond: s => Object.keys(s.total.cropTypes || {}).length >= 7, reward:{ fert:5, decor:{ flower:3 } } },
+  { id:'water_master',  name:'勤快农夫',  desc:'累计浇水 20 次',         icon:'💧', cond: s => s.total.water >= 20,      reward:{ fert:3 } },
+  { id:'water_100',     name:'灌溉大师',  desc:'累计浇水 100 次',        icon:'🚿', cond: s => s.total.water >= 100,     reward:{ fert:6 } },
+  { id:'fert_master',   name:'化学专家',  desc:'累计施肥 10 次',         icon:'🧪', cond: s => s.total.fert >= 10,       reward:{ fert:5 } },
+  { id:'till_master',   name:'开垦先锋',  desc:'累计开垦 20 块地',       icon:'⛏️', cond: s => s.total.till >= 20,       reward:{ fert:4, decor:{ path:2 } } },
+  { id:'expand_10',     name:'拓荒者',    desc:'扩建 10 次',             icon:'🚩', cond: s => (s.total.expand||0) >= 10, reward:{ fert:6, decor:{ path:4 } } },
+  { id:'expand_25',     name:'大地主',    desc:'扩建 25 次',             icon:'🏰', cond: s => (s.total.expand||0) >= 25, reward:{ premium:4, decor:{ pond:2 } } },
+  { id:'weed_20',       name:'除草能手',  desc:'收集 20 件装饰物',       icon:'🌿', cond: s => (s.total.decorGot||0) >= 20, reward:{ fert:4, decor:{ bush:2 } } },
+  { id:'weed_60',       name:'清理大师',  desc:'收集 60 件装饰物',       icon:'🧹', cond: s => (s.total.decorGot||0) >= 60, reward:{ premium:3, decor:{ rock:2 } } },
+  { id:'sold_100',      name:'摆摊小贩',  desc:'累计卖出 100 件作物',    icon:'🧺', cond: s => (s.total.sold||0) >= 100,  reward:{ fert:5 } },
+  { id:'first_cook',    name:'初次下厨',  desc:'做出第一道菜',           icon:'🍳', cond: s => s.total.cook >= 1,        reward:{ fert:2 } },
+  { id:'cook_25',       name:'农家大厨',  desc:'累计做菜 25 次',         icon:'👨‍🍳', cond: s => s.total.cook >= 25,       reward:{ premium:2, decor:{ path:2 } } },
+  { id:'cook_100',      name:'一方名厨',  desc:'累计做菜 100 次',        icon:'🍽️', cond: s => s.total.cook >= 100,      reward:{ premium:4, decor:{ flower:4 } } },
+  { id:'mill_20',       name:'磨坊主人',  desc:'累计研磨 20 次面粉',     icon:'🥣', cond: s => s.total.mill >= 20,       reward:{ fert:5 } },
+  { id:'roast_10',      name:'烤箱达人',  desc:'烤 10 次菜块',           icon:'🔥', cond: s => (s.total.roast||0) >= 10,  reward:{ premium:2, decor:{ path:3 } } },
+  { id:'perfect_dish',  name:'火候大师',  desc:'做出 1 道精品料理',      icon:'✨', cond: s => s.total.perfect >= 1,     reward:{ premium:2 } },
+  { id:'perfect_25',    name:'火候宗师',  desc:'做出 25 道精品料理',     icon:'🌟', cond: s => s.total.perfect >= 25,    reward:{ premium:5, decor:{ tree:1 } } },
+  { id:'burnt_10',      name:'焦糊初体验',desc:'把 10 次菜做焦糊',       icon:'🔥', cond: s => (s.total.burnt||0) >= 10,  reward:{ fert:4, decor:{ rock:2 } } },
+  { id:'dish_types',    name:'五味调和',  desc:'做出 5 种不同的菜',      icon:'🥘', cond: s => Object.keys(s.total.dishTypes || {}).length >= 5,  reward:{ premium:3, decor:{ flower:2 } } },
+  { id:'dish_types_10', name:'十全大补',  desc:'做出 10 种不同的菜',     icon:'🍱', cond: s => Object.keys(s.total.dishTypes || {}).length >= 10, reward:{ premium:4, decor:{ flower:4 } } },
+  { id:'idle_500',      name:'躺赚人生',  desc:'挂机收益累计 500 金币',  icon:'💤', cond: s => s.total.idle >= 500,      reward:{ fert:3 } },
+  { id:'idle_2000',     name:'躺赚大师',  desc:'挂机收益累计 2000 金币', icon:'🛌', cond: s => (s.total.idle||0) >= 2000, reward:{ premium:4 } },
+];

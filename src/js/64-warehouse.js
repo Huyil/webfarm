@@ -138,7 +138,7 @@ function renderStorePrep(el){
     const n = state.pieces[id] || 0;
     if(n <= 0) continue;
     any = true;
-    storeRow(el, 'piece:' + id, CROPS[id].produce + '块', '可下锅 · 也可进烤箱烤（精品/正常/焦糊）· 不可直接出售', n, []);
+    storeRow(el, 'piece:' + id, CROPS[id].produce + '块', '可下锅 · 也可进烤箱烤（精品/一般/焦糊）· 不可直接出售', n, []);
   }
   if(!any) el.innerHTML = '<div class="empty">还没有备料 🔪<br><span class="r-meta">去厨房把小麦磨成面粉、把菜切块</span></div>';
 }
@@ -148,7 +148,7 @@ function renderStoreDishes(el){
   for(const key of keys){
     const d = state.dishes[key];
     const pieces = (d.pieces || []).map(itemName).join('+') || '—';
-    storeRow(el, 'dish:' + key, `${d.name}${d.qtag || ''}`, `${d.qname || '正常'} · 单价 ${d.value} 金 · 用料：${pieces}`, d.n, [
+    storeRow(el, 'dish:' + key, `${d.name}${d.qtag || ''}`, `${d.qname || '一般'} · 单价 ${d.value} 金 · 用料：${pieces}`, d.n, [
       { label:'卖1',  fn:() => sellDishUI(key, 1) },
       { label:'全卖', fn:() => sellDishUI(key, d.n) },
     ]);

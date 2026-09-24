@@ -183,7 +183,7 @@ function kDropItem(itemKey, station){
   return res;
 }
 
-/* 取出（手动；小游戏关闭时按自动处理，永远只出「正常」） */
+/* 取出（手动；小游戏关闭时按自动处理，永远只出「一般」） */
 function kTakeStation(station){
   const auto = state.miniGameEnabled === false;
   let res;
@@ -315,6 +315,7 @@ function kKitchenSig(){
     shelf, dishes, kPiecesSummary(),
     K.mill.busy ? 1 : 0,
     K.oven.busy ? 1 : 0, K.oven.ready ? 1 : 0, K.oven.auto ? 1 : 0, K.oven.autoLoop ? 1 : 0,
+    (K.oven.items || []).length, state.ovenSlots || 1,
     AUTO_IDS.map(id => (autoActive(id) ? 1 : 0)).join(''),
     kBoardBusy() ? 1 : 0, (K.board && K.board.src) || '',
     K.pot.pieces.join('.'), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0, K.pot.autoLoop ? 1 : 0,
@@ -345,6 +346,14 @@ function kStationMillHTML(){
       <div class="k-progress" data-bar="mill"><i></i></div>
       <div class="k-st-hint">拖入小麦自动开磨（${kSecText(K.mill.dur)}）</div>
     </div>`;
+}
+/* 烤箱里的原料 chips（可多份）+ 槽位计数 */
+function kOvenChipsHTML(){
+  const items = KITCHEN.oven.items || [];
+  if(!items.length) return `<span class="k-slot-empty">拖入面粉 / 菜块（可放 ${ovenCap()} 份）</span>`;
+  return items.map(it => '<span class="k-chip">' +
+      kIconHTML(it.type === 'piece' ? ('dish:roast|normal|' + it.id) : 'dish:bread|normal|flour', K_ICON_SIZES.pot) +
+    '</span>').join('') + `<span class="k-slots-num">${items.length}/${ovenCap()}</span>`;
 }
 /* 烤箱里正在烤的东西 → 图标 key */
 function kOvenSlotKey(){
@@ -384,17 +393,18 @@ function kStationOvenHTML(){
     <div class="k-station" data-station="oven">
       <div class="k-st-head"><span class="k-st-ico">🔥</span><span class="k-st-name">烤箱</span><span class="k-st-state" data-state="oven"></span></div>
       <div class="k-st-body">
-        <div class="k-slot k-oven-slot">${K.oven.busy ? kIconHTML(kOvenSlotKey(), K_ICON_SIZES.station) : '<span class="k-slot-empty">空</span>'}</div>
+        <div class="k-pot-slot k-oven-slots">${kOvenChipsHTML()}</div>
         <div class="k-st-info">
           <div class="k-st-line">🥣 面粉 ×${state.prep.flour || 0} · 🔪 菜块 ×${kPieceStock()}</div>
-          <label class="k-check"><input type="checkbox" data-auto="oven" ${K.oven.auto ? 'checked' : ''}><span>自动出炉（窗口一过就取，只会是正常）</span></label>
+          <label class="k-check"><input type="checkbox" data-auto="oven" ${K.oven.auto ? 'checked' : ''}><span>自动出炉（窗口一过就取，只会是一般）</span></label>
           <label class="k-check"><input type="checkbox" data-loop="oven" ${K.oven.autoLoop ? 'checked' : ''}><span>全自动：同配方一直烤到原料不足</span></label>
         </div>
       </div>
       <div class="k-progress k-seg3" data-bar="oven">${kSegTicks(OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS)}<i></i></div>
       <div class="k-st-actions">
         <button class="mini primary" data-act="take" data-station="oven">出炉</button>
-        <span class="k-st-hint">手动出炉才可能出精品</span>
+        <button class="mini" data-act="upgrade-oven" data-up="oven"></button>
+        <span class="k-st-hint">自动出炉开着也能随时手动出炉：卡在精品段就是精品</span>
       </div>
     </div>`;
 }
@@ -426,14 +436,14 @@ function kStationPotHTML(){
         <div class="k-pot-slot">${chips}</div>
         <div class="k-st-info">
           <div class="k-st-line">${pv ? '＝ ' + kEsc(pv.name) + '（基础 ' + pv.base + ' 金）' : '每加一样食材，进度条会重置'}</div>
-          <label class="k-check"><input type="checkbox" data-auto="pot" ${K.pot.auto ? 'checked' : ''}><span>自动出锅（窗口一过就取，只会是正常）</span></label>
+          <label class="k-check"><input type="checkbox" data-auto="pot" ${K.pot.auto ? 'checked' : ''}><span>自动出锅（窗口一过就取，只会是一般）</span></label>
           <label class="k-check"><input type="checkbox" data-loop="pot" ${K.pot.autoLoop ? 'checked' : ''}><span>全自动：同配方一直煮到原料不足</span></label>
         </div>
       </div>
       <div class="k-progress k-seg3" data-bar="pot">${kSegTicks(POT_MS, POT_PERFECT_MS, POT_BURN_MS)}<i></i></div>
       <div class="k-st-actions">
         <button class="mini primary" data-act="take" data-station="pot">出锅</button>
-        <span class="k-st-hint">${state.miniGameEnabled === false ? '小游戏已关：直接出正常' : kSecText(K.pot.dur) + ' 走完即可出锅'}</span>
+        <span class="k-st-hint">${state.miniGameEnabled === false ? '小游戏已关：直接出一般' : kSecText(K.pot.dur) + ' 走完即可出锅'}</span>
       </div>
     </div>`;
 }
@@ -468,7 +478,7 @@ function kKitchenHTML(){
     ? shelf.map(kShelfCardHTML).join('')
     : '<div class="empty">货架空空 🧺<br><span class="r-meta">收获的作物、切好的菜块、磨好的面粉都会出现在这里</span></div>';
   const banner = state.miniGameEnabled === false
-    ? '<div class="k-banner">🎛️ 小游戏已关闭：取出动作一律按自动处理（永远「正常」，没有精品 / 焦糊判定）</div>'
+    ? '<div class="k-banner">🎛️ 小游戏已关闭：取出动作一律按自动处理（永远「一般」，没有精品 / 焦糊判定）</div>'
     : '';
   return `
     <div class="k-wrap">
@@ -531,6 +541,7 @@ function kBuildKitchen(el, sig){
       ovenBtn: q('[data-act="take"][data-station="oven"]'),
       boardState: q('[data-state="board"]'),
       potBar: q('[data-bar="pot"]'), potState: q('[data-state="pot"]'),
+      ovenUp: q('[data-act="upgrade-oven"]'),
       potBtn: q('[data-act="take"][data-station="pot"]'),
     },
   };
@@ -602,6 +613,17 @@ function kUpdateLive(){
     kSetState(n.ovenState, (state.prep.flour || 0) > 0 ? 'ok' : 'off', (state.prep.flour || 0) > 0 ? '可进炉' : '空');
   }
   if(n.ovenBtn) n.ovenBtn.disabled = !(K.oven.busy && K.oven.ready);
+  /* 烤箱升级按钮：显示下一级价格，钱不够或满级就禁用 */
+  const up = n.ovenUp;
+  if(up){
+    const cap = ovenCap();
+    if(!ovenCanUpgrade()){ up.textContent = `已满级（${cap} 槽）`; up.disabled = true; }
+    else {
+      const price = ovenSlotPrice();
+      up.textContent = `升级 ${price} 金（${cap}→${cap + 1} 槽）`;
+      up.disabled = state.coins < price;
+    }
+  }
   /* 自动化设备：剩余时间 / 缺料提示（每帧刷新，不重建 DOM） */
   for(const id of AUTO_IDS){
     const node = el_(`[data-dev-state="${id}"]`);
@@ -802,6 +824,14 @@ function kOnKitchenClick(e){
   }
   const act = btn.dataset.act;
   if(act === 'take'){ SFX.play('click'); kTakeStation(btn.dataset.station); return; }
+  if(act === 'upgrade-oven'){
+    const r = ovenUpgrade();
+    toast(r.msg);
+    if(!r.ok) SFX.play('error'); else SFX.play('buy');
+    if(kUI) kUI.sig = '';
+    renderKitchen();
+    return;
+  }
   if(act === 'buy-auto'){
     const r = autoBuy(btn.dataset.dev);
     toast(r.msg);

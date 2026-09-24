@@ -7,6 +7,7 @@ function resetRuntime(){
   rainDone = false;
   KITCHEN.mill.busy = false; KITCHEN.mill.t = 0;
   KITCHEN.oven.busy = false; KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
+  KITCHEN.oven.items = []; KITCHEN.oven.item = null;
   KITCHEN.board.busy = false; KITCHEN.board.t = 0; KITCHEN.board.src = null;
   KITCHEN.pot.pieces = []; KITCHEN.pot.t = 0; KITCHEN.pot.done = false;
   /* 恢复厨房勾选（住在 state 里才能跨刷新生效） */
@@ -126,6 +127,7 @@ window.FarmDebug = {
     KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon,
     OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS, POT_MS, POT_PERFECT_MS, POT_BURN_MS, QUALITY,
     AUTO_DEVICES, AUTO_IDS, autoBuy, autoActive, autoLeftMs, autoTick, autoLoopFeed,
+    ovenCap, ovenSlotPrice, ovenCanUpgrade, ovenUpgrade, OVEN_SLOT_PRICE0, OVEN_SLOT_MAX, QUALITY,
     /* 装饰 */
     decorAt, decorLayer, decorGroundAt, decorPropAt, canPlaceDecorAt, placeDecor, collectDecorationAt, hitDecorationAt, scatterWeeds, sellDecor, DECOR_PRICE, DECOR_SELL, DECOR_HP, decorMaxHp, decorIsFree, DECOR_FREE, decorOffsetFor, decorIsNatural, decorIsWild, DECOR_NATURAL, drawDecoration, drawPath, drawFence, pathConnMask, pathRawMask, fenceConnMask, connMaskOf, connDirs, connModesOf, DIAG_SIDES, cyclePathConn, PATH_CONN_MODES, CONN8_MODES,
     /* 挂机 */

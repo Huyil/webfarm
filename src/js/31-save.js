@@ -26,7 +26,7 @@ function serialize(st){
                    pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto),
                    ovenLoop: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.autoLoop),
                    potLoop: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.autoLoop) },
-    autoUntil: st.autoUntil, autoAcc: st.autoAcc,
+    autoUntil: st.autoUntil, autoAcc: st.autoAcc, ovenSlots: st.ovenSlots,
     tiles: st.tiles.map(t=>({
       gx: t.gx, gy: t.gy, terrain: t.terrain, state: t.state, crop: t.crop,
       growth: Math.round(t.growth), watered: !!t.watered, fertile: !!t.fertile,
@@ -72,6 +72,8 @@ function unpackState(d){
   st.pieces = Object.assign({}, d.pieces||{});
   st.prep = Object.assign({flour:0}, d.prep||{});
   st.dishes = d.dishes || {};
+  /* 老档里存的是「正常」，统一改成「一般」 */
+  for(const k in st.dishes){ if(st.dishes[k] && st.dishes[k].qname === '正常') st.dishes[k].qname = '一般'; }
   st.decorBag = Object.assign({tree:0,rock:0,bush:0,flower:0,pond:0,path:0}, d.decorBag||{});
   st.tool = TOOLS.includes(d.tool) ? d.tool : 'hoe';
   st.selectedSeed = (d.selectedSeed && CROPS[d.selectedSeed]) ? d.selectedSeed : 'carrot';
@@ -121,6 +123,7 @@ function unpackState(d){
   st.idle = Object.assign({ lastAt: Date.now(), frac: 0, total: 0 }, d.idle||{});
   st.clockMs = typeof d.clockMs === 'number' ? d.clockMs : DAY_MS * 0.16;
   st.kitchenAuto = Object.assign({ oven:false, pot:false, ovenLoop:false, potLoop:false }, d.kitchenAuto || {});
+  st.ovenSlots = Math.max(1, Math.min(OVEN_SLOT_MAX, d.ovenSlots | 0 || 1));
   st.autoUntil = Object.assign({ donkey:0, chopper:0 }, d.autoUntil || {});
   st.autoAcc = Object.assign({ donkey:0, chopper:0 }, d.autoAcc || {});
   st.tiles = d.tiles.map(t=>{

@@ -162,6 +162,12 @@
   background:rgba(0,0,0,.3);border:1px dashed #3d4a3f;
 }
 .k-oven-slot{border-color:rgba(255,140,80,.35)}
+.k-oven-slots{border-color:rgba(255,140,80,.35)}
+/* 槽位计数：贴在锅里/炉里的右下角 */
+.k-pot-slot{position:relative}
+.k-slots-num{align-self:flex-end;margin-left:auto;font-size:calc(10px*var(--ui-scale));color:#c8a06a;white-space:nowrap}
+/* 烤箱的升级按钮（价格会变，给点宽度别抖） */
+.k-st-actions [data-act="upgrade-oven"]{white-space:nowrap}
 .k-slot-empty{font-size:calc(10px*var(--ui-scale));color:#69756c;text-align:center;line-height:1.3;padding:0 calc(3px*var(--ui-scale))}
 .k-board-slot{border-color:rgba(180,200,255,.28)}
 

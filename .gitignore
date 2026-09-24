@@ -1,5 +1,10 @@
-# 打包产物（源码 + 构建脚本才是仓库内容；Gitee 的 Release 附件放 zip/tgz）
+# 构建/打包产物都不入库（源码 + 构建脚本才是仓库内容；Release 附件放 zip/tgz）
 dist/
+# 构建出来的单文件与「源码版」拼接产物：跑 node build.js（或 node tools/devbundle.js）生成
+/farm.html
+/farm.min.html
+/src/dev-bundle.js
+/src/dev-bundle.css
 node_modules/
 # 部署密钥绝不能进仓库
 deploy/keys/

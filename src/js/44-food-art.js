@@ -916,7 +916,7 @@ function kSparkle(g, x, y, r){
   g.closePath(); g.fill();
   g.restore();
 }
-/* 品质滤镜：精品＝暖亮+星光；焦糊＝暗褐+烟；正常＝无 */
+/* 品质滤镜：精品＝暖亮+星光；焦糊＝暗褐+烟；一般＝无 */
 function kQualityFX(g, quality){
   if(quality === 'perfect'){
     g.save();
@@ -1064,5 +1064,5 @@ function kDishEntry(g, dishKey){
   if(info.id === 'bread') kDishBreadIcon(g);
   else if(info.id === 'roast' && info.pieces && info.pieces.length) kPieceIcon(g, info.pieces[0]);  /* 烤菜：就用被烤的那块的形状 */
   else kBowlIcon(g, info);
-  kQualityFX(g, info.quality);   /* 精品=金光+星点，正常=熟色，焦糊=黑棕+烟 */
+  kQualityFX(g, info.quality);   /* 精品=金光+星点，一般=熟色，焦糊=黑棕+烟 */
 }

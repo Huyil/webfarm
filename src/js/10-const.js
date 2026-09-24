@@ -27,14 +27,15 @@ const SAVE_PREFIX='iso_farm_v9_slot_', SLOT_COUNT=3;
 const LEGACY_KEY='iso_farm_v8_0', CUR_SLOT_KEY='iso_farm_v9_current';
 
 /* 厨房时序 */
-const OVEN_MS=4000, OVEN_PERFECT_MS=2000, OVEN_BURN_MS=8000;   /* 4s 可收 → 4~6s 精品 → 6~12s 正常 → 12s 后焦糊 */
-const POT_MS=4000,  POT_PERFECT_MS=2000,  POT_BURN_MS=8000;   /* 4s 可收 → 4~6s 精品 → 6~12s 正常 → 12s 后焦糊 */
+const OVEN_MS=4000, OVEN_PERFECT_MS=2000, OVEN_BURN_MS=8000;
+const OVEN_SLOT_PRICE0=2000, OVEN_SLOT_RATE=1.5, OVEN_SLOT_MAX=6;   /* 烤箱槽位：2000 起指数上涨，最多 6 槽 */   /* 4s 可收 → 4~6s 精品 → 6~12s 一般 → 12s 后焦糊 */
+const POT_MS=4000,  POT_PERFECT_MS=2000,  POT_BURN_MS=8000;   /* 4s 可收 → 4~6s 精品 → 6~12s 一般 → 12s 后焦糊 */
 const MILL_MS=900, CHOP_MS=600, CHOP_PIECES=3;
 
 /* 品质 */
 const QUALITY = {
   perfect:{ id:'perfect', name:'精品', mult:1.5,  tag:'✨' },
-  normal: { id:'normal',  name:'正常', mult:1.0,  tag:''   },
+  normal: { id:'normal',  name:'一般', mult:1.0,  tag:''   },
   burnt:  { id:'burnt',   name:'焦糊', mult:0.5,  tag:'🔥' },
 };
 

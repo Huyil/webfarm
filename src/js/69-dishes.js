@@ -7,7 +7,7 @@
  */
 const KITCHEN = {
   mill:  { busy:false, t:0, dur:MILL_MS },
-  oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null, autoLoop:false, lastItem:null },
+  oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null, items:[], autoLoop:false, lastItem:null },
   board: { busy:false, t:0, dur:CHOP_MS, src:null },
   pot:   { pieces:[], t:0, dur:POT_MS, done:false, auto:false, autoLoop:false, lastPieces:[] },
 };
@@ -45,8 +45,21 @@ function mill(){
 
 /* ---------- 烤箱：面粉烤面包，切过的菜块也能烤 ---------- */
 function ovenPieceStock(){ return CROP_IDS.filter(id => (state.pieces[id] || 0) > 0); }
+/* 烤箱槽位：可花钱升级，一次能烤多份 */
+function ovenCap(){ return Math.max(1, Math.min(OVEN_SLOT_MAX, state.ovenSlots || 1)); }
+function ovenSlotPrice(){ return Math.round(OVEN_SLOT_PRICE0 * Math.pow(OVEN_SLOT_RATE, ovenCap() - 1)); }
+function ovenCanUpgrade(){ return ovenCap() < OVEN_SLOT_MAX; }
+function ovenUpgrade(){
+  if(!ovenCanUpgrade()) return { ok:false, msg:`烤箱已经满级（${OVEN_SLOT_MAX} 槽）` };
+  const price = ovenSlotPrice();
+  if(state.coins < price) return { ok:false, msg:`金币不够（升级需要 ${price} 金）` };
+  state.coins -= price;
+  state.ovenSlots = ovenCap() + 1;
+  renderHUD(); renderKitchen(); save();
+  return { ok:true, msg:`烤箱升级：现在一次能烤 ${state.ovenSlots} 份（下一级 ${Math.round(OVEN_SLOT_PRICE0 * Math.pow(OVEN_SLOT_RATE, state.ovenSlots - 1))} 金）` };
+}
 function canOvenPut(){
-  return !KITCHEN.oven.busy && ((state.prep.flour || 0) > 0 || ovenPieceStock().length > 0);
+  return KITCHEN.oven.items.length < ovenCap() && ((state.prep.flour || 0) > 0 || ovenPieceStock().length > 0);
 }
 function roastRecipe(id){
   return { id:'roast', name:'烤' + itemName(id), emoji:'🍢',
@@ -55,7 +68,7 @@ function roastRecipe(id){
 /* arg 省略 = 优先面粉；也可以显式 { piece:id } / { flour:true } */
 /* strict = 只认指定的那样东西（全自动循环用）：没有就失败，不会"顺手"抓别的原料顶上 */
 function ovenPut(arg, strict){
-  if(KITCHEN.oven.busy) return { ok:false, msg:'烤箱里还有东西' };
+  if(KITCHEN.oven.items.length >= ovenCap()) return { ok:false, msg:`烤箱满了（${ovenCap()} 个槽位，可以升级）` };
   let item = null;
   if(arg && arg.piece){
     if((state.pieces[arg.piece] || 0) <= 0) return { ok:false, msg:'没有' + itemName(arg.piece) + '块' };
@@ -69,31 +82,45 @@ function ovenPut(arg, strict){
     if(!list.length) return { ok:false, msg:'没有可烤的东西（先磨面粉或切菜）' };
     state.pieces[list[0]]--; item = { type:'piece', id:list[0] };
   }
-  KITCHEN.oven.item = item;
+  KITCHEN.oven.items.push(item);
+  KITCHEN.oven.item = KITCHEN.oven.items[0];              /* 兼容旧字段：图标/预览取第一份 */
   /* 记住「这次烤的是什么」：全自动循环时照这个配方再放一次 */
   KITCHEN.oven.lastItem = item.type === 'piece' ? { piece: item.id } : { prep: 'flour' };
-  KITCHEN.oven.busy = true; KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
+  KITCHEN.oven.busy = true;
+  /* 每加一份都重新计时：方便一次装几份再一起烤（跟锅一样） */
+  KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
   save();
-  return { ok:true, msg: item.type === 'flour' ? '面包进炉了' : itemName(item.id) + '块进炉了' };
+  const n = KITCHEN.oven.items.length;
+  return { ok:true, msg: (item.type === 'flour' ? '面包进炉了' : itemName(item.id) + '块进炉了') +
+                 (n > 1 ? `（共 ${n}/${ovenCap()} 份）` : '') };
 }
 function ovenTake(auto){
-  if(!KITCHEN.oven.busy) return { ok:false, msg:'烤箱是空的' };
+  const items = KITCHEN.oven.items;
+  if(!items.length) return { ok:false, msg:'烤箱是空的' };
   if(!KITCHEN.oven.ready) return { ok:false, msg:'还没烤好' };
+  /* 手动出炉（auto=false）会按当前火候判定：自动出炉开着也随时可以手动取，卡在精品段就是精品 */
   const q = auto ? 'normal' : gradeOf(KITCHEN.oven.t, KITCHEN.oven.dur, OVEN_PERFECT_MS, OVEN_BURN_MS);
-  const src = KITCHEN.oven.item;
-  const isRoast = !!(src && src.type === 'piece');
-  const recipe = isRoast ? roastRecipe(src.id) : ovenRecipe();
-  const item = addDish(recipe, q, 1);
+  const out = [];
+  let last = null;
+  for(const src of items){
+    const isRoast = !!(src && src.type === 'piece');
+    const recipe = isRoast ? roastRecipe(src.id) : ovenRecipe();
+    last = addDish(recipe, q, 1);
+    out.push(last);
+    trackAction('cook');
+    if(isRoast) trackAction('roast');
+    if(q === 'perfect') trackAction('perfect');
+  }
   KITCHEN.oven.busy = false; KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
-  KITCHEN.oven.item = null;
-  trackAction('cook');
-  if(isRoast) trackAction('roast');
-  if(q === 'perfect') trackAction('perfect');
+  KITCHEN.oven.items = []; KITCHEN.oven.item = null;
   save();
-  return { ok:true, quality:q, dish:item, msg:`${QUALITY[q].tag}${item.name}（${QUALITY[q].name}）` };
+  const n = out.length;
+  return { ok:true, quality:q, dish:last, dishes:out, n,
+           msg:`${QUALITY[q].tag}${last.name}（${QUALITY[q].name}）` + (n > 1 ? ` ×${n}` : '') };
 }
 function ovenPreview(){
-  const src = KITCHEN.oven.item;
+  const items = KITCHEN.oven.items;
+  const src = items[0] || null;
   const isRoast = !!(src && src.type === 'piece');
   const recipe = isRoast ? roastRecipe(src.id) : ovenRecipe();
   return { recipe, quality: KITCHEN.oven.ready ? gradeOf(KITCHEN.oven.t, KITCHEN.oven.dur, OVEN_PERFECT_MS, OVEN_BURN_MS) : null };
@@ -162,9 +189,17 @@ function autoLoopFeed(){
   const K = KITCHEN;
   if(K.oven.autoLoop && !K.oven.busy){
     if(!K.oven.lastItem){ K.oven.autoLoop = false; return; }
-    if(!ovenPut(K.oven.lastItem, true).ok){
-      K.oven.autoLoop = false;
-      toast('🥣 面粉烤完了：全自动出炉已停（原料不足）');
+    /* 先把槽位装满（有几槽就装几份），装不下/没原料就按情况收手 */
+    let fed = 0;
+    while(K.oven.items.length < ovenCap()){
+      if(!ovenPut(K.oven.lastItem, true).ok){
+        if(fed === 0){
+          K.oven.autoLoop = false;
+          toast('🥣 原料用完了：全自动出炉已停');
+        }
+        break;
+      }
+      fed++;
     }
     return;
   }

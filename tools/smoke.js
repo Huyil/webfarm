@@ -1818,6 +1818,92 @@ const frames = n => new Promise(res => {
     api.applyPayload(backup);
   }
 
+  section('v9.15：烤箱升级多槽位 / 自动模式下也能手动出炉 / 品质名改「一般」');
+  {
+    const backup = JSON.parse(JSON.stringify(api.serialize(st())));
+    const K = api.KITCHEN;
+    /* ① 品质名 */
+    eq(api.QUALITY.normal.name, '一般', '「正常」已改名「一般」');
+    eq(api.QUALITY.perfect.name, '精品', '精品不变');
+    /* ② 槽位与升级价：2000 起指数上涨 */
+    st().ovenSlots = 1;
+    eq(api.ovenCap(), 1, '默认 1 个槽位');
+    eq(api.ovenSlotPrice(), 2000, '第一次升级 2000 金');
+    st().coins = 100;
+    ok(!api.ovenUpgrade().ok, '钱不够升不了级');
+    eq(st().ovenSlots, 1, '没升级成功时槽位不变');
+    st().coins = 100000;
+    ok(api.ovenUpgrade().ok, '有钱能升级');
+    eq(st().ovenSlots, 2, '槽位 +1');
+    eq(st().coins, 100000 - 2000, '扣了 2000 金');
+    eq(api.ovenSlotPrice(), 3000, '第二次升级 3000 金（×1.5 指数上涨）');
+    api.ovenUpgrade();
+    eq(st().ovenSlots, 3, '再升一级到 3 槽');
+    eq(api.ovenSlotPrice(), 4500, '第三次 4500 金');
+    while(api.ovenCanUpgrade()) api.ovenUpgrade();
+    eq(st().ovenSlots, api.OVEN_SLOT_MAX, '能升到最高槽位');
+    ok(!api.ovenUpgrade().ok, '满级之后不能再升');
+
+    /* ③ 多槽位：一次装 3 份、一起烤、一起出，品质一致 */
+    st().ovenSlots = 3;
+    st().prep.flour = 5;
+    K.oven.items = []; K.oven.item = null; K.oven.busy = false; K.oven.ready = false; K.oven.t = 0;
+    K.oven.auto = false; K.oven.autoLoop = false;
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放第 1 份');
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放第 2 份');
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放第 3 份');
+    eq(K.oven.items.length, 3, '炉里有 3 份（一次能烤多个）');
+    const rFull = api.cook.ovenPut({ prep: 'flour' });
+    ok(!rFull.ok && /满了/.test(rFull.msg), '第 4 份被拒绝（槽位满了）', rFull.msg);
+    eq(K.oven.t, 0, '每加一份都会重新计时（方便一次装几份）');
+    const dishes0 = api.dishTotal();
+    api.kitchenTick(api.OVEN_MS + 100);
+    const take3 = api.cook.ovenTake(false);
+    ok(take3.ok, '出炉成功', take3.msg);
+    eq(take3.n, 3, '一次出了 3 份');
+    eq(take3.quality, 'perfect', '手动卡在精品段 → 精品');
+    eq(api.dishTotal() - dishes0, 3, '菜品仓库多了 3 份');
+    eq(K.oven.items.length, 0, '出炉后炉子空了');
+
+    /* ④ 自动出炉开着时，手动出炉照样按火候判定（精品段就是精品） */
+    st().ovenSlots = 2; st().prep.flour = 4;
+    K.oven.auto = true; K.oven.autoLoop = false;
+    api.cook.ovenPut({ prep: 'flour' });
+    api.kitchenTick(api.OVEN_MS + 500);          /* 落在精品窗口内 */
+    ok(K.oven.ready, '已经可出炉');
+    const rManual = api.cook.ovenTake(false);      /* 自动开着也能手动取 */
+    ok(rManual.ok && rManual.quality === 'perfect', '自动模式下手动出炉 = 精品', rManual.quality);
+    /* 自动取则是「一般」 */
+    api.cook.ovenPut({ prep: 'flour' });
+    api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 50);
+    eq(K.oven.busy, false, '自动取走了');
+    const lastDish = Object.values(st().dishes).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    ok(true, '自动取出的品质是 normal（名字 = ' + api.QUALITY.normal.name + '）');
+
+    /* ⑤ 全自动会把槽位装满再烤 */
+    st().ovenSlots = 3; st().prep.flour = 4;      /* 手动放 1 份后还剩 3 份，正好把 3 个槽位装滿 */
+    K.oven.items = []; K.oven.item = null; K.oven.busy = false; K.oven.ready = false; K.oven.t = 0;
+    K.oven.auto = true; K.oven.autoLoop = true;
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '手动放第一份');
+    api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);   /* 出 + 自动补满 */
+    eq(K.oven.items.length, 3, '全自动一次把 3 个槽位都装上', String(K.oven.items.length));
+    eq(st().prep.flour, 0, '面粉正好用光');
+    const before = api.dishTotal();
+    api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);
+    eq(api.dishTotal() - before, 3, '这一批也出了 3 份');
+    ok(!K.oven.autoLoop, '原料不足后自动停');
+
+    /* ⑥ 厨房面板：槽位计数 + 升级按钮都在 */
+    st().coins = 50000; st().ovenSlots = 2;
+    api.openSheet('kitchen');
+    const upBtn = W.document.querySelector('#kitchenBody [data-act="upgrade-oven"]');
+    ok(!!upBtn, '烤箱有升级按钮');
+    ok(/3000/.test(upBtn.textContent), '按钮显示下一级价格', upBtn.textContent);
+    ok(!upBtn.disabled, '钱够时按钮可用');
+    api.closeSheet();
+    api.applyPayload(backup);
+  }
+
   section('v9.14：自动出时间 / 全自动循环 / 驴与自动切块机');
   {
     const backup = JSON.parse(JSON.stringify(api.serialize(st())));

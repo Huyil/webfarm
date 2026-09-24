@@ -199,3 +199,41 @@ curl -s "https://mcu.huyil.cn/farm/api/leaderboard" | head -c 200
 ```
 
 **排错**：`/farm/api/` 报 **502** = openresty 通了但后端没起 → `systemctl restart farm-leaderboard`；报 **404** = 站点 conf 里那条 location 丢了（重新加 + reload）。服务端防线：同 IP 1 秒 1 次限流、字段夹紧、名字清洗、body ≤4KB、同 id 取各项较大值、最多 500 条。
+
+---
+
+## 推送到 GitHub（镜像）
+
+GitHub 的 SSH 认证**已经可用**（用 `id_rsa`，账号 **`Huyil`**；`id_ed25519` 没注册过）。
+但 SSH 只能推代码、**不能建仓库**，所以先要有那个仓库（二选一）：
+
+**A. 你建一个空仓库（30 秒）**：GitHub → New repository → 名字 `web-farm` → **不要**勾 Add README / .gitignore / license → 建完回一句，我跑：
+
+```bash
+./deploy/push-github.sh            # 认证 → 建/校正 remote → 推送 → 校验
+./deploy/push-github.sh --force    # 如果你不小心勾了 README：以本地为准覆盖
+GH_REPO=别的账号/名字 ./deploy/push-github.sh
+```
+
+**B. 全自动（给我一个 token）**：classic token 勾 `repo`，或 fine-grained 给 Contents + Administration 读写；
+我可以用 `POST https://api.github.com/user/repos` 直接把仓库建出来再推。token 只用于这一步，用完即删，建议事后撤销。
+
+## 历史的整理（git-filter-repo，2026-09-24）
+
+推 GitHub 前用 [`git-filter-repo`](https://github.com/newren/git-filter-repo) 过了一遍（环境里没有 pip，直接下的单文件脚本）：
+
+```bash
+python3 git-filter-repo --force --invert-paths \
+  --path farm.html --path farm.min.html --path src/dev-bundle.js --path src/dev-bundle.css \
+  --name-callback  "return name.replace(b'huyil233', b'Huyil')" \
+  --email-callback "return email.replace(b'huyil233@users.noreply.gitee.com', b'Huyil@users.noreply.github.com')" \
+  --message-callback "return message.replace(<旧的构建产物说明>, <新的>)"
+```
+
+- **剔除 4 个生成物**（`farm.html` / `farm.min.html` / `src/dev-bundle.js` / `src/dev-bundle.css`）→ 已写进 `.gitignore`，跑 `node build.js` 生成
+- **作者/邮箱**改成 GitHub 身份 `Huyil <Huyil@users.noreply.github.com>`（原来提交是 Gitee 的 noreply）
+- 仓库从 **2.9 MB → 516 KB**，仍是 3 个提交（v9.13 / v9.14 / v9.15）
+- ⚠️ filter-repo 会把工作区里那 4 个文件也删掉（重写后 checkout），所以**整理完必须重跑 `node build.js`**
+- 备份：`dist/gitbak/web-farm-before-filter.bundle`（整理前，592K）与 `...-after-filter.bundle`（整理后，308K）；恢复用
+  `git clone dist/gitbak/web-farm-before-filter.bundle /tmp/restore`
+- 整理后 **Gitee 已 force push 同步**（`c4972f5...01913ee`）；如果之前克隆过 Gitee 那份，需要重新 clone

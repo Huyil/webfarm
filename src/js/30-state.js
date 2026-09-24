@@ -59,7 +59,9 @@ function newState(){
               pendingOp: null, queue: [] },
     idle: { lastAt: Date.now(), frac: 0, total: 0 },
     clockMs: DAY_MS * 0.16,
-    kitchenAuto: { oven: false, pot: false },
+    kitchenAuto: { oven: false, pot: false, ovenLoop: false, potLoop: false },
+    autoUntil: { donkey: 0, chopper: 0 },      /* 限时自动化设备的到期时间戳 */
+    autoAcc: { donkey: 0, chopper: 0 },
     hover: null, box: null, jobBox: null, expandPreview: null,
     lastSave: Date.now(),
   };

@@ -314,9 +314,10 @@ function kKitchenSig(){
   return [
     shelf, dishes, kPiecesSummary(),
     K.mill.busy ? 1 : 0,
-    K.oven.busy ? 1 : 0, K.oven.ready ? 1 : 0, K.oven.auto ? 1 : 0,
+    K.oven.busy ? 1 : 0, K.oven.ready ? 1 : 0, K.oven.auto ? 1 : 0, K.oven.autoLoop ? 1 : 0,
+    AUTO_IDS.map(id => (autoActive(id) ? 1 : 0)).join(''),
     kBoardBusy() ? 1 : 0, (K.board && K.board.src) || '',
-    K.pot.pieces.join('.'), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0,
+    K.pot.pieces.join('.'), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0, K.pot.autoLoop ? 1 : 0,
     state.prep.flour || 0, state.bag.wheat || 0,
     state.miniGameEnabled === false ? 0 : 1,
   ].join('|');
@@ -363,6 +364,20 @@ function kSegTicks(dur, perfect, burn){
          `<span class="k-tick k-tick-gold" style="left:${b}%"></span>` +
          `<span class="k-tick k-tick-burn" style="left:99.4%"></span>`;
 }
+function kAutoRowHTML(id){
+  const dev = AUTO_DEVICES[id];
+  const left = autoLeftMs(id);
+  const running = left > 0;
+  return `<div class="k-auto-row" data-auto-row="${id}">
+    <span class="k-auto-ico">${dev.icon}</span>
+    <span class="k-auto-info">
+      <span class="k-auto-name">${dev.name}</span>
+      <span class="k-auto-desc">${dev.desc}</span>
+    </span>
+    <span class="k-auto-state" data-dev-state="${id}"></span>
+    <button class="mini${running ? '' : ' primary'}" data-act="buy-auto" data-dev="${id}">${running ? '续 30 分钟' : '买 ' + dev.price + ' 金'}</button>
+  </div>`;
+}
 function kStationOvenHTML(){
   const K = KITCHEN;
   return `
@@ -372,7 +387,8 @@ function kStationOvenHTML(){
         <div class="k-slot k-oven-slot">${K.oven.busy ? kIconHTML(kOvenSlotKey(), K_ICON_SIZES.station) : '<span class="k-slot-empty">空</span>'}</div>
         <div class="k-st-info">
           <div class="k-st-line">🥣 面粉 ×${state.prep.flour || 0} · 🔪 菜块 ×${kPieceStock()}</div>
-          <label class="k-check"><input type="checkbox" data-auto="oven" ${K.oven.auto ? 'checked' : ''}><span>自动出炉（只会是正常）</span></label>
+          <label class="k-check"><input type="checkbox" data-auto="oven" ${K.oven.auto ? 'checked' : ''}><span>自动出炉（窗口一过就取，只会是正常）</span></label>
+          <label class="k-check"><input type="checkbox" data-loop="oven" ${K.oven.autoLoop ? 'checked' : ''}><span>全自动：同配方一直烤到原料不足</span></label>
         </div>
       </div>
       <div class="k-progress k-seg3" data-bar="oven">${kSegTicks(OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS)}<i></i></div>
@@ -410,7 +426,8 @@ function kStationPotHTML(){
         <div class="k-pot-slot">${chips}</div>
         <div class="k-st-info">
           <div class="k-st-line">${pv ? '＝ ' + kEsc(pv.name) + '（基础 ' + pv.base + ' 金）' : '每加一样食材，进度条会重置'}</div>
-          <label class="k-check"><input type="checkbox" data-auto="pot" ${K.pot.auto ? 'checked' : ''}><span>自动出锅（只会是正常）</span></label>
+          <label class="k-check"><input type="checkbox" data-auto="pot" ${K.pot.auto ? 'checked' : ''}><span>自动出锅（窗口一过就取，只会是正常）</span></label>
+          <label class="k-check"><input type="checkbox" data-loop="pot" ${K.pot.autoLoop ? 'checked' : ''}><span>全自动：同配方一直煮到原料不足</span></label>
         </div>
       </div>
       <div class="k-progress k-seg3" data-bar="pot">${kSegTicks(POT_MS, POT_PERFECT_MS, POT_BURN_MS)}<i></i></div>
@@ -464,6 +481,10 @@ function kKitchenHTML(){
           <button class="k-selclear" type="button" data-act="unsel">✕ 取消选中</button>
         </div>
       </section>
+      <section class="k-auto">
+        <div class="k-sec-title">🤖 自动化设备<span class="k-hint">金币购买 · 限时消耗品 · 到期自动停</span></div>
+        ${AUTO_IDS.map(kAutoRowHTML).join('')}
+      </section>
       <section class="k-stations">
         ${kStationMillHTML()}
         ${kStationOvenHTML()}
@@ -513,6 +534,15 @@ function kBuildKitchen(el, sig){
       potBtn: q('[data-act="take"][data-station="pot"]'),
     },
   };
+  /* 重建出来的进度条 <i> 初始宽度是 0（样式表里定的），直接设宽度会从 0 补间过去 ——
+     用别的工位时看起来就像"进度条被刷新了一下"。这里先关掉过渡把宽度落到位，下一帧再恢复。 */
+  if(el.querySelectorAll){
+    el.querySelectorAll('.k-progress i').forEach(i => { i.style.transition = 'none'; });
+    setTimeout(() => {
+      if(!el.querySelectorAll) return;
+      el.querySelectorAll('.k-progress i').forEach(i => { i.style.transition = ''; });
+    }, 60);
+  }
   if(box) box.scrollTop = scrollTop;
 }
 /* 幂等：结构没变就只做轻量刷新，绝不每帧重建整个 DOM */
@@ -544,6 +574,7 @@ function kSetState(node, tone, text){
 function kUpdateLive(){
   if(!kUI || !kUI.n) return;
   const K = KITCHEN, n = kUI.n;
+  const el_ = sel => (kUI.el && kUI.el.querySelector) ? kUI.el.querySelector(sel) : null;
   /* 石磨 */
   const millR = kRatio(K.mill.t, K.mill.dur);
   kSetBar(n.millBar, millR, K.mill.busy ? 'run' : 'idle');
@@ -571,6 +602,20 @@ function kUpdateLive(){
     kSetState(n.ovenState, (state.prep.flour || 0) > 0 ? 'ok' : 'off', (state.prep.flour || 0) > 0 ? '可进炉' : '空');
   }
   if(n.ovenBtn) n.ovenBtn.disabled = !(K.oven.busy && K.oven.ready);
+  /* 自动化设备：剩余时间 / 缺料提示（每帧刷新，不重建 DOM） */
+  for(const id of AUTO_IDS){
+    const node = el_(`[data-dev-state="${id}"]`);
+    if(!node) continue;
+    const dev = AUTO_DEVICES[id];
+    if(!autoActive(id)){
+      kSetState(node, 'off', '未启用');
+    } else {
+      const left = autoLeftMs(id);
+      const lack = id === 'donkey' ? ((state.bag.wheat || 0) <= 0) : !CROP_IDS.some(c => !CROPS[c].noChop && (state.bag[c] || 0) > 0);
+      kSetState(node, lack ? 'off' : 'busy',
+        (lack ? '缺原料 · ' : '运行中 · ') + kSecText(left / 1000));
+    }
+  }
   /* 切菜板：瞬时产出，没有进度条——反馈靠投入时的「咔」动画 */
   const crop = kHasCrop();
   if(kBoardBusy()) kSetState(n.boardState, 'busy', '切菜中…');
@@ -757,6 +802,14 @@ function kOnKitchenClick(e){
   }
   const act = btn.dataset.act;
   if(act === 'take'){ SFX.play('click'); kTakeStation(btn.dataset.station); return; }
+  if(act === 'buy-auto'){
+    const r = autoBuy(btn.dataset.dev);
+    toast(r.msg);
+    if(!r.ok) SFX.play('error');
+    if(kUI) kUI.sig = '';
+    renderKitchen();
+    return;
+  }
   if(act === 'unsel'){ if(e.preventDefault) e.preventDefault(); kSetSel(null); SFX.play('click'); renderKitchen(); return; }
   if(act === 'sell'){
     const gain = sellDish(btn.dataset.key, parseInt(btn.dataset.n, 10) || 1);
@@ -775,7 +828,21 @@ function kOnKitchenClick(e){
 }
 function kOnKitchenChange(e){
   const box = e.target;
-  const st = box && box.dataset ? box.dataset.auto : '';
+  const ds = (box && box.dataset) || {};
+  /* 全自动（同配方循环）：勾上就顺带把「自动出炉/出锅」也打开 */
+  if(ds.loop === 'oven' || ds.loop === 'pot'){
+    const st2 = ds.loop;
+    KITCHEN[st2].autoLoop = !!box.checked;
+    if(box.checked) KITCHEN[st2].auto = true;
+    save();
+    toast(box.checked
+      ? (st2 === 'oven' ? '烤箱：全自动，同配方一直烤到原料不足' : '锅：全自动，同配方一直煮到原料不足')
+      : (st2 === 'oven' ? '烤箱：改回单次' : '锅：改回单次'));
+    if(kUI) kUI.sig = '';
+    renderKitchen();
+    return;
+  }
+  const st = ds.auto || '';
   if(st !== 'oven' && st !== 'pot') return;
   KITCHEN[st].auto = !!box.checked;
   save();

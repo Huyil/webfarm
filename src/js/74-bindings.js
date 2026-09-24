@@ -30,6 +30,7 @@ function bindAll(){
     state.tool = tool; renderToolbar();
   });
 
+  bindSideDrawer();                       /* 手机右上角抽屉把手 */
   const pan = document.getElementById('btnPan');
   if(pan) pan.onclick = () => {
     state.tool = (state.tool === 'pan') ? 'hoe' : 'pan';
@@ -42,8 +43,17 @@ function bindAll(){
   };
   for(const id in SIDE_SHEETS){
     const el = document.getElementById(id);
-    if(el) el.onclick = () => { SFX.play('click'); openSheet(SIDE_SHEETS[id]); };
+    if(el) el.onclick = () => {
+      SFX.play('click');
+      openSheet(SIDE_SHEETS[id]);
+      sideDrawerClose();                 /* 手机上点完就把抽屉收起来，不挡 gameplay */
+    };
   }
+  /* 侧栏里不弹层的按钮（扩建 / 网格 / 平移 / 缩放）：点完也收抽屉 */
+  ['btnExpand', 'btnGrid', 'btnPan', 'btnZoom'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', sideDrawerClose);
+  });
   /* ⋯ 展开/收起次要信息（挂机速率、时间、农场尺寸） */
   const moreBtn = document.getElementById('moreBtn');
   const morePanel = document.getElementById('hudMore');

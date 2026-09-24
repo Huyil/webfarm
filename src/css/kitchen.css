@@ -167,11 +167,22 @@
 
 /* 锅里的料 */
 .k-pot-slot{
-  flex:1;min-height:calc(56px*var(--ui-scale));
+  /* 食材多了只在**这一块**里滚：以前会一直往下长，把整个工位/弹层撑高，
+     结果整页出现滚动条。现在限高（约两行）+ 内部纵向滚动，且不外溢把父级撑宽。 */
+  flex:1 1 auto;min-width:0;
+  min-height:calc(56px*var(--ui-scale));
+  max-height:calc(66px*var(--ui-scale));
+  overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;              /* 滚到底不要把外层的弹层一起带着滚 */
+  align-content:flex-start;
   display:flex;flex-wrap:wrap;align-items:center;gap:calc(3px*var(--ui-scale));
   padding:calc(4px*var(--ui-scale));border-radius:calc(10px*var(--ui-scale));
   background:rgba(0,0,0,.3);border:1px dashed #3d4a3f;
 }
+/* 细一点的滚动条，别抢戏 */
+.k-pot-slot::-webkit-scrollbar{width:calc(6px*var(--ui-scale))}
+.k-pot-slot::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:999px}
+.k-pot-slot::-webkit-scrollbar-track{background:transparent}
 .k-chip{
   --k-ico:calc(22px*var(--ui-scale));
   display:grid;place-items:center;width:calc(26px*var(--ui-scale));height:calc(26px*var(--ui-scale));
@@ -276,3 +287,24 @@
 .k-progress[data-tone="perfect"] i{background:linear-gradient(90deg,#ffd76e,#fff3b0)}
 .k-progress[data-tone="normal"] i{background:linear-gradient(90deg,#7fd67f,#c8f7c5)}
 .k-progress[data-tone="burnt"] i{background:linear-gradient(90deg,#6b4a3a,#3a2418)}
+
+/* ---------- 厨房：自动化设备（限时消耗品） ---------- */
+.k-auto{display:flex;flex-direction:column;gap:calc(6px*var(--ui-scale));
+  background:rgba(255,255,255,.03);border:1px solid #2b352c;border-radius:calc(12px*var(--ui-scale));
+  padding:calc(10px*var(--ui-scale));margin-bottom:calc(10px*var(--ui-scale))}
+.k-auto-row{display:flex;align-items:center;gap:calc(8px*var(--ui-scale));
+  padding:calc(6px*var(--ui-scale)) 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.k-auto-row:last-child{border-bottom:0}
+.k-auto-ico{font-size:calc(20px*var(--ui-scale));line-height:1;flex:none}
+.k-auto-info{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.k-auto-name{font-size:calc(13px*var(--ui-scale));color:#e8e8f0}
+.k-auto-desc{font-size:calc(10.5px*var(--ui-scale));color:#8b9a8d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-auto-state{font-size:calc(11px*var(--ui-scale));color:#9fb0a0;white-space:nowrap}
+.k-auto-state.busy{color:#8fd68f}
+.k-auto-state.off{color:#8b9a8d}
+.k-auto .mini{flex:none}
+@media (orientation: portrait), (max-width: 620px){
+  .k-auto-desc{white-space:normal}
+  .k-auto-row{flex-wrap:wrap}
+  .k-auto-state{order:3}
+}

@@ -23,7 +23,10 @@ function serialize(st){
     idle: st.idle, clockMs: st.clockMs,
     /* 厨房勾选状态住在模块常量 KITCHEN 里，存档时镜像进来 */
     kitchenAuto: { oven: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.auto),
-                   pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto) },
+                   pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto),
+                   ovenLoop: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.autoLoop),
+                   potLoop: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.autoLoop) },
+    autoUntil: st.autoUntil, autoAcc: st.autoAcc,
     tiles: st.tiles.map(t=>({
       gx: t.gx, gy: t.gy, terrain: t.terrain, state: t.state, crop: t.crop,
       growth: Math.round(t.growth), watered: !!t.watered, fertile: !!t.fertile,
@@ -117,7 +120,9 @@ function unpackState(d){
     });
   st.idle = Object.assign({ lastAt: Date.now(), frac: 0, total: 0 }, d.idle||{});
   st.clockMs = typeof d.clockMs === 'number' ? d.clockMs : DAY_MS * 0.16;
-  st.kitchenAuto = Object.assign({ oven:false, pot:false }, d.kitchenAuto || {});
+  st.kitchenAuto = Object.assign({ oven:false, pot:false, ovenLoop:false, potLoop:false }, d.kitchenAuto || {});
+  st.autoUntil = Object.assign({ donkey:0, chopper:0 }, d.autoUntil || {});
+  st.autoAcc = Object.assign({ donkey:0, chopper:0 }, d.autoAcc || {});
   st.tiles = d.tiles.map(t=>{
     const tt = newTile(t.gx, t.gy, t.terrain, t.stone);
     tt.state = t.state || 'wild';

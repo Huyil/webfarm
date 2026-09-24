@@ -11,13 +11,14 @@ function jobActive(){
   const p = state.player;
   return (p.queue && p.queue.length > 0) || !!p.pendingOp || !!state.jobBox;
 }
-function playerEnqueue(gx, gy){
+function playerEnqueue(gx, gy, tool){
   const q = playerQueue();
   if(state.jobBox && q.length === 0 && !state.player.pendingOp){ /* 新作业接着排 */ }
   const last = q[q.length - 1];
-  if(last && last.gx === gx && last.gy === gy) return false;
-  if(state.player.tx === gx && state.player.ty === gy && !state.player.pendingOp) return false;
-  q.push({ gx, gy });
+  const use = tool || state.tool;
+  if(last && last.gx === gx && last.gy === gy && last.tool === use) return false;
+  if(state.player.tx === gx && state.player.ty === gy && !state.player.pendingOp && (state.player.pendingOp || {}).tool === use) return false;
+  q.push({ gx, gy, tool: use });
   return true;
 }
 function playerClearQueue(){
@@ -96,7 +97,7 @@ function playerGoto(gx, gy, actionType, op){
   if(dist < 0.6){
     p.actionType = actionType; p.actionStart = Date.now(); p.actionUntil = Date.now() + ACTION_MS;
     p.queuedAction = null;
-    if(p.pendingOp){ const o = p.pendingOp; p.pendingOp = null; runTool(o.gx, o.gy, o.silent); }
+    if(p.pendingOp){ const o = p.pendingOp; p.pendingOp = null; runTool(o.gx, o.gy, o.silent, o.tool); }
   } else {
     p.queuedAction = actionType;
   }
@@ -116,12 +117,14 @@ function updatePlayer(dt){
     /* 走到位才真正干活：锄地/播种/浇水等效果与动画对齐 */
     if(p.pendingOp){
       const op = p.pendingOp; p.pendingOp = null;
-      runTool(op.gx, op.gy, !!op.silent);
+      runTool(op.gx, op.gy, !!op.silent, op.tool);
     }
   };
   /* 队列里还有活、人又闲着 → 领下一个目标 */
   if(!p.moving && !p.pendingOp && p.queue.length){
-    const stop = queueStopMsg(state.tool);
+    const head = p.queue[0];
+    const jobTool = (head && head.tool) || state.tool;     /* 用作业自己的工具，中途切工具也不影响 */
+    const stop = queueStopMsg(jobTool);
     if(stop){
       /* 钱/肥料/装饰用光：整条队列就地停手（剩下的格子不再空走） */
       playerClearQueue();
@@ -129,7 +132,7 @@ function updatePlayer(dt){
       renderHUD(); save();
     } else {
       const next = p.queue.shift();
-      playerGoto(next.gx, next.gy, state.tool, { gx: next.gx, gy: next.gy, silent: true });
+      playerGoto(next.gx, next.gy, jobTool, { gx: next.gx, gy: next.gy, silent: true, tool: jobTool });
     }
   }
   const dx = p.tx - p.x, dy = p.ty - p.y;

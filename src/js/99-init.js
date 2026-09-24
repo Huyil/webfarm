@@ -13,6 +13,10 @@ function resetRuntime(){
   const ka = state.kitchenAuto || { oven:false, pot:false };
   KITCHEN.oven.auto = !!ka.oven;
   KITCHEN.pot.auto = !!ka.pot;
+  KITCHEN.oven.autoLoop = !!ka.ovenLoop;
+  KITCHEN.pot.autoLoop = !!ka.potLoop;
+  if(!state.autoUntil) state.autoUntil = { donkey:0, chopper:0 };
+  if(!state.autoAcc) state.autoAcc = { donkey:0, chopper:0 };
   particles.length = 0;
   state.idle.lastAt = Date.now();
   hudMoneyShown = state.coins;
@@ -54,6 +58,13 @@ function applyLoaded(loaded, announce){
   }
   save();
   return off;
+}
+/* 调试/测试用：把一份存档载荷**真正应用**到当前会话（unpackState 只是返回新对象，不会改全局） */
+function applyPayload(d){
+  const st2 = unpackState(d);
+  if(!st2) return false;
+  applyLoaded({ state: st2, offlineMs: 0 }, false);
+  return true;
 }
 function init(){
   resize(); applyUIScale();
@@ -114,13 +125,14 @@ window.FarmDebug = {
     kitchenTick: ms => { kitchenLogicTick(ms); },
     KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon,
     OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS, POT_MS, POT_PERFECT_MS, POT_BURN_MS, QUALITY,
+    AUTO_DEVICES, AUTO_IDS, autoBuy, autoActive, autoLeftMs, autoTick, autoLoopFeed,
     /* 装饰 */
     decorAt, decorLayer, decorGroundAt, decorPropAt, canPlaceDecorAt, placeDecor, collectDecorationAt, hitDecorationAt, scatterWeeds, sellDecor, DECOR_PRICE, DECOR_SELL, DECOR_HP, decorMaxHp, decorIsFree, DECOR_FREE, decorOffsetFor, decorIsNatural, decorIsWild, DECOR_NATURAL, drawDecoration, drawPath, drawFence, pathConnMask, pathRawMask, fenceConnMask, connMaskOf, connDirs, connModesOf, DIAG_SIDES, cyclePathConn, PATH_CONN_MODES, CONN8_MODES,
     /* 挂机 */
     idleRate, idleTick, creditIdle, idleOffline, IDLE_BASE_PER_MIN, IDLE_PER_ACH, IDLE_OFFLINE_CAP, OFFLINE_CAP,
     idleAdvance: ms => { state.idle.lastAt = Date.now() - ms; return idleTick(Date.now()); },
     /* 存档 */
-    saveToSlot, loadSlot: n => loadFromSlot(n), slotKey, slotMeta, deleteSlot,
+    saveToSlot, loadSlot: n => loadFromSlot(n), slotKey, slotMeta, deleteSlot, applyPayload,
     currentSlot, setCurrentSlot, useSlot, newGameInSlot,
     unpackState, migrateLegacy, serialize, readSlot,
     /* 其它 */

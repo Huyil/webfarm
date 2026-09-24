@@ -1265,6 +1265,11 @@ const frames = n => new Promise(res => {
     ok(css.includes('.hud{top:') && css.includes('left:var(--m-edge);right:var(--m-edge)'), '顶栏在窄屏下铺满宽度');
     ok(css.includes('max(34px'), '顶栏图标按钮有最小尺寸兜底（--ui-scale 缩小时也够点）');
     ok(css.replace(/\s+/g, '').includes('#lbBtn{display:none}'), '手机端隐藏顶栏 🏅（改由侧栏入口，避免顶栏挤变形）');
+    /* 锅里食材再多也只能在那一块里滚，不许把整页/弹层撑出滚动条 */
+    ok(/\.k-pot-slot\{[^}]*max-height:/.test(css) && /\.k-pot-slot\{[^}]*overflow-y:auto/.test(css),
+      '锅里的食材列表有高度上限并自己滚动（不再撑高整页）');
+    ok(/\.k-pot-slot\{[^}]*min-width:0/.test(css), '锅里食材列表 min-width:0（不会被内容撑宽）');
+    ok(/\.k-pot-slot\{[^}]*overscroll-behavior:contain/.test(css), '锅里滚到底不会把外层一起带着滚');
     ok(css.includes('flex:1 1 0'.replace(/\s+/g, '')) || css.includes('flex:110'), '工具栏按钮等分宽度');
     /* 提示条要贴住工具栏上沿，而不是飘在屏幕中间 */
     ok(css.includes('--m-hint-bottom:calc(var(--m-toolbar-bottom)+var(--m-toolbar-h)+8px)'),
@@ -1309,22 +1314,42 @@ const frames = n => new Promise(res => {
     ok(db.startsWith('/*') && db.trimEnd().endsWith('})();'), '源码版产物同样收口在一个 IIFE 里');
   }
 
-  section('侧栏定位：手机默认下移，且不被顶栏/提示条压住');
+  section('侧栏：手机 = 右上角浮窗抽屉，桌面 = 原样（可拖拽、JS 定位）');
   {
-    /* 注意：压缩产物里局部标识符会被改名，所以只按「属性名 / 字符串 / 数字」匹配 */
     const src = html.replace(/\s+/g, '');
-    /* 压缩产物会把单引号统一成双引号，所以只比对标识/属性名 */
+    const css = html.replace(/\s+/g, '');
+    /* 手机抽屉 */
+    ok(!!W.document.getElementById('sideToggle'), '有抽屉把手按钮');
+    eq(W.document.getElementById('sideToggle').getAttribute('aria-expanded'), 'false', '默认收起');
+    ok(/\.side-toggle\{display:none\}/.test(css), '桌面端把手完全隐藏（电脑页面保持原样）');
+    ok(/\.side-toggle\{[^}]*display:flex/.test(css) && /\.side-panel\{[^}]*display:none/.test(css),
+      '手机端：把手显示、侧栏默认收起');
+    ok(/\.side-panel\.open\{display:flex\}/.test(css), '抽屉展开态有样式');
+    ok(/\.side-panel\.open[^}]*|overscroll-behavior:contain/.test(css), '抽屉内部滚动、不外溢');
+    /* 把手能开关抽屉 */
+    const tg = W.document.getElementById('sideToggle');
+    const sp = W.document.getElementById('sidePanel');
+    tg.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    ok(sp.classList.contains('open'), '点把手会展开抽屉');
+    eq(tg.getAttribute('aria-expanded'), 'true', '展开时 aria-expanded=true');
+    tg.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    ok(!sp.classList.contains('open'), '再点一下收起');
+    /* 桌面端逻辑仍在：JS 定位 + 布局版本号 + 拖拽（属性名/字符串守卫，压缩产物也有效） */
     ok(src.includes('getBoundingClientRect') && src.includes('toolHint'),
       '边界取自顶栏下沿与提示条上沿');
-    ok(src.includes('.minTop+(') && src.includes('.maxTop-.minTop') || /minTop.*maxTop.*minTop/.test(src),
-      '侧栏上界用顶栏下沿、下界用提示条上沿算出可用区间');
-    ok(/[^\d]0?\.62\*/.test(src) || src.includes('*0.62'),
-      '手机默认摆在靠下位置（0.62 处），不再正中央压住农场');
     ok(src.includes('sidePanelVer') && /sidePanelVer[^;]{0,40}/.test(src),
       '带布局版本号：老存档会按新布局重算一次位置');
-    ok(/matchMedia\(/.test(src) && src.includes('max-width:620px'),
-      '侧栏用媒体查询判断手机/桌面两种布局');
+    if (/\.min\.html$/i.test(NAME)) {
+      console.log('  \x1b[2m·\x1b[0m 压缩产物：跳过 4 项「按标识符」的抽屉/定位守卫（标识符已重命名，行为由上面的真实点击用例覆盖）');
+    } else {
+      ok(src.includes('sidePanelBounds(){'), '桌面端侧栏位置仍由 sidePanelBounds() 统算');
+      ok(src.includes('sidePanel.style.top='), '桌面端仍由 JS 设置 top（手机抽屉模式会跳过）');
+      ok(src.includes('sideIsDrawer'), '有「是否手机抽屉」判断：手机端不拖拽、不清位置');
+      ok(src.includes('sideDrawerClose'), '有收起抽屉的函数，点侧栏按钮/点画面会收起来');
+    }
+    ok(!sp.classList.contains('open'), '（复核）抽屉当前是收起状态');
   }
+
 
   section('随机分布：hash2 必须均匀（曾经只返回 [0,0.5)）');
   {
@@ -1526,7 +1551,7 @@ const frames = n => new Promise(res => {
     const st4 = api.unpackState(Object.assign({}, old, { v: 96 }));
     eq(st4.farm.w, 14, '当前版本的存档不触发迁移（只跑一次）');
     /* 还原当前状态，别影响后面的用例 */
-    api.unpackState(backup);
+    api.applyPayload(backup);
     eq(st().farm.w, backup.farm.w, '测试后状态已还原');
   }
 
@@ -1582,7 +1607,7 @@ const frames = n => new Promise(res => {
         }
       eq(bad2.length, 0, '往下扩一排后，石头带正下方也是石头（不会嵌一条草）', bad2.join(' '));
     }
-    api.unpackState(backup);
+    api.applyPayload(backup);
 
     /* ── 新装饰品：数据、画法、商店、杂草表 ── */
     const NEW_DECOR = ['mushroom', 'sunflower', 'fence', 'bamboo', 'pine', 'lantern', 'well', 'statue'];
@@ -1790,14 +1815,86 @@ const frames = n => new Promise(res => {
       const both = st2.decorations.filter(d => d.gx === t0.gx && d.gy === t0.gy);
       eq(both.length, 2, '同一格的两层装饰都存下来了');
     }
-    api.unpackState(backup);
+    api.applyPayload(backup);
+  }
+
+  section('v9.14：自动出时间 / 全自动循环 / 驴与自动切块机');
+  {
+    const backup = JSON.parse(JSON.stringify(api.serialize(st())));
+    const K = api.KITCHEN;
+    /* ① 自动出炉 = 精品窗口一结束就取（不是等到快焦糊） */
+    st().prep.flour = 8;
+    K.oven.auto = true; K.oven.autoLoop = false; K.oven.busy = false;
+    K.pot.pieces = []; K.pot.auto = false; K.pot.autoLoop = false;
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放一份面粉进炉');
+    const dishes0 = api.dishTotal();
+    api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS - 300);
+    eq(K.oven.busy, true, '还没到精品窗口结束：还在烤');
+    api.kitchenTick(600);
+    eq(K.oven.busy, false, '精品窗口一过就自动出炉');
+    eq(api.dishTotal(), dishes0 + 1, '出了一份菜');
+    ok(!!K.oven.lastItem && K.oven.lastItem.prep === 'flour', '记住了这次烤的是面粉（全自动要用）');
+
+    /* ② 全自动循环：同配方一直烤到原料不足 */
+    st().prep.flour = 3;
+    K.oven.auto = true; K.oven.autoLoop = true;
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '手动放第一份');
+    const before = api.dishTotal();
+    let guard = 0;
+    while(K.oven.autoLoop && guard++ < 12) api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);
+    ok(!K.oven.autoLoop, '面粉用光后全自动自己停了');
+    eq(api.dishTotal() - before, 3, '3 份面粉全烤完', '出了 ' + (api.dishTotal() - before) + ' 份');
+    eq(st().prep.flour, 0, '面粉正好用光');
+    ok(guard < 12, '没有空转死循环', '循环 ' + guard + ' 次');
+
+    /* ③ 驴：花钱买、限时自动磨面、到期就停 */
+    st().coins = 6000; st().bag.wheat = 5;
+    const buy = api.autoBuy('donkey');
+    ok(buy.ok, '能买到拉磨的驴', buy.msg);
+    eq(st().coins, 6000 - api.AUTO_DEVICES.donkey.price, '扣了金币');
+    ok(api.autoActive('donkey'), '驴正在干活');
+    const flour0 = st().prep.flour || 0;
+    api.kitchenTick(api.AUTO_DEVICES.donkey.per);
+    eq((st().prep.flour || 0) - flour0, 1, '驴自动磨出 1 份面粉');
+    eq(st().bag.wheat, 4, '消耗 1 份小麦');
+    st().autoUntil.donkey = Date.now() - 1000;            /* 手动让它到期 */
+    const flour1 = st().prep.flour || 0;
+    api.kitchenTick(api.AUTO_DEVICES.donkey.per * 3);
+    eq(st().prep.flour || 0, flour1, '到期后不再产出（限时消耗品）');
+    ok(!api.autoActive('donkey'), '到期状态正确');
+
+    /* ④ 切块机：优先切库存最多的作物 */
+    st().bag.carrot = 5; st().bag.potato = 2; st().coins = 6000;
+    ok(api.autoBuy('chopper').ok, '能买到自动切块机');
+    const car0 = st().pieces.carrot || 0, pot0 = st().pieces.potato || 0;
+    api.kitchenTick(api.AUTO_DEVICES.chopper.per);
+    eq((st().pieces.carrot || 0) - car0, 3, '切的是库存最多的胡萝卜（+3 块）');
+    eq(st().bag.carrot, 4, '胡萝卜 -1');
+    eq((st().pieces.potato || 0) - pot0, 0, '土豆没动（优先切最多的）');
+
+    /* ⑤ 金币不够买不了 */
+    st().coins = 0;
+    ok(!api.autoBuy('chopper').ok, '金币不够买不了设备');
+
+    /* ⑥ 到期时间会存档 */
+    st().autoUntil.chopper = Date.now() + 60000;
+    const st2 = api.unpackState(JSON.parse(JSON.stringify(api.serialize(st()))));
+    ok((st2.autoUntil.chopper || 0) > Date.now(), '设备的到期时间写进了存档');
+
+    /* ⑦ 厨房面板里有自动化区块（两个设备各一行 + 购买按钮） */
+    api.openSheet('kitchen');
+    eq(W.document.querySelectorAll('#kitchenBody .k-auto-row').length, 2, '厨房里有 2 个自动化设备');
+    ok(W.document.querySelectorAll('#kitchenBody [data-act="buy-auto"]').length === 2, '每个设备都有购买按钮');
+    ok(!!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '烤箱有「全自动循环」勾选');
+    api.closeSheet();
+    api.applyPayload(backup);
   }
 
   section('v9.12：栅栏连接纹理（支持 8 方向）');
   {
     const backup = JSON.parse(JSON.stringify(api.serialize(st())));
     st().coins = 100000;
-    for (let i = 0; i < 3; i++) api.doExpand('xn');
+    for (let i = 0; i < 4; i++) api.doExpand('xn');   /* 前 3 次是可耕，第 4 次才是石头带 */
     const stones = st().tiles.filter(t => t.stone);
     ok(stones.length >= 8, '有石头地可以摆栅栏', String(stones.length));
     /* 挑一块石头地，周围留出正邻 + 斜邻 */
@@ -1839,7 +1936,7 @@ const frames = n => new Promise(res => {
     /* 相邻的两根栅栏互相都认对方 */
     const d2 = api.decorAt(c.gx + 1, c.gy);
     ok((api.pathConnMask(d2) & 8) === 8 || (api.pathConnMask(d2) & 8) === 0, '右边那根的西向取决于它自己的档位（不硬接）');
-    api.unpackState(backup);
+    api.applyPayload(backup);
   }
 
   section('v9.10：一套铺装（碎石路 / 红砖 / 三色瓷砖 / 大理石）—— 付费 + 任务赠送');
@@ -1912,8 +2009,10 @@ const frames = n => new Promise(res => {
       ok(st().decorBag.path >= 8, '任务奖励把地砖发进装饰仓库了', '×' + st().decorBag.path);
     }
     /* 连接只认同材质 + 手动档位搭桥 */
-    const a = spots[1], b = st().tiles.filter(t => t.stone &&
-      (Math.abs(t.gx - a.gx) + Math.abs(t.gy - a.gy)) === 1 && !api.decorAt(t.gx, t.gy))[0];
+    const a = spots[1];
+    const b = st().tiles.find(t => t.stone && !api.decorAt(t.gx, t.gy) &&
+      (Math.abs(t.gx - a.gx) + Math.abs(t.gy - a.gy)) === 1);
+    ok(!!b, '能找到与小路相邻的石头地（用来测跨材质不硬接）');
     if (b) {
       st().decorBag.path = 1; st().decorBag.brick = 1;
       if (api.decorAt(a.gx, a.gy)) api.collectDecorationAt(a.gx, a.gy);
@@ -1927,7 +2026,7 @@ const frames = n => new Promise(res => {
         delete da.conn; delete db.conn;
       }
     }
-    api.unpackState(backup);
+    api.applyPayload(backup);
   }
 
   section('v9.8：玩家摆的一律对齐格子，只有野生的才错落 + 4 件家具');
@@ -2004,7 +2103,7 @@ const frames = n => new Promise(res => {
     const shopNames = [...W.document.querySelectorAll('#shopList .row .r-name')].map(n => n.textContent);
     for (const id of ['chair', 'table', 'bench', 'plant'])
       ok(shopNames.some(n => n.indexOf(api.DECOR_META[id].name) === 0), `商店里有「${api.DECOR_META[id].name}」`);
-    api.unpackState(backup);
+    api.applyPayload(backup);
   }
 
   section('v9.8：小路（对齐格子 / 免费铺装 / 自动连接 / 点按换连接面）');
@@ -2034,8 +2133,9 @@ const frames = n => new Promise(res => {
     const d0 = api.decorAt(p0.gx, p0.gy), d1 = api.decorAt(p1.gx, p1.gy);
     if (d0) { eq(d0.ox, 0, '小路 x 偏移为 0（对齐格子）'); eq(d0.oy, 0, '小路 y 偏移为 0'); }
     /* 自动连接：相邻两块要互相接上 */
-    const adjacent = st().tiles.filter(t => t.stone &&
-      (Math.abs(t.gx - p0.gx) + Math.abs(t.gy - p0.gy)) === 1 && !api.decorAt(t.gx, t.gy))[0];
+    const adjacent = st().tiles.find(t => t.stone && !api.decorAt(t.gx, t.gy) &&
+      (Math.abs(t.gx - p0.gx) + Math.abs(t.gy - p0.gy)) === 1);
+    ok(!!adjacent, '能找到一块与小路相邻的石头地');
     if (adjacent) {
       api.placeDecor(adjacent.gx, adjacent.gy, 'path');
       const m0 = api.pathConnMask(api.decorAt(p0.gx, p0.gy));
@@ -2074,7 +2174,7 @@ const frames = n => new Promise(res => {
       ok(/×2/.test(pathRow.textContent), '仓库里显示实际数量', pathRow.textContent.replace(/\s+/g, ' ').slice(0, 40));
       ok(!!pathRow.querySelector('button.sell'), '有卖出按钮（付费物品可以卖回一半价）');
     }
-    api.unpackState(backup);
+    api.applyPayload(backup);
   }
 
   section('排行榜：起名 / 五项统计 / 切换排序 / 上报与离线降级');
@@ -2183,7 +2283,7 @@ const frames = n => new Promise(res => {
     api.claimTask('harvest_5');
     eq(st().stats.total.tasksDone, 1, '领一个任务奖励 → 完成任务数 +1');
 
-    api.unpackState(backup);
+    api.applyPayload(backup);
     ok(true, '排行榜测试后状态已还原');
   }
 

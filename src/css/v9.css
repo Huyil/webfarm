@@ -3,6 +3,9 @@
  * （放在清单最后，覆盖前面的基础样式）
  * ===================================================================== */
 
+/* ---------- 侧栏抽屉把手（只在手机出现，桌面完全不显示） ---------- */
+.side-toggle{display:none}
+
 /* ---------- 侧栏：图标 + 文字 ---------- */
 .side-panel{gap:calc(5px*var(--ui-scale))}
 .side-panel button{
@@ -325,13 +328,38 @@
   .hud-more{ left: var(--m-edge); right: var(--m-edge); transform: translateY(-8px); align-items: center }
   .hud-more.show{ transform: translateY(0) }
 
-  /* 侧栏：从顶栏下方开始，底部给提示条/飘字留位（位置由 placeSidePanel() 按这些边界算） */
-  .side-panel{
-    right: var(--m-edge); padding: max(5px, calc(6px*var(--ui-scale)));
-    gap: max(3px, calc(4px*var(--ui-scale)));
-    max-height: calc(100vh - var(--m-hud-h) - var(--m-bottom-reserve) - 28px);
-    overflow-y: auto;
+  /* 手机：侧栏收成**右上角浮窗抽屉**，默认收起，只留一个把手 —— 不再整天压着农场。
+     桌面端不受影响（这些规则全部只在这个媒体查询里）。 */
+  .side-toggle{
+    display: flex; align-items: center; gap: 6px;
+    position: fixed; right: var(--m-edge);
+    top: calc(var(--m-hud-top) + var(--m-hud-h) + 8px);
+    z-index: 31;
+    padding: max(6px, calc(7px*var(--ui-scale))) max(10px, calc(12px*var(--ui-scale)));
+    border-radius: 999px; border: 1px solid #3d4a3f;
+    background: rgba(24,30,24,.92); color: #eaffe6;
+    font-size: max(12px, calc(12px*var(--ui-scale)));
+    box-shadow: 0 8px 22px rgba(0,0,0,.5); cursor: pointer;
   }
+  .side-toggle .st-ico{ font-size: max(15px, calc(16px*var(--ui-scale))) }
+  .side-toggle:active{ transform: scale(.96) }
+  .side-panel{
+    display: none;                                  /* 默认收起 */
+    position: fixed; right: var(--m-edge); left: auto;
+    top: calc(var(--m-hud-top) + var(--m-hud-h) + 8px + max(38px, calc(40px*var(--ui-scale))) + 8px);
+    z-index: 30;
+    padding: max(5px, calc(6px*var(--ui-scale)));
+    gap: max(3px, calc(4px*var(--ui-scale)));
+    max-height: calc(100vh - var(--m-hud-h) - var(--m-bottom-reserve) - 78px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    animation: drawerIn .16s ease-out;
+  }
+  .side-panel.open{ display: flex }
+  @keyframes drawerIn{ from{ opacity: 0; transform: translateY(-6px) } to{ opacity: 1; transform: none } }
+  /* 抽屉里按钮排两列，更省高度 */
+  .side-panel{ flex-direction: row; flex-wrap: wrap; width: min(66vw, 260px) }
+  .side-panel button{ flex: 1 1 calc(50% - 4px); min-width: 0 }
   .side-panel button{
     min-width: max(72px, calc(84px*var(--ui-scale)));
     height: max(32px, calc(34px*var(--ui-scale)));

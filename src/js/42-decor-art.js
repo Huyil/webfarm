@@ -205,6 +205,15 @@ function drawFlower(g, px, py, seed){
  *   tileX   彩色瓷砖：铺满整格，2×2 分块 + 勾缝 + 釉面高光
  *   marble  大理石：铺满整格，浅底 + 石纹脉络 + 抛光高光
  */
+/* 把 #rrggbb 提亮/压暗一点（k>0 提亮，k<0 压暗） */
+function dashColor(hex, k){
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex));
+  if(!m) return hex;
+  const n = parseInt(m[1], 16);
+  const cl = v => Math.max(0, Math.min(255, Math.round(v + 255 * k)));
+  const r = cl((n >> 16) & 255), gg = cl((n >> 8) & 255), b = cl(n & 255);
+  return '#' + ((1 << 24) | (r << 16) | (gg << 8) | b).toString(16).slice(1);
+}
 function paveBasis(px, py){
   const hw = (TILE_W * SCALE) / 2, hh = (TILE_H * SCALE) / 2;
   return { hw, hh, P: (dx, dy) => [px + (dx - dy) * hw, py + (dx + dy) * hh] };
@@ -252,8 +261,8 @@ function drawPath(g, px, py, seed, mask){
   g.save();
   /* ① 土基：比石子略宽一圈，颜色深一点，像被踩出来的土 */
   const dirt = g.createLinearGradient(px - hw, py - hh, px + hw, py + hh);
-  dirt.addColorStop(0, '#9a7750'); dirt.addColorStop(0.5, '#85643f'); dirt.addColorStop(1, '#63492c');
-  pavePaint(g, P, shape.polys.map(grow), dirt, 'rgba(70,50,28,.35)', 1);
+  dirt.addColorStop(0, '#8a6a45'); dirt.addColorStop(0.5, '#755737'); dirt.addColorStop(1, '#553d24');
+  pavePaint(g, P, shape.polys.map(grow), dirt, 'rgba(58,40,22,.45)', 1);
   /* ② 碎石子：按 seed 确定性地撒，一颗颗带高光和阴影 */
   /* 土基上的碎屑，让底色不空 */
   for(let i = 0; i < 16; i++){
@@ -308,7 +317,7 @@ function drawBrick(g, px, py, seed, mask){
   const shape = paveShape(mask, gw, hs);
   g.save();
   /* 灰浆底 */
-  pavePaint(g, P, shape.polys, '#c2b09a', 'rgba(88,68,46,.4)', 1);
+  pavePaint(g, P, shape.polys, '#a8977f', 'rgba(70,52,34,.5)', 1);
   const brick = (x0, y0, w, h, tint) => {
     const p1 = P(x0, y0), p2 = P(x0 + w, y0), p3 = P(x0 + w, y0 + h), p4 = P(x0, y0 + h);
     g.beginPath();
@@ -356,7 +365,9 @@ function drawFullPave(g, px, py, seed, type){
   const { hw, hh, P } = paveBasis(px, py);
   g.save();
   /* 勾缝底色（铺满整格，相邻同款自然连成一片） */
-  pavePaint(g, P, [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]], marble ? '#cbc6b9' : '#b7b1a4', null);
+  /* 勾缝底色比砖面暗：这样四周读起来是「嵌进地面的缝」，而不是垫高一圈的亮边 */
+  pavePaint(g, P, [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]],
+             marble ? '#9d998e' : dashColor(base, -0.30), 'rgba(38,32,24,.30)', 1);
   const n = 2;                                  /* 2×2 分块 */
   const gap = 0.022;
   for(let i = 0; i < n; i++){
@@ -399,9 +410,9 @@ function drawFullPave(g, px, py, seed, type){
       }
     }
   }
-  /* 釉面/抛光高光：左上到右下一条亮带 */
+  /* 釉面/抛光高光：只压在砖面内（不盖到勾缝上，免得边沿发亮像垫高） */
   g.save();
-  pavePaint(g, P, [[[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]], null, null);
+  pavePaint(g, P, [[[-0.5 + gap, -0.5 + gap], [0.5 - gap, -0.5 + gap], [0.5 - gap, 0.5 - gap], [-0.5 + gap, 0.5 - gap]]], null, null);
   g.clip();
   const gl = g.createLinearGradient(px - hw, py - hh, px + hw * 0.4, py + hh);
   gl.addColorStop(0, marble ? 'rgba(255,255,255,.42)' : 'rgba(255,255,255,.30)');

@@ -7,9 +7,9 @@
  */
 const KITCHEN = {
   mill:  { busy:false, t:0, dur:MILL_MS },
-  oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null },
+  oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null, autoLoop:false, lastItem:null },
   board: { busy:false, t:0, dur:CHOP_MS, src:null },
-  pot:   { pieces:[], t:0, dur:POT_MS, done:false, auto:false },
+  pot:   { pieces:[], t:0, dur:POT_MS, done:false, auto:false, autoLoop:false, lastPieces:[] },
 };
 
 function gradeOf(t, dur, perfectMs, burnMs){
@@ -53,7 +53,8 @@ function roastRecipe(id){
            base: Math.max(1, Math.round(pieceValue(id) * 2)), pieces:[id] };
 }
 /* arg 省略 = 优先面粉；也可以显式 { piece:id } / { flour:true } */
-function ovenPut(arg){
+/* strict = 只认指定的那样东西（全自动循环用）：没有就失败，不会"顺手"抓别的原料顶上 */
+function ovenPut(arg, strict){
   if(KITCHEN.oven.busy) return { ok:false, msg:'烤箱里还有东西' };
   let item = null;
   if(arg && arg.piece){
@@ -61,12 +62,16 @@ function ovenPut(arg){
     state.pieces[arg.piece]--; item = { type:'piece', id:arg.piece };
   } else if((state.prep.flour || 0) > 0){
     state.prep.flour--; item = { type:'flour' };
+  } else if(strict){
+    return { ok:false, msg:'没有面粉了' };
   } else {
     const list = ovenPieceStock();
     if(!list.length) return { ok:false, msg:'没有可烤的东西（先磨面粉或切菜）' };
     state.pieces[list[0]]--; item = { type:'piece', id:list[0] };
   }
   KITCHEN.oven.item = item;
+  /* 记住「这次烤的是什么」：全自动循环时照这个配方再放一次 */
+  KITCHEN.oven.lastItem = item.type === 'piece' ? { piece: item.id } : { prep: 'flour' };
   KITCHEN.oven.busy = true; KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
   save();
   return { ok:true, msg: item.type === 'flour' ? '面包进炉了' : itemName(item.id) + '块进炉了' };
@@ -92,6 +97,87 @@ function ovenPreview(){
   const isRoast = !!(src && src.type === 'piece');
   const recipe = isRoast ? roastRecipe(src.id) : ovenRecipe();
   return { recipe, quality: KITCHEN.oven.ready ? gradeOf(KITCHEN.oven.t, KITCHEN.oven.dur, OVEN_PERFECT_MS, OVEN_BURN_MS) : null };
+}
+
+/* ---------- 限时自动化设备（金币买、只能跑一段时间） ---------- */
+const AUTO_DEVICES = {
+  donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, durMs:5*60*1000, per:MILL_MS,
+             desc:'自动把小麦磨成面粉（不用手点石磨）' },
+  chopper: { id:'chopper', name:'自动切块机', icon:'🔪', price:900, durMs:5*60*1000, per:1500,
+             desc:'自动把仓库里的作物切成菜块（优先切最多的那种）' },
+};
+const AUTO_IDS = Object.keys(AUTO_DEVICES);
+function autoUntilOf(id){ return (state.autoUntil && state.autoUntil[id]) || 0; }
+function autoLeftMs(id){ return Math.max(0, autoUntilOf(id) - Date.now()); }
+function autoActive(id){ return autoLeftMs(id) > 0; }
+function autoBuy(id){
+  const dev = AUTO_DEVICES[id];
+  if(!dev) return { ok:false, msg:'没有这个设备' };
+  if(state.coins < dev.price) return { ok:false, msg:`金币不够（需要 ${dev.price} 金）` };
+  state.coins -= dev.price;
+  const base = Math.max(Date.now(), autoUntilOf(id));       /* 还在跑就顺延 */
+  state.autoUntil[id] = base + dev.durMs;
+  state.autoAcc[id] = state.autoAcc[id] || 0;
+  SFX.play('buy');
+  trackAction('coins', 0);
+  renderHUD(); renderKitchen(); save();
+  const mins = Math.round(dev.durMs / 60000);
+  return { ok:true, msg:`${dev.name} 上线 ${mins} 分钟（剩余 ${Math.ceil(autoLeftMs(id) / 60000)} 分钟）` };
+}
+/* 每帧推进：到点产出一次；原料不足就空转（时间照走，界面提示缺料） */
+function autoTick(dt){
+  const now = Date.now();
+  for(const id of AUTO_IDS){
+    if(!autoActive(id)) continue;
+    state.autoAcc[id] = (state.autoAcc[id] || 0) + dt;
+    const dev = AUTO_DEVICES[id];
+    if(state.autoAcc[id] < dev.per) continue;
+    state.autoAcc[id] -= dev.per;
+    if(id === 'donkey'){
+      if((state.bag.wheat || 0) > 0){
+        state.bag.wheat--;
+        state.prep.flour = (state.prep.flour || 0) + 1;
+        trackAction('mill');
+        save();
+      }
+    } else if(id === 'chopper'){
+      let pick = null, best = 0;
+      for(const c of CROP_IDS){
+        if(CROPS[c].noChop) continue;
+        const n = state.bag[c] || 0;
+        if(n > best){ best = n; pick = c; }
+      }
+      if(pick){
+        state.bag[pick]--;
+        state.pieces[pick] = (state.pieces[pick] || 0) + CHOP_PIECES;
+        KITCHEN.board.src = pick;
+        trackAction('chop', CHOP_PIECES);
+        save();
+      }
+    }
+  }
+}
+/* 全自动循环：原料没了就自己关掉并说一声 */
+function autoLoopFeed(){
+  const K = KITCHEN;
+  if(K.oven.autoLoop && !K.oven.busy){
+    if(!K.oven.lastItem){ K.oven.autoLoop = false; return; }
+    if(!ovenPut(K.oven.lastItem, true).ok){
+      K.oven.autoLoop = false;
+      toast('🥣 面粉烤完了：全自动出炉已停（原料不足）');
+    }
+    return;
+  }
+  if(K.pot.autoLoop && !K.pot.pieces.length){
+    const last = K.pot.lastPieces || [];
+    if(!last.length){ K.pot.autoLoop = false; return; }
+    let ok = true;
+    for(const id of last) if(!potAdd({ piece: id }).ok) ok = false;
+    if(!ok){
+      K.pot.autoLoop = false;
+      toast('🔪 菜块用完了：全自动出锅已停（原料不足）');
+    }
+  }
 }
 
 /* ---------- 切菜板：瞬时出料（没有计时条，方便连续快速切） ---------- */
@@ -127,6 +213,7 @@ function potAdd(kind){
   else { state.bag[kind.raw]--; id = kind.raw; }
   KITCHEN.pot.pieces.push(id);
   KITCHEN.pot.t = 0; KITCHEN.pot.done = false;     // 每加一样就重置进度条
+  KITCHEN.pot.lastPieces = KITCHEN.pot.pieces.slice();   // 记住配方：全自动照着再做一锅
   save();
   return { ok:true, msg:`下锅：${itemName(id)}` };
 }
@@ -192,6 +279,7 @@ function kitchenShelf(){
 /* ---------- 每帧推进（由 68-kitchen.js 的 updateKitchen 调用） ---------- */
 function kitchenLogicTick(dt){
   const K = KITCHEN;
+  autoTick(dt);            /* 限时自动化设备（驴 / 切块机） */
   if(K.mill.busy){
     K.mill.t += dt;
     if(K.mill.t >= K.mill.dur){
@@ -207,15 +295,16 @@ function kitchenLogicTick(dt){
   if(K.oven.busy){
     K.oven.t += dt;
     if(K.oven.t >= K.oven.dur && !K.oven.ready) K.oven.ready = true;
-    /* 自动出锅 = 「避免烧糊」：一直放在里面，快焦糊时才取（所以只会是「正常」，拿不到精品） */
-    if(K.oven.ready && K.oven.auto && K.oven.t >= K.oven.dur + OVEN_BURN_MS - 250) ovenTake(true);
+    /* 自动出炉：**精品窗口一结束就取**（dur + perfect），拿到的是「正常」，但不用一直占着炉子 */
+    if(K.oven.ready && K.oven.auto && K.oven.t >= K.oven.dur + OVEN_PERFECT_MS) ovenTake(true);
   }
   if(K.pot.pieces.length){
     /* 到点（done）之后必须继续计时：进度条才走得满、才会进入焦糊，
        自动出锅也才有机会触发（原来 done 之后 t 冻在 4s，锅永远停在精品窗口） */
     K.pot.t += dt;
     if(!K.pot.done && K.pot.t >= K.pot.dur) K.pot.done = true;
-    /* 锅同理：自动出锅只在快焦糊时取，避免烧糊但拿不到精品 */
-    if(K.pot.done && K.pot.auto && K.pot.t >= K.pot.dur + POT_BURN_MS - 250) potTake(true);
+    /* 锅同理：精品窗口一结束就出锅 */
+    if(K.pot.done && K.pot.auto && K.pot.t >= K.pot.dur + POT_PERFECT_MS) potTake(true);
   }
+  autoLoopFeed();          /* 全自动：自动投下一份，直到原料不足 */
 }

@@ -16,18 +16,19 @@ function applyToolAt(gx, gy, silent){
     /* 拖拽：排队，等小人走到再动手（绝不瞬移） */
     const stop = queueStopMsg(tool);       /* 钱/肥料用光时不再继续排队空走 */
     if(stop){ playerClearQueue(); toastStop(stop); return; }
-    playerEnqueue(gx, gy);
+    playerEnqueue(gx, gy, tool);
     return;
   }
   /* 单击：取消未完成的批量作业，改做这一格 */
   if(jobActive()) playerClearQueue();
-  playerGoto(gx, gy, tool, { gx, gy, silent: false });
+  playerGoto(gx, gy, tool, { gx, gy, silent: false, tool });
 }
 
-function runTool(gx, gy, silent){
+function runTool(gx, gy, silent, toolOverride){
   const t = getTile(gx, gy);
   if(!t){ if(!silent) toast('超出农场范围'); return; }
-  const tool = state.tool;
+  /* 批量作业会带上「开单时的工具」：中途切工具不会把剩下的活干成别的 */
+  const tool = toolOverride || state.tool;
   const sp = worldToScreen(t);
 
   /* 石头地面：除了「装饰」工具，其它工具一律拒绝，提示统一 */
@@ -221,7 +222,7 @@ function applyToolToRect(x0, y0, x1, y1){
   state.box = { x0:ax, y0:ay, x1:bx, y1:by };
   state.jobBox = { x0:ax, y0:ay, x1:bx, y1:by };
   const p = state.player;
-  p.queue = planPath(list, { gx: Math.round(p.x), gy: Math.round(p.y) });
+  p.queue = planPath(list, { gx: Math.round(p.x), gy: Math.round(p.y) }).map(q => Object.assign({ tool }, q));
   p.pendingOp = null;
   toast(`${label}：框选 ${bx-ax+1}×${by-ay+1} → ${list.length} 格要处理` +
         (skipped ? `，跳过 ${skipped} 格` : '') + '（点别处取消）');

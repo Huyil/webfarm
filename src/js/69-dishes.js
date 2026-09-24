@@ -6,10 +6,11 @@
  * 火候：完美窗口内取出 = 精品（+25%）；太久 = 焦糊（×0.4）；勾选自动出锅则只会得到正常
  */
 const KITCHEN = {
-  mill:  { busy:false, t:0, dur:MILL_MS },
-  oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null, items:[], autoLoop:false, lastItem:null },
+  mill:  { busy:false, t:0, dur:MILL_MS, queued:0 },     /* queued = 已装入待磨的小麦；busy/t 只给「自动磨粉」的进度条用 */
+
+  oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null, items:[], lastItem:null },
   board: { busy:false, t:0, dur:CHOP_MS, src:null },
-  pot:   { pieces:[], t:0, dur:POT_MS, done:false, auto:false, autoLoop:false, lastPieces:[] },
+  pot:   { pieces:[], t:0, dur:POT_MS, done:false, auto:false, lastPieces:[] },
 };
 
 function gradeOf(t, dur, perfectMs, burnMs){
@@ -33,8 +34,39 @@ function addDish(recipe, qualityId, n){
 }
 
 /* ---------- 石磨 ---------- */
-function canMill(){ return !KITCHEN.mill.busy && (state.bag.wheat || 0) > 0; }
+const MILL_CAP = 5;                        /* 一次最多装几份小麦待磨 */
+function millQueued(){ return KITCHEN.mill.queued || 0; }
+function canMillLoad(){ return millQueued() < MILL_CAP && (state.bag.wheat || 0) > 0; }
+function canMill(){ return millQueued() > 0; }          /* 手动磨：只要装了料就能立刻磨 */
+/* 装一份小麦进石磨（不耗时，先攒着，想磨再磨） */
+function millLoad(){
+  if(millQueued() >= MILL_CAP) return { ok:false, msg:`石磨里最多放 ${MILL_CAP} 份，先磨了再放` };
+  if((state.bag.wheat || 0) <= 0) return { ok:false, msg:'仓库里没有小麦' };
+  state.bag.wheat--;
+  KITCHEN.mill.queued = millQueued() + 1;
+  save();
+  return { ok:true, msg:`小麦入磨（${millQueued()}/${MILL_CAP}）` };
+}
+/* 把装好的小麦取回来（换配方 / 关面板时用） */
+function millUnload(){
+  const n = millQueued();
+  if(!n) return 0;
+  state.bag.wheat = (state.bag.wheat || 0) + n;
+  KITCHEN.mill.queued = 0;
+  save();
+  return n;
+}
+/* 手动磨粉：**不需要计时**，一把磨完（计时只在自动磨粉上用） */
 function mill(){
+  const n = millQueued();
+  if(!n) return { ok:false, msg:'石磨是空的（先放小麦）' };
+  state.prep.flour = (state.prep.flour || 0) + n;
+  KITCHEN.mill.queued = 0;
+  for(let i = 0; i < n; i++) trackAction('mill');
+  save();
+  return { ok:true, n, msg:`磨好面粉 ×${n}` };
+}
+function millOld(){
   if(KITCHEN.mill.busy) return { ok:false, msg:'石磨还在转' };
   if((state.bag.wheat || 0) <= 0) return { ok:false, msg:'没有小麦' };
   state.bag.wheat--;
@@ -128,20 +160,30 @@ function ovenPreview(){
 
 /* ---------- 限时自动化设备（金币买、只能跑一段时间） ---------- */
 const AUTO_DEVICES = {
-  donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, durMs:5*60*1000, per:MILL_MS,
-             desc:'自动把小麦磨成面粉（不用手点石磨）' },
-  chopper: { id:'chopper', name:'自动切块机', icon:'🔪', price:900, durMs:5*60*1000, per:1500,
-             desc:'自动把仓库里的作物切成菜块（优先切最多的那种）' },
+  donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, rate:1.6, durMs:5*60*1000, per:MILL_MS,
+             desc:'自动磨面：进度条走完一次，每头驴产 1 份面粉' },
+  chopper: { id:'chopper', name:'自动切块机', icon:'🔪', price:900, rate:1.6, durMs:5*60*1000, per:1500,
+             desc:'自动切块：进度条走完一次，每台切 1 份（优先切最多的作物）' },
 };
 const AUTO_IDS = Object.keys(AUTO_DEVICES);
+const AUTO_MAX = 5;                                   /* 每种最多同时养几台 */
+function autoCountOf(id){ return (state.autoCount && state.autoCount[id]) || 0; }
+/* 第 n 台的价格：指数上涨（600 → 960 → 1536 …） */
+function autoPrice(id){
+  const dev = AUTO_DEVICES[id];
+  return Math.round(dev.price * Math.pow(dev.rate || 1.6, autoCountOf(id)));
+}
 function autoUntilOf(id){ return (state.autoUntil && state.autoUntil[id]) || 0; }
 function autoLeftMs(id){ return Math.max(0, autoUntilOf(id) - Date.now()); }
 function autoActive(id){ return autoLeftMs(id) > 0; }
 function autoBuy(id){
   const dev = AUTO_DEVICES[id];
   if(!dev) return { ok:false, msg:'没有这个设备' };
-  if(state.coins < dev.price) return { ok:false, msg:`金币不够（需要 ${dev.price} 金）` };
-  state.coins -= dev.price;
+  if(autoCountOf(id) >= AUTO_MAX) return { ok:false, msg:`${dev.name} 已经养满 ${AUTO_MAX} 台了` };
+  const price = autoPrice(id);
+  if(state.coins < price) return { ok:false, msg:`金币不够（第 ${autoCountOf(id) + 1} 台需要 ${price} 金）` };
+  state.coins -= price;
+  state.autoCount[id] = autoCountOf(id) + 1;
   const base = Math.max(Date.now(), autoUntilOf(id));       /* 还在跑就顺延 */
   state.autoUntil[id] = base + dev.durMs;
   state.autoAcc[id] = state.autoAcc[id] || 0;
@@ -149,53 +191,70 @@ function autoBuy(id){
   trackAction('coins', 0);
   renderHUD(); renderKitchen(); save();
   const mins = Math.round(dev.durMs / 60000);
-  return { ok:true, msg:`${dev.name} 上线 ${mins} 分钟（剩余 ${Math.ceil(autoLeftMs(id) / 60000)} 分钟）` };
+  const n = state.autoCount[id];
+  return { ok:true, msg:`${dev.name} ×${n} 上线 ${mins} 分钟（剩余 ${Math.ceil(autoLeftMs(id) / 60000)} 分钟，每轮产 ${n} 份）` };
 }
 /* 每帧推进：到点产出一次；原料不足就空转（时间照走，界面提示缺料） */
 function autoTick(dt){
-  const now = Date.now();
+  const K = KITCHEN;
+  const audible = (typeof kKitchenOpen === 'function') && kKitchenOpen();   /* 开着厨房面板才出声 */
+  /* 石磨的进度条画的是「自动磨面」的进度（手动磨粉是瞬时的，不占进度条） */
+  if(autoActive('donkey')){
+    K.mill.busy = true; K.mill.dur = AUTO_DEVICES.donkey.per;
+    K.mill.t = state.autoAcc.donkey || 0;
+  } else if(!K.mill.busy){
+    K.mill.t = 0;
+  }
   for(const id of AUTO_IDS){
     if(!autoActive(id)) continue;
     state.autoAcc[id] = (state.autoAcc[id] || 0) + dt;
     const dev = AUTO_DEVICES[id];
     if(state.autoAcc[id] < dev.per) continue;
     state.autoAcc[id] -= dev.per;
+    const n = autoCountOf(id);                 /* 养了几台，一轮就产几份 */
     if(id === 'donkey'){
-      if((state.bag.wheat || 0) > 0){
+      let made = 0;
+      for(let i = 0; i < n; i++){
+        if((state.bag.wheat || 0) <= 0) break;
         state.bag.wheat--;
         state.prep.flour = (state.prep.flour || 0) + 1;
         trackAction('mill');
-        save();
+        made++;
       }
+      if(made){ if(audible) SFX.play('mill'); save(); }
     } else if(id === 'chopper'){
-      let pick = null, best = 0;
-      for(const c of CROP_IDS){
-        if(CROPS[c].noChop) continue;
-        const n = state.bag[c] || 0;
-        if(n > best){ best = n; pick = c; }
-      }
-      if(pick){
+      let cut = 0;
+      for(let i = 0; i < n; i++){
+        let pick = null, best = 0;
+        for(const c of CROP_IDS){
+          if(CROPS[c].noChop) continue;
+          const m = state.bag[c] || 0;
+          if(m > best){ best = m; pick = c; }
+        }
+        if(!pick) break;
         state.bag[pick]--;
         state.pieces[pick] = (state.pieces[pick] || 0) + CHOP_PIECES;
         KITCHEN.board.src = pick;
         trackAction('chop', CHOP_PIECES);
-        save();
+        cut++;
       }
+      if(cut){ if(audible) SFX.play('chop'); save(); }
     }
   }
 }
 /* 全自动循环：原料没了就自己关掉并说一声 */
+/* 全自动：同一个开关同时负责「自动取出」和「自动投料」（到原料不足才停） */
 function autoLoopFeed(){
   const K = KITCHEN;
-  if(K.oven.autoLoop && !K.oven.busy){
-    if(!K.oven.lastItem){ K.oven.autoLoop = false; return; }
+  if(K.oven.auto && !K.oven.busy){
+    if(!K.oven.lastItem) return;             /* 还没烤过东西，没什么可重复的 */
     /* 先把槽位装满（有几槽就装几份），装不下/没原料就按情况收手 */
     let fed = 0;
     while(K.oven.items.length < ovenCap()){
       if(!ovenPut(K.oven.lastItem, true).ok){
         if(fed === 0){
-          K.oven.autoLoop = false;
-          toast('🥣 原料用完了：全自动出炉已停');
+          K.oven.auto = false;               /* 原料不足：自动关掉，免得一直空转 */
+          toast('🥣 原料用完了：烤箱全自动已停');
         }
         break;
       }
@@ -203,14 +262,14 @@ function autoLoopFeed(){
     }
     return;
   }
-  if(K.pot.autoLoop && !K.pot.pieces.length){
+  if(K.pot.auto && !K.pot.pieces.length){
     const last = K.pot.lastPieces || [];
-    if(!last.length){ K.pot.autoLoop = false; return; }
+    if(!last.length) return;
     let ok = true;
     for(const id of last) if(!potAdd({ piece: id }).ok) ok = false;
     if(!ok){
-      K.pot.autoLoop = false;
-      toast('🔪 菜块用完了：全自动出锅已停（原料不足）');
+      K.pot.auto = false;
+      toast('🔪 菜块用完了：锅全自动已停（原料不足）');
     }
   }
 }
@@ -315,22 +374,15 @@ function kitchenShelf(){
 function kitchenLogicTick(dt){
   const K = KITCHEN;
   autoTick(dt);            /* 限时自动化设备（驴 / 切块机） */
-  if(K.mill.busy){
-    K.mill.t += dt;
-    if(K.mill.t >= K.mill.dur){
-      K.mill.busy = false; K.mill.t = 0;
-      state.prep.flour = (state.prep.flour || 0) + 1;
-      trackAction('mill');
-      save();
-    }
-  }
+  /* 石磨不再有计时逻辑：手动磨粉是瞬时的（见 mill()），
+     mill.busy/t/dur 只是「自动磨面」进度条的显示状态，由 autoTick 写入 */
   if(K.board.busy){
     K.board.busy = false; K.board.t = 0; K.board.src = null;   /* 切菜已改为瞬时，这里只兜底清状态 */
   }
   if(K.oven.busy){
     K.oven.t += dt;
     if(K.oven.t >= K.oven.dur && !K.oven.ready) K.oven.ready = true;
-    /* 自动出炉：**精品窗口一结束就取**（dur + perfect），拿到的是「正常」，但不用一直占着炉子 */
+    /* 全自动取出：**精品窗口一结束就取**（dur + perfect），拿到的是「一般」，但不用一直占着炉子 */
     if(K.oven.ready && K.oven.auto && K.oven.t >= K.oven.dur + OVEN_PERFECT_MS) ovenTake(true);
   }
   if(K.pot.pieces.length){

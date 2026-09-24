@@ -159,8 +159,8 @@ function kDropItem(itemKey, station){
   const kind = raw.slice(0, raw.indexOf(':'));
   let res;
   if(station === 'mill'){
-    res = mill();
-    if(res.ok) SFX.play('mill');
+    res = millLoad();                     /* 手动磨粉是瞬时的：这里只负责把小麦装进磨 */
+    if(res.ok) SFX.play('till');
   } else if(station === 'oven'){
     res = ovenPut(kind === 'piece' ? { piece:id } : undefined);
     if(res.ok) SFX.play('cook');
@@ -313,12 +313,12 @@ function kKitchenSig(){
   const dishes = Object.keys(state.dishes).map(k => k + ':' + state.dishes[k].n).join(',');
   return [
     shelf, dishes, kPiecesSummary(),
-    K.mill.busy ? 1 : 0,
-    K.oven.busy ? 1 : 0, K.oven.ready ? 1 : 0, K.oven.auto ? 1 : 0, K.oven.autoLoop ? 1 : 0,
+    K.mill.busy ? 1 : 0, K.mill.queued || 0,
+    K.oven.busy ? 1 : 0, K.oven.ready ? 1 : 0, K.oven.auto ? 1 : 0,
     (K.oven.items || []).length, state.ovenSlots || 1,
-    AUTO_IDS.map(id => (autoActive(id) ? 1 : 0)).join(''),
+    AUTO_IDS.map(id => (autoActive(id) ? 1 : 0) + ':' + autoCountOf(id)).join(''),
     kBoardBusy() ? 1 : 0, (K.board && K.board.src) || '',
-    K.pot.pieces.join('.'), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0, K.pot.autoLoop ? 1 : 0,
+    K.pot.pieces.join('.'), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0,
     state.prep.flour || 0, state.bag.wheat || 0,
     state.miniGameEnabled === false ? 0 : 1,
   ].join('|');
@@ -341,11 +341,24 @@ function kStationMillHTML(){
       <div class="k-st-head"><span class="k-st-ico">🪨</span><span class="k-st-name">石磨</span><span class="k-st-state" data-state="mill"></span></div>
       <div class="k-st-body">
         <div class="k-mill"><div class="k-mill-wheel" data-wheel="mill"></div></div>
-        <div class="k-st-flow">${kIconHTML('crop:wheat', 26)}<span class="k-arrow">→</span>${kIconHTML('prep:flour', 26)}</div>
+        <div class="k-st-info">
+          <div class="k-st-line">${kMillChipsHTML()}</div>
+          <div class="k-st-line">${kIconHTML('crop:wheat', 20)}×${K.mill.queued || 0} → ${kIconHTML('prep:flour', 20)}</div>
+        </div>
       </div>
       <div class="k-progress" data-bar="mill"><i></i></div>
-      <div class="k-st-hint">拖入小麦自动开磨（${kSecText(K.mill.dur)}）</div>
+      <div class="k-st-actions">
+        <button class="mini primary" data-act="grind">磨粉（瞬时）</button>
+        <span class="k-st-hint">点小麦卡装进磨（最多 ${MILL_CAP} 份）· 进度条是「自动磨面」的</span>
+      </div>
     </div>`;
+}
+/* 石磨里待磨的小麦 chips */
+function kMillChipsHTML(){
+  const n = KITCHEN.mill.queued || 0;
+  if(!n) return '<span class="k-slot-empty">点/拖小麦到这里（攒几份一起磨）</span>';
+  return Array.from({ length: n }, () => '<span class="k-chip">' + kIconHTML('crop:wheat', K_ICON_SIZES.pot) + '</span>').join('') +
+         `<span class="k-slots-num">${n}/${MILL_CAP}</span>`;
 }
 /* 烤箱里的原料 chips（可多份）+ 槽位计数 */
 function kOvenChipsHTML(){
@@ -375,16 +388,18 @@ function kSegTicks(dur, perfect, burn){
 }
 function kAutoRowHTML(id){
   const dev = AUTO_DEVICES[id];
-  const left = autoLeftMs(id);
-  const running = left > 0;
+  const running = autoActive(id);
+  const n = autoCountOf(id);
+  const maxed = n >= AUTO_MAX;
+  const label = maxed ? `已满 ${AUTO_MAX} 台` : `＋第 ${n + 1} 台 ${autoPrice(id)} 金`;
   return `<div class="k-auto-row" data-auto-row="${id}">
     <span class="k-auto-ico">${dev.icon}</span>
     <span class="k-auto-info">
-      <span class="k-auto-name">${dev.name}</span>
+      <span class="k-auto-name">${dev.name}${n ? ' ×' + n : ''}</span>
       <span class="k-auto-desc">${dev.desc}</span>
     </span>
     <span class="k-auto-state" data-dev-state="${id}"></span>
-    <button class="mini${running ? '' : ' primary'}" data-act="buy-auto" data-dev="${id}">${running ? '续 30 分钟' : '买 ' + dev.price + ' 金'}</button>
+    <button class="mini${running ? '' : ' primary'}" data-act="buy-auto" data-dev="${id}" ${maxed ? 'disabled' : ''}>${label}</button>
   </div>`;
 }
 function kStationOvenHTML(){
@@ -396,8 +411,7 @@ function kStationOvenHTML(){
         <div class="k-pot-slot k-oven-slots">${kOvenChipsHTML()}</div>
         <div class="k-st-info">
           <div class="k-st-line">🥣 面粉 ×${state.prep.flour || 0} · 🔪 菜块 ×${kPieceStock()}</div>
-          <label class="k-check"><input type="checkbox" data-auto="oven" ${K.oven.auto ? 'checked' : ''}><span>自动出炉（窗口一过就取，只会是一般）</span></label>
-          <label class="k-check"><input type="checkbox" data-loop="oven" ${K.oven.autoLoop ? 'checked' : ''}><span>全自动：同配方一直烤到原料不足</span></label>
+          <label class="k-check"><input type="checkbox" data-auto="oven" ${K.oven.auto ? 'checked' : ''}><span>全自动：窗口一过就取 · 同配方一直烤到原料不足</span></label>
         </div>
       </div>
       <div class="k-progress k-seg3" data-bar="oven">${kSegTicks(OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS)}<i></i></div>
@@ -436,8 +450,7 @@ function kStationPotHTML(){
         <div class="k-pot-slot">${chips}</div>
         <div class="k-st-info">
           <div class="k-st-line">${pv ? '＝ ' + kEsc(pv.name) + '（基础 ' + pv.base + ' 金）' : '每加一样食材，进度条会重置'}</div>
-          <label class="k-check"><input type="checkbox" data-auto="pot" ${K.pot.auto ? 'checked' : ''}><span>自动出锅（窗口一过就取，只会是一般）</span></label>
-          <label class="k-check"><input type="checkbox" data-loop="pot" ${K.pot.autoLoop ? 'checked' : ''}><span>全自动：同配方一直煮到原料不足</span></label>
+          <label class="k-check"><input type="checkbox" data-auto="pot" ${K.pot.auto ? 'checked' : ''}><span>全自动：窗口一过就取 · 同配方一直煮到原料不足</span></label>
         </div>
       </div>
       <div class="k-progress k-seg3" data-bar="pot">${kSegTicks(POT_MS, POT_PERFECT_MS, POT_BURN_MS)}<i></i></div>
@@ -593,7 +606,8 @@ function kUpdateLive(){
     n.millWheel.style.transform = 'rotate(' + Math.round(K.mill.busy ? millR * 720 : 0) + 'deg)';
     if(n.millWheel.classList) n.millWheel.classList.toggle('spin', K.mill.busy);
   }
-  if(K.mill.busy) kSetState(n.millState, 'busy', '磨面中 ' + kSecText(K.mill.dur - K.mill.t));
+  if(autoActive('donkey')) kSetState(n.millState, 'busy', '自动磨面 ×' + autoCountOf('donkey') + ' · ' + kSecText((K.mill.dur - K.mill.t) / 1000));
+  else if(millQueued() > 0) kSetState(n.millState, 'ok', '待磨 ' + millQueued() + ' 份（可立刻磨）');
   else kSetState(n.millState, (state.bag.wheat || 0) > 0 ? 'ok' : 'off', (state.bag.wheat || 0) > 0 ? '就绪' : '缺小麦');
   /* 烤箱 */
   if(K.oven.busy){
@@ -634,8 +648,9 @@ function kUpdateLive(){
     } else {
       const left = autoLeftMs(id);
       const lack = id === 'donkey' ? ((state.bag.wheat || 0) <= 0) : !CROP_IDS.some(c => !CROPS[c].noChop && (state.bag[c] || 0) > 0);
+      const n = autoCountOf(id);
       kSetState(node, lack ? 'off' : 'busy',
-        (lack ? '缺原料 · ' : '运行中 · ') + kSecText(left / 1000));
+        (lack ? '缺原料 · ' : '运行中 ×' + n + ' · ') + kSecText(left / 1000));
     }
   }
   /* 切菜板：瞬时产出，没有进度条——反馈靠投入时的「咔」动画 */
@@ -824,6 +839,14 @@ function kOnKitchenClick(e){
   }
   const act = btn.dataset.act;
   if(act === 'take'){ SFX.play('click'); kTakeStation(btn.dataset.station); return; }
+  if(act === 'grind'){
+    const r = mill();
+    if(r.ok){ SFX.play('mill'); toast(r.msg); kFlyFromStation('mill', 'prep:flour'); }
+    else { SFX.play('error'); toast(r.msg); }
+    if(kUI) kUI.sig = '';
+    renderKitchen(); renderHUD();
+    return;
+  }
   if(act === 'upgrade-oven'){
     const r = ovenUpgrade();
     toast(r.msg);
@@ -859,15 +882,14 @@ function kOnKitchenClick(e){
 function kOnKitchenChange(e){
   const box = e.target;
   const ds = (box && box.dataset) || {};
-  /* 全自动（同配方循环）：勾上就顺带把「自动出炉/出锅」也打开 */
+  /* 兼容老界面：data-loop 也当成全自动开关（现在两者是同一个） */
   if(ds.loop === 'oven' || ds.loop === 'pot'){
     const st2 = ds.loop;
-    KITCHEN[st2].autoLoop = !!box.checked;
-    if(box.checked) KITCHEN[st2].auto = true;
+    KITCHEN[st2].auto = !!box.checked;
     save();
     toast(box.checked
-      ? (st2 === 'oven' ? '烤箱：全自动，同配方一直烤到原料不足' : '锅：全自动，同配方一直煮到原料不足')
-      : (st2 === 'oven' ? '烤箱：改回单次' : '锅：改回单次'));
+      ? (st2 === 'oven' ? '烤箱：全自动（窗口一过就取，同配方做到原料不足）' : '锅：全自动（窗口一过就取，同配方做到原料不足）')
+      : (st2 === 'oven' ? '烤箱：改回手动' : '锅：改回手动'));
     if(kUI) kUI.sig = '';
     renderKitchen();
     return;

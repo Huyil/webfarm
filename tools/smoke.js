@@ -355,13 +355,34 @@ const frames = n => new Promise(res => {
   ok(st().coins > coinsBeforeSell, '点卖出真的进账');
   api.closeSheet();
 
-  section('厨房：小麦 → 面粉 → 面包');
+  section('厨房：小麦 → 面粉 → 面包（手动磨粉是瞬时的）');
   st().bag.wheat = 3;
   const flour0 = st().prep.flour || 0;
-  ok(api.cook.mill().ok, '石磨开始磨面');
-  api.kitchenTick(1500);
+  ok(api.cook.millLoad().ok, '小麦装进石磨');
+  eq(st().bag.wheat, 2, '装料时就从仓库扣掉');
+  eq(api.millQueued(), 1, '石磨里有 1 份待磨');
+  const rMill = api.cook.mill();
+  ok(rMill.ok, '手动磨粉立刻出粉（不需要计时）');
   eq(st().prep.flour, flour0 + 1, '研磨产出 1 份面粉');
-  eq(st().bag.wheat, 2, '消耗 1 小麦');
+  eq(api.millQueued(), 0, '磨完石磨清空');
+  /* 一次装多份、一把磨完 */
+  st().bag.wheat = 4;
+  api.cook.millLoad(); api.cook.millLoad(); api.cook.millLoad();
+  eq(api.millQueued(), 3, '可以一次装 3 份待磨');
+  const before3 = st().prep.flour;
+  const rMill3 = api.cook.mill();
+  ok(rMill3.ok && rMill3.n === 3, '一把磨完 3 份');
+  eq(st().prep.flour, before3 + 3, '一次产出 3 份面粉');
+  eq(st().bag.wheat, 1, '消耗对应的小麦');
+  /* 装满就装不下了 */
+  st().bag.wheat = 20;
+  while(api.canMillLoad()) api.cook.millLoad();
+  eq(api.millQueued(), api.MILL_CAP, `最多装 ${api.MILL_CAP} 份`);
+  ok(!api.cook.millLoad().ok, '装满后拒绝继续投料');
+  api.cook.mill();
+  st().bag.wheat = 3;
+  ok(api.cook.millLoad().ok, '小麦装进石磨（准备烤面包）');
+  api.cook.mill();
   ok(api.cook.ovenPut().ok, '面粉进烤箱');
   api.kitchenTick(api.KITCHEN.oven.dur + 100);
   ok(api.KITCHEN.oven.ready, '面包烤好（进入可出炉状态）');
@@ -1461,15 +1482,17 @@ const frames = n => new Promise(res => {
     ok(/焦糊/.test(stNode.textContent), '走满后状态变成焦糊', stNode.textContent);
     const take = api.cook.potTake(false);
     eq(take.quality, 'burnt', '此时出锅 = 焦糊');
-    /* 自动出锅也要能触发（同一个冻结点会导致它永不触发） */
+    /* 自动出锅也要能触发（同一个冻结点会导致它永不触发）——
+       注意现在 auto 是「全自动」：取出后会自动按同一配方补上，所以锅不会空着 */
     st().pieces.carrot = 5;
     api.cook.potAdd({ piece: 'carrot' });
     api.KITCHEN.pot.auto = true;
     const dishBefore = api.dishTotal();
-    api.kitchenTick(api.POT_MS + api.POT_BURN_MS - 200);
-    eq(api.KITCHEN.pot.pieces.length, 0, '勾了自动出锅后，到点会自动出锅（不再卡死）');
+    api.kitchenTick(api.POT_MS + api.POT_PERFECT_MS + 100);
     ok(api.dishTotal() > dishBefore, '自动出锅的菜进了菜品仓库');
+    ok(api.KITCHEN.pot.pieces.length > 0, '全自动：取出后自动补上同一配方（锅不空）');
     api.KITCHEN.pot.auto = false;
+    api.KITCHEN.pot.pieces = [];
   }
 
   section('厨房局部刷新：放入时不会重画菜品仓库');
@@ -1873,17 +1896,20 @@ const frames = n => new Promise(res => {
     ok(K.oven.ready, '已经可出炉');
     const rManual = api.cook.ovenTake(false);      /* 自动开着也能手动取 */
     ok(rManual.ok && rManual.quality === 'perfect', '自动模式下手动出炉 = 精品', rManual.quality);
-    /* 自动取则是「一般」 */
+    /* 自动取则是「一般」，而且全自动会顺手补上下一份 */
+    st().prep.flour = 2;
+    K.oven.auto = true;
     api.cook.ovenPut({ prep: 'flour' });
+    const dishAuto0 = api.dishTotal();
     api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 50);
-    eq(K.oven.busy, false, '自动取走了');
-    const lastDish = Object.values(st().dishes).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
-    ok(true, '自动取出的品质是 normal（名字 = ' + api.QUALITY.normal.name + '）');
+    eq(api.dishTotal() - dishAuto0, 1, '自动取走了 1 份');
+    ok(K.oven.busy, '全自动：取走后自动补上下一份');
+    K.oven.auto = false;
 
     /* ⑤ 全自动会把槽位装满再烤 */
     st().ovenSlots = 3; st().prep.flour = 4;      /* 手动放 1 份后还剩 3 份，正好把 3 个槽位装滿 */
     K.oven.items = []; K.oven.item = null; K.oven.busy = false; K.oven.ready = false; K.oven.t = 0;
-    K.oven.auto = true; K.oven.autoLoop = true;
+    K.oven.auto = true;
     ok(api.cook.ovenPut({ prep: 'flour' }).ok, '手动放第一份');
     api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);   /* 出 + 自动补满 */
     eq(K.oven.items.length, 3, '全自动一次把 3 个槽位都装上', String(K.oven.items.length));
@@ -1891,7 +1917,7 @@ const frames = n => new Promise(res => {
     const before = api.dishTotal();
     api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);
     eq(api.dishTotal() - before, 3, '这一批也出了 3 份');
-    ok(!K.oven.autoLoop, '原料不足后自动停');
+    ok(!K.oven.auto, '原料不足后自动停（开关自己关掉）');
 
     /* ⑥ 厨房面板：槽位计数 + 升级按钮都在 */
     st().coins = 50000; st().ovenSlots = 2;
@@ -1916,35 +1942,52 @@ const frames = n => new Promise(res => {
     const dishes0 = api.dishTotal();
     api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS - 300);
     eq(K.oven.busy, true, '还没到精品窗口结束：还在烤');
+    st().prep.flour = 0;                       /* 不给它补料的机会，单看「窗口一过就取」 */
     api.kitchenTick(600);
     eq(K.oven.busy, false, '精品窗口一过就自动出炉');
     eq(api.dishTotal(), dishes0 + 1, '出了一份菜');
     ok(!!K.oven.lastItem && K.oven.lastItem.prep === 'flour', '记住了这次烤的是面粉（全自动要用）');
 
-    /* ② 全自动循环：同配方一直烤到原料不足 */
+    /* ② 全自动（一个开关同时管取出与补料）：同配方一直烤到原料不足 */
     st().prep.flour = 3;
-    K.oven.auto = true; K.oven.autoLoop = true;
+    K.oven.auto = true;
     ok(api.cook.ovenPut({ prep: 'flour' }).ok, '手动放第一份');
     const before = api.dishTotal();
     let guard = 0;
-    while(K.oven.autoLoop && guard++ < 12) api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);
-    ok(!K.oven.autoLoop, '面粉用光后全自动自己停了');
+    while(K.oven.auto && guard++ < 12) api.kitchenTick(api.OVEN_MS + api.OVEN_PERFECT_MS + 60);
+    ok(!K.oven.auto, '面粉用光后全自动自己停了（开关也自动关掉）');
     eq(api.dishTotal() - before, 3, '3 份面粉全烤完', '出了 ' + (api.dishTotal() - before) + ' 份');
     eq(st().prep.flour, 0, '面粉正好用光');
     ok(guard < 12, '没有空转死循环', '循环 ' + guard + ' 次');
 
-    /* ③ 驴：花钱买、限时自动磨面、到期就停 */
-    st().coins = 6000; st().bag.wheat = 5;
+    /* ③ 驴：花钱买、限时自动磨面、可叠加、到期就停 */
+    st().coins = 6000; st().bag.wheat = 6;
+    st().autoCount.donkey = 0; st().autoAcc.donkey = 0;
     const buy = api.autoBuy('donkey');
     ok(buy.ok, '能买到拉磨的驴', buy.msg);
-    eq(st().coins, 6000 - api.AUTO_DEVICES.donkey.price, '扣了金币');
+    eq(st().coins, 6000 - 600, '扣了第 1 台的 600 金');
+    eq(st().autoCount.donkey, 1, '第一台已就位');
     ok(api.autoActive('donkey'), '驴正在干活');
+    /* 一台驴：一轮产 1 份 */
+    st().autoAcc.donkey = 0;
     const flour0 = st().prep.flour || 0;
     api.kitchenTick(api.AUTO_DEVICES.donkey.per);
-    eq((st().prep.flour || 0) - flour0, 1, '驴自动磨出 1 份面粉');
-    eq(st().bag.wheat, 4, '消耗 1 份小麦');
-    st().autoUntil.donkey = Date.now() - 1000;            /* 手动让它到期 */
+    eq((st().prep.flour || 0) - flour0, 1, '一台驴一轮磨 1 份面粉');
+    eq(st().bag.wheat, 5, '消耗 1 份小麦');
+    /* 多台驴：一轮产多份（叠加） */
+    st().coins = 99999;
+    const price2 = api.autoPrice('donkey');
+    ok(api.autoBuy('donkey').ok, '再买一台（第 2 台）');
+    eq(st().autoCount.donkey, 2, '现在有 2 台');
+    ok(price2 > api.AUTO_DEVICES.donkey.price, '第 2 台更贵（指数上涨）', price2 + ' > ' + api.AUTO_DEVICES.donkey.price);
+    st().autoAcc.donkey = 0;
+    const flour2 = st().prep.flour || 0;
+    api.kitchenTick(api.AUTO_DEVICES.donkey.per);
+    eq((st().prep.flour || 0) - flour2, 2, '两台驴一轮磨 2 份面粉');
+    /* 到期就停 */
+    st().autoUntil.donkey = Date.now() - 1000;
     const flour1 = st().prep.flour || 0;
+    st().autoAcc.donkey = 0;
     api.kitchenTick(api.AUTO_DEVICES.donkey.per * 3);
     eq(st().prep.flour || 0, flour1, '到期后不再产出（限时消耗品）');
     ok(!api.autoActive('donkey'), '到期状态正确');
@@ -1967,11 +2010,34 @@ const frames = n => new Promise(res => {
     const st2 = api.unpackState(JSON.parse(JSON.stringify(api.serialize(st()))));
     ok((st2.autoUntil.chopper || 0) > Date.now(), '设备的到期时间写进了存档');
 
-    /* ⑦ 厨房面板里有自动化区块（两个设备各一行 + 购买按钮） */
+    /* ⑦ 自动化产出时会有音效（开着厨房面板才出声） */
+    {
+      const realPlay = api.SFX.play;
+      const played = [];
+      api.SFX.play = function(t){ played.push(t); };
+      st().bag.wheat = 5; st().autoCount.donkey = 1; st().autoAcc.donkey = 0;
+      st().autoUntil.donkey = Date.now() + 60000;
+      api.openSheet('kitchen');
+      api.kitchenTick(api.AUTO_DEVICES.donkey.per);
+      ok(played.indexOf('mill') >= 0, '开着厨房时，驴磨面能听到音效', played.join(',') || '(没出声)');
+      /* 关掉厨房面板 → 不出声（免得在田里被吵） */
+      api.closeSheet();
+      played.length = 0;
+      st().bag.carrot = 5; st().autoCount.chopper = 1; st().autoAcc.chopper = 0;
+      st().autoUntil.chopper = Date.now() + 60000;
+      api.kitchenTick(api.AUTO_DEVICES.chopper.per);
+      ok(played.length === 0, '关着厨房面板时自动切块不出声', played.join(','));
+      api.SFX.play = realPlay;
+    }
+
+    /* ⑧ 厨房面板里有自动化区块（两个设备各一行 + 购买按钮） */
     api.openSheet('kitchen');
     eq(W.document.querySelectorAll('#kitchenBody .k-auto-row').length, 2, '厨房里有 2 个自动化设备');
     ok(W.document.querySelectorAll('#kitchenBody [data-act="buy-auto"]').length === 2, '每个设备都有购买按钮');
-    ok(!!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '烤箱有「全自动循环」勾选');
+    /* 全自动与自动出已经合并成一个开关：每台设备只有一个 auto 勾选，没有多余的 loop 勾选 */
+    ok(!!W.document.querySelector('#kitchenBody [data-auto="oven"]'), '烤箱有「全自动」勾选');
+    eq(W.document.querySelectorAll('#kitchenBody [data-auto="oven"]').length, 1, '烤箱只有一个自动开关（已合并）');
+    ok(!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '不再有单独的「同配方循环」勾选');
     api.closeSheet();
     api.applyPayload(backup);
   }

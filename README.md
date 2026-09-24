@@ -277,10 +277,11 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 
 ### 厨房自动化（v9.14）
 
-- **自动出炉/出锅**：勾上后**精品窗口一结束就取**（`dur + perfect`），拿到「一般」品质，但不用一直占着炉子；**手动出炉/出锅随时可用**，那个时刻在精品窗口内就是精品。
+- **全自动（一个开关管两件事）**：勾上后既**在精品窗口结束时自动取出**（`dur + perfect`，品质为「一般」），又**自动按同一配方补料**，直到那样原料不足才自己关掉；**手动取出随时可用**，那个时刻在精品窗口内就是精品。
+- **手动磨粉是瞬时的**：`millLoad()` 把小麦装进石磨（最多 `MILL_CAP`=5 份，从仓库扣），`mill()` 一把全磨完；`KITCHEN.mill.busy/t/dur` 现在只是「自动磨面」进度条的显示状态（由 `autoTick` 写入）。`resetRuntime()` 会 `millUnload()` 把待磨的小麦退回仓库。
 - **烤箱槽位升级**：`state.ovenSlots`（1~`OVEN_SLOT_MAX`=6），`ovenSlotPrice()` = `2000 × 1.5^(slots-1)`；`KITCHEN.oven.items` 是原料数组，满槽才拒绝，出炉一次全出且品质一致；每放一份会重置火候计时。
 - **全自动（同配方循环）**：勾上后按**同一个配方**自动投料 + 自动取出，直到那样原料不足才停（`autoLoopFeed()` 用 `ovenPut(lastItem, true)` 的 **strict** 模式 —— 只认同一配方，不会抓别的原料顶上）。`lastItem`/`lastPieces` 在 `ovenPut`/`potAdd` 里记录。
-- **限时自动化设备**（`AUTO_DEVICES`，金币购买、到期自动停）：🐴 拉磨的驴 600 金/5 分钟（小麦→面粉）、🔪 自动切块机 900 金/5 分钟（切库存最多的作物）。到期时间存 `state.autoUntil`，进度累加在 `state.autoAcc`，逻辑在 `autoTick(dt)`（随 `kitchenLogicTick` 每帧跑）；还在跑时再买会顺延。
+- **限时自动化设备**（`AUTO_DEVICES`，金币购买、到期自动停、**可叠加**）：🐴 拉磨的驴 600 金/5 分钟（小麦→面粉）、🔪 自动切块机 900 金/5 分钟（切库存最多的作物）；每种最多 `AUTO_MAX`=5 台，第 n 台价格 = `price × 1.6^n`（`autoPrice()`），**每轮每台产 1 份**。开着厨房面板时产出会出声（`kKitchenOpen()` 判断）。到期时间存 `state.autoUntil`，进度累加在 `state.autoAcc`，逻辑在 `autoTick(dt)`（随 `kitchenLogicTick` 每帧跑）；还在跑时再买会顺延。
 
 ### 挂机收益
 

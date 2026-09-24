@@ -176,6 +176,8 @@ function kDropItem(itemKey, station){
     SFX.play('error');
   } else {
     if(res.msg) toast(res.msg);
+    /* 拖拽/投入之后**默认勾选**这一份：接着点别的工位可以直接继续投，不用再点一次卡片 */
+    kSel = kShelfItem(itemKey) ? itemKey : null;
     save(); renderHUD();
   }
   renderKitchen();
@@ -287,9 +289,9 @@ function kApplySelection(){
   if(!bar) return;
   const it = kSel ? kShelfItem(kSel) : null;
   let txt;
-  if(it) txt = '✅ 已选 ' + it.name + ' ×' + it.n + ' · 连点工位连续投入，再点卡片取消';
-  else if(kSel) txt = '✅ 已选 ' + kItemLabel(kSel) + '（货架已用完）· 可换选别的食材';
-  else txt = '👆 点一下卡片选中，之后连点工位即可快速投料 / 切菜';
+  if(it) txt = '已选 ' + it.name + ' ×' + it.n;
+  else if(kSel) txt = '已选 ' + kItemLabel(kSel) + '（已用完）';
+  else txt = '拖 / 点选';
   const span = bar.querySelector ? bar.querySelector('[data-seltext]') : null;
   if(span){
     if(span.textContent !== txt) span.textContent = txt;      // 只在变化时改文本，避免每帧重建节点
@@ -580,10 +582,13 @@ function kIngPaneHTML(){
   const cards = shelf.length
     ? shelf.map(kShelfCardHTML).join('')
     : '<div class="empty">货架空空 🧺<br><span class="r-meta">收获的作物、切好的菜块、磨好的面粉都会出现在这里</span></div>';
-  return '<div class="k-sec-title">🧺 食材<span class="k-hint" title="拖到工位 · 或点一下选中后连点工位 · 点 ★ 收藏">拖 / 点选</span></div>' +
-    '<div class="k-scroll k-cards">' + cards + '</div>' +
-    '<div class="k-selected" data-selbar><span data-seltext></span>' +
-    '<button class="k-selclear" type="button" data-act="unsel">✕ 取消选中</button></div>';
+  /* 「已选 / 取消选中」挪到标题行右侧（原来单独占一行，太浪费高度） */
+  return '<div class="k-sec-title">🧺 食材' +
+      '<span class="k-hint" data-selbar title="拖到工位 · 或点一下选中后连点工位 · 点 ★ 收藏">' +
+        '<span data-seltext>拖 / 点选</span>' +
+        '<button class="k-selclear" type="button" data-act="unsel">✕ 取消选中</button>' +
+      '</span></div>' +
+    '<div class="k-scroll k-cards">' + cards + '</div>';
 }
 function kDishPaneHTML(){
   return '<div class="k-sec-title">🍽️ 菜品<span class="k-hint">总价 ' + kDishValueTotal() + ' 金 · ' + dishTotal() + ' 份</span></div>' +

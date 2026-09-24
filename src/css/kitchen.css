@@ -83,7 +83,11 @@
 .k-star:hover{color:#ffd76e;transform:scale(1.15)}
 .k-star.on{color:#ffd76e;text-shadow:0 0 calc(6px*var(--ui-scale)) rgba(255,215,110,.85)}
 
-/* 选中提示条 */
+/* 选中提示：并进顶部标题行（v9.20 起不再单独占一行） */
+.k-sec-title .k-hint[data-selbar]{display:inline-flex;align-items:center;gap:calc(5px*var(--ui-scale))}
+.k-hint[data-selbar][data-on="1"] [data-seltext]{color:#7fd0ff}
+
+/* 旧的选中提示条（保留样式以防老存档界面缓存；现在不再渲染） */
 .k-selected{
   display:flex;align-items:center;gap:calc(8px*var(--ui-scale));flex-wrap:wrap;
   margin-top:calc(8px*var(--ui-scale));font-size:calc(10.5px*var(--ui-scale));line-height:1.5;

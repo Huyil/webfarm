@@ -74,7 +74,14 @@ canvas.addEventListener('pointermove', e => {
     if(boxStart) state.box = { x0:boxStart.gx, y0:boxStart.gy, x1:c.gx, y1:c.gy };
     return;
   }
-  if(Math.hypot(e.clientX - startX, e.clientY - startY) < MOVE_TOL) return;
+  const moved = Math.hypot(e.clientX - startX, e.clientY - startY) >= MOVE_TOL;
+  if(state.longPressBox !== false){
+    /* 「长按框选」开着 = 精确模式：按住期间**什么都不做**（不刷地、小人也不跟手），
+       松手才算一次单击；一直按着到 380ms 就进框选，拖出的范围在松手时统一处理。
+       （以前按住拖动会立刻派活 → 小人跟着鼠标跑，长按和框选互相打架） */
+    return;
+  }
+  if(!moved) return;
   clearTimeout(pressTimer);
   pointerMoved = true;
   const key = c.gx + ',' + c.gy;

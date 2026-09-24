@@ -98,14 +98,12 @@ function bindAll(){
     if(el) el.onclick = () => {
       SFX.play('click');
       openSheet(SIDE_SHEETS[id]);
-      sideDrawerClose();                 /* 手机上点完就把抽屉收起来，不挡 gameplay */
+      /* v9.20：点菜单里的内容**不再自动收抽屉**（只有点空白处 / Esc 才收），
+         否则想连着点两项就得每次重新打开 */
     };
   }
   /* 侧栏里不弹层的按钮（扩建 / 网格 / 平移 / 缩放）：点完也收抽屉 */
-  ['btnExpand', 'btnGrid', 'btnPan', 'btnZoom'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('click', sideDrawerClose);
-  });
+  /* 这几个不弹层的按钮也一样：点完不收抽屉 */
   /* ⋯ 展开/收起次要信息（挂机速率、时间、农场尺寸） */
   const moreBtn = document.getElementById('moreBtn');
   const morePanel = document.getElementById('hudMore');

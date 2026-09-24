@@ -24,7 +24,22 @@ function closeSheet(){
     if(el) el.classList.remove('show');
   });
 }
+/* 给每个弹层右上角塞一个 ✕（复用 data-close 的关闭逻辑） */
+function ensureModalX(){
+  document.querySelectorAll('.modal .modal-box').forEach(box => {
+    const first = box.firstElementChild;
+    if(first && first.classList && first.classList.contains('modal-x')) return;
+    const btn = document.createElement('button');
+    btn.className = 'modal-x';
+    btn.type = 'button';
+    btn.setAttribute('data-close', '');
+    btn.setAttribute('aria-label', '关闭');
+    btn.textContent = '✕';
+    box.insertBefore(btn, box.firstChild);
+  });
+}
 function bindSheetEvents(){
+  ensureModalX();                        /* 必须在绑 data-close 之前建好 */
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheet));
   document.querySelectorAll('.modal').forEach(m => {
     m.addEventListener('click', e => { if(e.target === m) closeSheet(); });

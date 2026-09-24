@@ -22,7 +22,8 @@ const DAY_MS=22*60*1000;
 
 /* 视角缩放：auto=自动适配农场；1/2 为固定倍率；滚轮可微调 */
 const ZOOM_MIN=0.35, ZOOM_MAX=12, ZOOM_AUTO_PAD=0.78;
-const ZOOM_AUTO_MAX=1.6;   // 自动倍率不要把小农场吹得太大（否则一屏就两三块地）
+const ZOOM_AUTO_MAX=1.6;   // 宽屏自动倍率上限：不要把小农场吹得太大
+const ZOOM_FILL_MAX=2.6;   // 窄屏「铺满宽度」时的上限（超了就卷轴式拖动查看）
 const ZOOM_STEPS=[1, 2, 5, 10];   // 按钮循环的固定倍率
 
 /* 存档槽位 */

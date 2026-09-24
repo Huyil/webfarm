@@ -20,13 +20,53 @@ function centerOn(gx, gy){
 }
 
 /* ============ 视角缩放 ============ */
-/* 自动倍率：让整块农场（菱形包围盒）落在视口内 */
+/* 窄屏（手机 / 竖屏）：和手机版 UI 用同一套判定 */
+function isNarrowView(){
+  try {
+    if(window.matchMedia && window.matchMedia('(orientation: portrait), (max-width: 620px)').matches) return true;
+  } catch(_){}
+  return window.innerWidth <= 620;
+}
+/* 自动倍率：
+ *   宽屏 —— 让整块农场落在视口内（两者取小，封顶 ZOOM_AUTO_MAX）。
+ *   窄屏 —— **铺满宽度**为准：以前被 1.6x 封顶，小农场在手机上两侧留一大片空白；
+ *           铺满宽度后如果上下超出视口，就交给「卷轴式」渲染（相机跟随小人 + 可拖看），
+ *           而不是把整个农场缩成中间一小块。 */
 function autoZoom(){
   const f = state.farm;
   const spanX = Math.max(1, (f.w + f.h) * HALF_W * SCALE);
   const spanY = Math.max(1, (f.w + f.h) * HALF_H * SCALE);
-  const z = Math.min((W * ZOOM_AUTO_PAD) / spanX, (H * ZOOM_AUTO_PAD) / spanY);
-  return Math.max(ZOOM_MIN, Math.min(ZOOM_AUTO_MAX, z));   /* 自动倍率封顶 1.6x */
+  const zx = (W * ZOOM_AUTO_PAD) / spanX;
+  const zy = (H * ZOOM_AUTO_PAD) / spanY;
+  if(isNarrowView()){
+    const z = (spanY * zx <= H * ZOOM_AUTO_PAD) ? Math.min(zx, zy) : zx;
+    return Math.max(ZOOM_MIN, Math.min(ZOOM_FILL_MAX, z));
+  }
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_AUTO_MAX, Math.min(zx, zy)));
+}
+/* 当前倍率下农场是否比屏幕还高（= 该用卷轴式了） */
+function viewOverflows(){
+  const f = state.farm, z = viewZoom();
+  const spanY = (f.w + f.h) * HALF_H * SCALE * z;
+  const spanX = (f.w + f.h) * HALF_W * SCALE * z;
+  return spanY > H * 0.98 || spanX > W * 0.98;
+}
+/* 把相机夹在「农场包围盒覆盖视口」的范围内（卷轴式：不会拖到地图外的虚空） */
+function clampCamera(){
+  const f = state.farm, z = viewZoom();
+  const c = iso(f.x0 + (f.w - 1) / 2, f.y0 + (f.h - 1) / 2);
+  const cfx = c.sx * SCALE, cfy = c.sy * SCALE;
+  const bw = (f.w + f.h) * HALF_W * SCALE, bh = (f.w + f.h) * HALF_H * SCALE;
+  const vw = W / z, vh = H / z;
+  /* camera = -C，C = 屏幕中心对应的世界坐标（centerOn 就是这么定的） */
+  const axis = (cam, cf, box, view) => {
+    /* 视口必须落在农场包围盒内：C ∈ [cf-box/2+view/2, cf+box/2-view/2] */
+    const lo = cf - box / 2 + view / 2, hi = cf + box / 2 - view / 2;
+    if(lo > hi) return -cf;                        /* 盒子比视口小 → 居中 */
+    return -Math.max(lo, Math.min(hi, -cam));
+  };
+  state.camera.x = axis(state.camera.x, cfx, bw, vw);
+  state.camera.y = axis(state.camera.y, cfy, bh, vh);
 }
 function viewZoom(){
   return (state.zoomMode === 'auto') ? autoZoom() : state.zoomMode;

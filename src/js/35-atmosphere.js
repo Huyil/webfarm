@@ -180,14 +180,26 @@ function atmWarmFactor(){
  * ============================================================ */
 const atmSunPos = { x: 0, y: 0, visible: false, t: 0 };
 const atmMoonPos = { x: 0, y: 0, visible: false, t: 0 };
+/* 日月同一条**圆形轨道**（圆心在地平线下方）：
+ *   x = cx + rx·cos(πt)，y = cy - ry·sin(πt)   —— t: 0→1 走半圈
+ * 太阳自东向西、月亮自西向东，正好**交替**上下班。
+ * v9.20：轨道整体压低（顶点 0.22H，以前 0.08H 会顶到顶部菜单后面），
+ *        并且是真正的圆周运动，不再是「x 线性 + y 正弦」拼出来的怪弧线。 */
+const ATM_ORBIT = { cx: 0.5, rx: 0.34, cy: 0.62, ry: 0.40 };
+function atmOrbit(t, dir){
+  const a = Math.PI * t;                       /* 0 → π */
+  return {
+    x: W * (ATM_ORBIT.cx + dir * ATM_ORBIT.rx * Math.cos(a)),
+    y: H * (ATM_ORBIT.cy - ATM_ORBIT.ry * Math.sin(a)),
+  };
+}
 function atmSunTrack(){
   const t = (ATMOS.hour - 6) / 12;                 /* 6:00 → 18:00 */
   atmSunPos.t = t;
   atmSunPos.visible = (t >= 0 && t <= 1);
   if(atmSunPos.visible){
-    /* 弧线压在高处，早晚也不会被悬浮岛挡住 */
-    atmSunPos.x = W * (0.24 + t * 0.52);
-    atmSunPos.y = H * (0.31 - Math.sin(Math.PI * t) * 0.23);
+    const p = atmOrbit(t, -1);                     /* 东边（左）升起，西边（右）落下 */
+    atmSunPos.x = p.x; atmSunPos.y = p.y;
   }
   return atmSunPos;
 }
@@ -197,8 +209,8 @@ function atmMoonTrack(){
   atmMoonPos.t = t;
   atmMoonPos.visible = (t >= 0 && t <= 1);
   if(atmMoonPos.visible){
-    atmMoonPos.x = W * (0.76 - t * 0.52);
-    atmMoonPos.y = H * (0.28 - Math.sin(Math.PI * t) * 0.20);
+    const p = atmOrbit(t, 1);                      /* 与太阳反向：一个东升一个西升 */
+    atmMoonPos.x = p.x; atmMoonPos.y = p.y;
   }
   return atmMoonPos;
 }
@@ -270,12 +282,14 @@ function atmDrawMoon(g, x, y, nl){
 /* ============================================================
  * 云：天上飘的云 + 地面缓慢移动的云影（相位用 ATMOS.cloud）
  * ============================================================ */
+/* v9.20：云朵**更大**、**更低**（落在太阳轨道下方那一带），
+   以前又小又贴顶，看起来像几块灰斑飘在菜单后面。 */
 const ATM_CLOUDS = [
-  { nx: 0.05, ny: 0.16, s: 1.15, spd: 0.55, a: 0.85 },
-  { nx: 0.34, ny: 0.09, s: 0.78, spd: 0.40, a: 0.70 },
-  { nx: 0.60, ny: 0.23, s: 1.32, spd: 0.68, a: 0.90 },
-  { nx: 0.81, ny: 0.12, s: 0.94, spd: 0.47, a: 0.75 },
-  { nx: 0.19, ny: 0.31, s: 0.68, spd: 0.34, a: 0.60 },
+  { nx: 0.05, ny: 0.30, s: 1.70, spd: 0.55, a: 0.85 },
+  { nx: 0.34, ny: 0.26, s: 1.25, spd: 0.40, a: 0.70 },
+  { nx: 0.60, ny: 0.42, s: 2.00, spd: 0.68, a: 0.90 },
+  { nx: 0.81, ny: 0.32, s: 1.50, spd: 0.47, a: 0.75 },
+  { nx: 0.19, ny: 0.52, s: 1.20, spd: 0.34, a: 0.60 },
 ];
 function atmCloudX(c){
   const p = (c.nx + ATMOS.cloud * c.spd) % 1.3;

@@ -1234,6 +1234,29 @@ const frames = n => new Promise(res => {
     for (const t of bt2) { t.state = 'wild'; t.terrain = 'grass'; t.crop = null; t.watered = false; }
   }
 
+  // v9.20：长按框选开着时，按住拖动**不干活**（小人不再跟着鼠标跑）
+  {
+    D.api.setTool('hoe');
+    st().longPressBox = true;
+    const th = api.getTile(B.x + 5, B.y + 1);
+    th.state = 'wild'; th.terrain = 'grass'; th.crop = null; th.stone = false;
+    const job0 = api.jobActive();
+    const p0 = { x: st().player.gx, y: st().player.gy, tx: st().player.tx, ty: st().player.ty };
+    pev('pointerdown', B.x + 5, B.y + 1);
+    pev('pointermove', B.x + 6, B.y + 1);
+    pev('pointermove', B.x + 7, B.y + 1);
+    eq(api.jobActive(), job0, '按住拖动不会派活');
+    eq(th.state, 'wild', '拖过的那格没被开垦');
+    eq(st().player.tx, p0.tx, '小人没有跟着指针走（要等松手）');
+    /* 一直按着到 380ms → 进框选（长按只干框选这件事） */
+    await new Promise(r => setTimeout(r, 460));
+    ok(!!st().box, '按满 380ms 后进入框选模式');
+    pev('pointerup', B.x + 7, B.y + 1);
+    for (let i = 0; i < 400 && api.jobActive(); i++) api.updatePlayer(60);
+    ok(!api.jobActive(), '松手后才开始干活（框选作业跑完）');
+    st().longPressBox = true;
+  }
+
   // 短按单击：不应该触发框选，而是正常走过去干活
   const one = api.getTile(B.x + 2, B.y + 3);
   one.state = 'wild'; one.terrain = 'grass'; one.crop = null; one.stone = false;
@@ -1544,6 +1567,108 @@ const frames = n => new Promise(res => {
     ok(api.FERT_KEEP === 2 && api.PREMIUM_KEEP === 5, '常量：普通 2 / 高级 5');
     /* 颜色更深：施肥后的地色换成深一档的土色（原来是浅褐 #a38055） */
     ok(html.includes('#6b5030') && !html.includes("top:'#a38055'"), '施肥后的地色更深（一眼能看出哪块地被伺候过）');
+  }
+
+  section('v9.20：日月圆形轨道 + 云朵更大更低 + 窄屏铺满宽度（卷轴式）');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    /* 设时间要顺手让 ATMOS.hour 跟上来（轨道是从 ATMOS.hour 算的） */
+    /* clockMs → 小时 是分段映射（昼夜时长不同），所以反过来扫一遍找到目标小时 */
+    const atHour = h => {
+      for (let i = 0; i < 3000; i++) {
+        const ms = api.DAY_MS * (i / 3000);
+        if (Math.abs(api.hourFromClock(ms) - h) < 0.03) { api.ATMOS.clockMs = ms; api.updateAtmosphere(0); return true; }
+      }
+      return false;
+    };
+    /* ① 太阳：压低 + 圆周 + 自东向西 */
+    atHour(12);
+    const sNoon = JSON.parse(JSON.stringify(api.atmSunTrack()));
+    ok(sNoon.visible, '正午太阳可见');
+    ok(sNoon.y > 0.15 * W.innerHeight, '太阳压低了（不再顶到顶部菜单后面）', 'y=' + Math.round(sNoon.y));
+    atHour(6.5); const sE = JSON.parse(JSON.stringify(api.atmSunTrack()));
+    atHour(17.5); const sW = JSON.parse(JSON.stringify(api.atmSunTrack()));
+    near(sE.y, sW.y, 6, '早晚两头一样高（圆形轨道的对称点）');
+    ok(sNoon.y < sE.y - 10, '中午比早晚高（是绕圈，不是水平直线）', `${Math.round(sNoon.y)} < ${Math.round(sE.y)}`);
+    ok(sE.x < W.innerWidth / 2 && sW.x > W.innerWidth / 2, '太阳自东向西横穿');
+    /* ② 月亮：同一条轨道、方向相反 → 交替上下班 */
+    atHour(22); const mN = JSON.parse(JSON.stringify(api.atmMoonTrack()));
+    ok(mN.visible && mN.y > 0.1 * W.innerHeight, '夜里月亮可见且同样压低', 'y=' + Math.round(mN.y));
+    atHour(20); const m1 = JSON.parse(JSON.stringify(api.atmMoonTrack()));
+    atHour(4);  const m2 = JSON.parse(JSON.stringify(api.atmMoonTrack()));
+    ok(m1.x > m2.x, '月亮与太阳反向（一个东升一个西升，交替上下班）', `${Math.round(m1.x)} > ${Math.round(m2.x)}`);
+    ok(api.ATM_ORBIT && api.ATM_ORBIT.cy - api.ATM_ORBIT.ry > 0.15, '轨道顶点压在合适高度（0.15H 以下才不会被菜单挡）');
+    /* ③ 云：更大更低 */
+    const yy = api.ATM_CLOUDS.map(c => (c.ny * 0.8 + 0.06));
+    const ss = api.ATM_CLOUDS.map(c => c.s);
+    ok(Math.min(...yy) > 0.22, '云朵整体降低（落到太阳轨道下方那一带）', yy.map(v => v.toFixed(2)).join(','));
+    ok(Math.min(...ss) >= 1.2 && Math.max(...ss) >= 1.9, '云朵明显变大', ss.join(','));
+    /* ④ 窄屏自动缩放：铺满宽度（不再被 1.6x 封顶留大白边） */
+    ok(api.ZOOM_FILL_MAX > api.ZOOM_AUTO_MAX, '窄屏上限高于宽屏上限（专门给小屏铺满宽度用）');
+    const realMM = W.matchMedia;
+    const fakeMM = (portrait) => q => ({ matches: portrait && /portrait|max-width/.test(String(q)),
+      media: String(q), addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){} });
+    st().zoomMode = 'auto';
+    W.matchMedia = fakeMM(true);  const zNarrow = api.viewZoom();
+    W.matchMedia = fakeMM(false); const zWide = api.viewZoom();
+    W.matchMedia = realMM;
+    ok(zNarrow > zWide, '窄屏自动倍率更大（铺满宽度而不是缩成一小块）', zNarrow.toFixed(2) + ' > ' + zWide.toFixed(2));
+    /* ⑤ 卷轴式：一屏装不下时，镜头跟小人走 + 夹在地图范围内 */
+    st().zoomMode = 8;
+    ok(api.viewOverflows(), '倍率大到一屏装不下 → 登记为卷轴式');
+    api.centerOnFarm();
+    const c1 = { x: st().camera.x, y: st().camera.y };
+    st().player.gx += 1; st().player.gy += 1;
+    api.centerOnFarm();
+    ok(st().camera.x !== c1.x || st().camera.y !== c1.y, '卷轴式：镜头跟着小人走（不用手动拖）');
+    api.clampCamera();
+    ok(isFinite(st().camera.x) && isFinite(st().camera.y), '相机被夹在合理范围内（不会拖到地图外的虚空）');
+    st().player.gx -= 1; st().player.gy -= 1;
+    st().zoomMode = 'auto';
+    api.applyPayload(bk);
+  }
+
+  section('v9.20：抽屉不自动收 · 弹层右上角 ✕ · 厨房选中提示挪位');
+  {
+    const panel = $('sidePanel'), tg = $('sideToggle');
+    click(tg);
+    ok(panel.classList.contains('open'), '点 ☰ 打开手机侧栏抽屉');
+    click($('btnShop'));
+    ok($('shopModal').classList.contains('show'), '抽屉里的「商店」打开了');
+    ok(panel.classList.contains('open'), '点菜单里的内容后抽屉**不**自动收回');
+    click($('btnDecor'));
+    ok($('decorModal').classList.contains('show') && panel.classList.contains('open'), '连着点第二项也不用重开抽屉');
+    $('game').dispatchEvent(new W.MouseEvent('pointerdown', { bubbles: true }));
+    ok(!panel.classList.contains('open'), '点空白处（画布）才收回抽屉');
+    api.closeSheet();
+    /* 每个弹层右上角都有 ✕，点了能关 */
+    const boxes = [...W.document.querySelectorAll('.modal .modal-box')];
+    ok(boxes.length >= 8, '弹层数量正常', String(boxes.length));
+    ok(boxes.every(b => !!b.querySelector('.modal-x')), '每个弹层右上角都建了 ✕');
+    api.openSheet('achievement');
+    const box = W.document.getElementById('achievementModal');
+    ok(box.classList.contains('show'), '成就弹层打开');
+    click(box.querySelector('.modal-x'));
+    ok(!box.classList.contains('show'), '点右上角 ✕ 能关掉弹层');
+    /* 厨房：去掉占一行的选中提示条，取消选中挪到标题行；拖完默认勾选 */
+    api.openSheet('kitchen');
+    api.renderKitchen && api.renderKitchen();
+    const body = $('kitchenBody');
+    ok(!body.querySelector('.k-selected'), '厨房不再有单独占一行的「选中提示 / 取消选中」');
+    const sc = body.querySelector('.k-sec-title [data-act="unsel"]');
+    ok(!!sc, '「✕ 取消选中」挪进顶部标题行（原来「拖 / 点选」的位置）');
+    st().bag.carrot = 3;
+    const KD2 = W.KitchenDebug;
+    KD2.select(null);
+    api.renderKitchen && api.renderKitchen();
+    eq(KD2.selected(), null, '初始没选中');
+    KD2.drop('crop:carrot', 'board');
+    eq(KD2.selected(), 'crop:carrot', '拖过去之后**默认勾选**这一份（接着点工位就能继续投）');
+    api.renderKitchen && api.renderKitchen();
+    ok($('kitchenBody').querySelector('.k-card.k-sel'), '卡片上能看到勾选高亮');
+    click($('kitchenBody').querySelector('[data-act="unsel"]'));
+    eq(KD2.selected(), null, '点标题行的「取消选中」能取消');
+    api.closeSheet();
   }
 
   section('进度条：填充条不能被刻度顶掉（曾显示歪掉）');

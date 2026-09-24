@@ -39,6 +39,13 @@ function renderAll(){
 }
 function centerOnFarm(){
   const f = state.farm;
+  /* 卷轴式：倍率大到一屏装不下时，镜头跟着小人走（并夹在地图范围内），
+     否则维持"整块农场居中"的老行为 */
+  if(typeof viewOverflows === 'function' && viewOverflows() && state.player){
+    centerOn(state.player.gx, state.player.gy);
+    if(typeof clampCamera === 'function') clampCamera();
+    return;
+  }
   centerOn(f.x0 + (f.w - 1) / 2, f.y0 + (f.h - 1) / 2);
 }
 /* 读档 → 结算离线 → 刷新界面 */
@@ -155,6 +162,8 @@ window.FarmDebug = {
     expandCountOf,
     /* 视角 */
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
+    isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX,
+    atmSunTrack, atmMoonTrack, atmOrbit, ATM_CLOUDS, ATM_ORBIT,
     /* 交互 */
     applyToolToRect, runTool, boxTool, setHover, gridToScreen, screenToGrid, hash2,
     cancelJob, jobActive, playerEnqueue, playerQueue, planPath, playerClearQueue,

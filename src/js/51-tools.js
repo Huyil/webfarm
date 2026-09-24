@@ -69,7 +69,7 @@ function runTool(gx, gy, silent, toolOverride){
       /* ③ 还原成草地：**只有单击才允许**；拖拽/框选批量操作不会把耕地抹掉 */
       if(silent) return;
       t.state = 'wild'; t.terrain = 'grass';
-      t.crop = null; t.growth = 0; t.watered = false; t.fertile = false;
+      t.crop = null; t.growth = 0; t.watered = false; t.fertile = false; t.fertLeft = 0;
       SFX.play('till');
       spawnParticles(sp.x, sp.y, 'till');
       toast('已还原为草地');
@@ -82,7 +82,7 @@ function runTool(gx, gy, silent, toolOverride){
 
   if(tool === 'seed'){
     const sid = state.selectedSeed;
-    if(!sid){ openSheet('seed'); return; }
+    if(!sid){ state.tool = 'seed'; renderToolbar(); toggleToolPop('seed'); return; }   /* 先给小凸起，不再直接弹大窗口 */
     const r = plantSeed(t, sid);
     if(!r.ok){ if(!silent){ toast(r.msg); SFX.play('error'); } return; }
     SFX.play('plant'); renderHUD(); save();
@@ -199,7 +199,7 @@ function applyToolToRect(x0, y0, x1, y1){
   const ay = Math.min(y0, y1), by = Math.max(y0, y1);
   const tool = boxTool();
   if(!tool) return 0;
-  if(tool === 'seed' && !state.selectedSeed){ openSheet('seed'); return 0; }
+  if(tool === 'seed' && !state.selectedSeed){ renderToolbar(); toggleToolPop('seed'); return 0; }
   state.tool = tool;                       /* 让批量作业用同一个工具 */
   renderToolbar();
   const list = [];

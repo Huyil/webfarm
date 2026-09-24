@@ -14,7 +14,8 @@ function tileColors(t){
   }
   if(t.watered && t.fertile) return { top:'#5e4229', wallL:'#3a2818', wallR:'#241808', noise:'rgba(20,10,0,.4)', noise2:'rgba(120,90,60,.3)' };
   if(t.watered) return { top:'#775438', wallL:'#543a24', wallR:'#362418', noise:'rgba(30,15,5,.4)', noise2:'rgba(140,110,80,.35)' };
-  if(t.fertile) return { top:'#a38055', wallL:'#7a5d38', wallR:'#503c1e', noise:'rgba(60,40,15,.4)', noise2:'rgba(220,190,140,.35)' };
+  /* 施过肥（或还有「不返草地」次数）的地颜色更深，一眼能看出这块地被伺候过 */
+  if(t.fertile || (t.fertLeft || 0) > 0) return { top:'#6b5030', wallL:'#523c22', wallR:'#33240e', noise:'rgba(36,22,7,.5)', noise2:'rgba(186,156,106,.28)' };
   return { top:'#8b6340', wallL:'#654522', wallR:'#432c14', noise:'rgba(40,20,5,.4)', noise2:'rgba(180,150,110,.35)' };
 }
 /* 确定性伪随机 0..1。

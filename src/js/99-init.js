@@ -18,7 +18,6 @@ function resetRuntime(){
   if(!state.autoUntil) state.autoUntil = { donkey:0, chopper:0 };
   if(!state.autoAcc) state.autoAcc = { donkey:0, chopper:0 };
   if(!state.autoCount) state.autoCount = { donkey:0, chopper:0 };
-  if(typeof millUnload === 'function') millUnload();      /* 石磨里待磨的小麦退回仓库，不能因为刷新就没了 */
   particles.length = 0;
   state.idle.lastAt = Date.now();
   hudMoneyShown = state.coins;
@@ -122,14 +121,16 @@ window.FarmDebug = {
     CROPS, cropReadyMs, cropTotalMs, cropProfit, cropRate,
     applyRainWatering, rollWeather, updateAtmosphere, hourFromClock, DAY_PHASES,
     /* 厨房 */
-    cook: { mill, millLoad, millUnload, millQueued, ovenPut, ovenTake, boardPut, potAdd, potTake, sellDish, addDish },
-    canBoard, canOvenPut, canMill,
+    cook: { mill, ovenPut, ovenTake, boardPut, potAdd, potTake, sellDish, addDish },
+    canBoard, canOvenPut, canMill, FERT_KEEP, PREMIUM_KEEP, pushRecentSeed,
     kitchenTick: ms => { kitchenLogicTick(ms); },
     KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon,
     OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS, POT_MS, POT_PERFECT_MS, POT_BURN_MS, QUALITY,
     AUTO_DEVICES, AUTO_IDS, autoBuy, autoActive, autoLeftMs, autoTick, autoLoopFeed,
-    ovenCap, ovenSlotPrice, ovenCanUpgrade, ovenUpgrade, OVEN_SLOT_PRICE0, OVEN_SLOT_MAX, QUALITY,
-    millLoad, millUnload, millQueued, canMillLoad, MILL_CAP, autoCountOf, autoPrice, AUTO_MAX,
+    autoSlotOf, autoSlotRefill, AUTO_SLOT_MAX, autoPickCrop,
+    ovenCap, ovenSlotPrice, ovenCanUpgrade, ovenUpgrade, ovenRoundSize, ovenQueue, ovenStartRound,
+    OVEN_SLOT_PRICE0, OVEN_SLOT_MAX, QUALITY,
+    millStock, millBatch, MILL_BATCH_MAX, autoCountOf, autoPrice, AUTO_MAX,
     /* 装饰 */
     decorAt, decorLayer, decorGroundAt, decorPropAt, canPlaceDecorAt, placeDecor, collectDecorationAt, hitDecorationAt, scatterWeeds, sellDecor, DECOR_PRICE, DECOR_SELL, DECOR_HP, decorMaxHp, decorIsFree, DECOR_FREE, decorOffsetFor, decorIsNatural, decorIsWild, DECOR_NATURAL, drawDecoration, drawPath, drawFence, pathConnMask, pathRawMask, fenceConnMask, connMaskOf, connDirs, connModesOf, DIAG_SIDES, cyclePathConn, PATH_CONN_MODES, CONN8_MODES,
     /* 挂机 */

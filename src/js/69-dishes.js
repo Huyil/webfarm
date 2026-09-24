@@ -6,7 +6,7 @@
  * 火候：完美窗口内取出 = 精品（+25%）；太久 = 焦糊（×0.4）；勾选自动出锅则只会得到正常
  */
 const KITCHEN = {
-  mill:  { busy:false, t:0, dur:MILL_MS, queued:0 },     /* queued = 已装入待磨的小麦；busy/t 只给「自动磨粉」的进度条用 */
+  mill:  { busy:false, t:0, dur:MILL_MS },     /* busy/t/dur 只给「自动磨粉」的进度条用；手动磨粉是瞬时的 */
 
   oven:  { busy:false, t:0, dur:OVEN_MS, ready:false, auto:false, item:null, items:[], lastItem:null },
   board: { busy:false, t:0, dur:CHOP_MS, src:null },
@@ -33,52 +33,43 @@ function addDish(recipe, qualityId, n){
   return cur;
 }
 
-/* ---------- 石磨 ---------- */
-const MILL_CAP = 5;                        /* 一次最多装几份小麦待磨 */
-function millQueued(){ return KITCHEN.mill.queued || 0; }
-function canMillLoad(){ return millQueued() < MILL_CAP && (state.bag.wheat || 0) > 0; }
-function canMill(){ return millQueued() > 0; }          /* 手动磨：只要装了料就能立刻磨 */
-/* 装一份小麦进石磨（不耗时，先攒着，想磨再磨） */
-function millLoad(){
-  if(millQueued() >= MILL_CAP) return { ok:false, msg:`石磨里最多放 ${MILL_CAP} 份，先磨了再放` };
-  if((state.bag.wheat || 0) <= 0) return { ok:false, msg:'仓库里没有小麦' };
-  state.bag.wheat--;
-  KITCHEN.mill.queued = millQueued() + 1;
+/* ---------- 石磨 ----------
+ * 操作和切菜板**完全一样**：点/拖一份小麦过去就**立刻出 1 份面粉**（不装料、不计时、可连点）。
+ * 卡上的「磨 ×N」是「一次放多份」的快捷方式：一把最多磨 MILL_BATCH_MAX 份，一次产出同样多。
+ * 计时（KITCHEN.mill.busy/t/dur）只属于「自动磨面」的驴，由 autoTick 写入。 */
+const MILL_BATCH_MAX = 5;                  /* 一次「全磨」最多几份 */
+function millStock(){ return state.bag.wheat || 0; }
+function millBatch(){ return Math.max(0, Math.min(MILL_BATCH_MAX, millStock())); }   /* 这一把能磨几份 */
+function canMill(){ return millStock() > 0; }
+function mill(n){
+  const have = millStock();
+  if(have <= 0) return { ok:false, msg:'仓库里没有小麦' };
+  const want = Math.max(1, Math.min(MILL_BATCH_MAX, (n | 0) || 1));
+  const k = Math.min(want, have);
+  state.bag.wheat = have - k;
+  state.prep.flour = (state.prep.flour || 0) + k;
+  for(let i = 0; i < k; i++) trackAction('mill');
   save();
-  return { ok:true, msg:`小麦入磨（${millQueued()}/${MILL_CAP}）` };
-}
-/* 把装好的小麦取回来（换配方 / 关面板时用） */
-function millUnload(){
-  const n = millQueued();
-  if(!n) return 0;
-  state.bag.wheat = (state.bag.wheat || 0) + n;
-  KITCHEN.mill.queued = 0;
-  save();
-  return n;
-}
-/* 手动磨粉：**不需要计时**，一把磨完（计时只在自动磨粉上用） */
-function mill(){
-  const n = millQueued();
-  if(!n) return { ok:false, msg:'石磨是空的（先放小麦）' };
-  state.prep.flour = (state.prep.flour || 0) + n;
-  KITCHEN.mill.queued = 0;
-  for(let i = 0; i < n; i++) trackAction('mill');
-  save();
-  return { ok:true, n, msg:`磨好面粉 ×${n}` };
-}
-function millOld(){
-  if(KITCHEN.mill.busy) return { ok:false, msg:'石磨还在转' };
-  if((state.bag.wheat || 0) <= 0) return { ok:false, msg:'没有小麦' };
-  state.bag.wheat--;
-  KITCHEN.mill.busy = true; KITCHEN.mill.t = 0;
-  save();
-  return { ok:true, msg:'开始磨面…' };
+  return { ok:true, n:k, msg:`磨好面粉 ×${k}` };
 }
 
 /* ---------- 烤箱：面粉烤面包，切过的菜块也能烤 ---------- */
 function ovenPieceStock(){ return CROP_IDS.filter(id => (state.pieces[id] || 0) > 0); }
-/* 烤箱槽位：可花钱升级，一次能烤多份 */
+/* 烤箱（v9.19 起）：
+ *   · 输入队列**不限量** —— 想放多少份原料就放多少（先来先烤）
+ *   · 「一轮」只加工 ovenCap() 份，进度条走完收这一轮的成品；队列里还有就立刻开下一轮
+ *   · 花钱升级提高的是**每轮加工份数**（不是"能放几份"）
+ *   · 加料**不会**重置正在走的那一轮 —— 以前每放一份都 t=0，多份一起烤时进度条会来回跳 */
 function ovenCap(){ return Math.max(1, Math.min(OVEN_SLOT_MAX, state.ovenSlots || 1)); }
+function ovenQueue(){ return KITCHEN.oven.items; }
+function ovenRoundSize(){ return Math.min(ovenCap(), KITCHEN.oven.items.length); }
+/* 队列里有料且当前没有在烤 → 开一轮 */
+function ovenStartRound(){
+  const K = KITCHEN.oven;
+  if(K.busy || !K.items.length) return false;
+  K.busy = true; K.ready = false; K.t = 0;
+  return true;
+}
 function ovenSlotPrice(){ return Math.round(OVEN_SLOT_PRICE0 * Math.pow(OVEN_SLOT_RATE, ovenCap() - 1)); }
 function ovenCanUpgrade(){ return ovenCap() < OVEN_SLOT_MAX; }
 function ovenUpgrade(){
@@ -88,10 +79,10 @@ function ovenUpgrade(){
   state.coins -= price;
   state.ovenSlots = ovenCap() + 1;
   renderHUD(); renderKitchen(); save();
-  return { ok:true, msg:`烤箱升级：现在一次能烤 ${state.ovenSlots} 份（下一级 ${Math.round(OVEN_SLOT_PRICE0 * Math.pow(OVEN_SLOT_RATE, state.ovenSlots - 1))} 金）` };
+  return { ok:true, msg:`烤箱升级：现在每轮出炉 ${state.ovenSlots} 份（下一级 ${Math.round(OVEN_SLOT_PRICE0 * Math.pow(OVEN_SLOT_RATE, state.ovenSlots - 1))} 金）` };
 }
 function canOvenPut(){
-  return KITCHEN.oven.items.length < ovenCap() && ((state.prep.flour || 0) > 0 || ovenPieceStock().length > 0);
+  return (state.prep.flour || 0) > 0 || ovenPieceStock().length > 0;   /* 队列不限量，有料就能放 */
 }
 function roastRecipe(id){
   return { id:'roast', name:'烤' + itemName(id), emoji:'🍢',
@@ -100,7 +91,6 @@ function roastRecipe(id){
 /* arg 省略 = 优先面粉；也可以显式 { piece:id } / { flour:true } */
 /* strict = 只认指定的那样东西（全自动循环用）：没有就失败，不会"顺手"抓别的原料顶上 */
 function ovenPut(arg, strict){
-  if(KITCHEN.oven.items.length >= ovenCap()) return { ok:false, msg:`烤箱满了（${ovenCap()} 个槽位，可以升级）` };
   let item = null;
   if(arg && arg.piece){
     if((state.pieces[arg.piece] || 0) <= 0) return { ok:false, msg:'没有' + itemName(arg.piece) + '块' };
@@ -118,13 +108,12 @@ function ovenPut(arg, strict){
   KITCHEN.oven.item = KITCHEN.oven.items[0];              /* 兼容旧字段：图标/预览取第一份 */
   /* 记住「这次烤的是什么」：全自动循环时照这个配方再放一次 */
   KITCHEN.oven.lastItem = item.type === 'piece' ? { piece: item.id } : { prep: 'flour' };
-  KITCHEN.oven.busy = true;
-  /* 每加一份都重新计时：方便一次装几份再一起烤（跟锅一样） */
-  KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
+  ovenStartRound();                                       /* 没在烤就从这一份开始；在烤就只排队，不动进度条 */
   save();
   const n = KITCHEN.oven.items.length;
+  const isRound = KITCHEN.oven.busy;
   return { ok:true, msg: (item.type === 'flour' ? '面包进炉了' : itemName(item.id) + '块进炉了') +
-                 (n > 1 ? `（共 ${n}/${ovenCap()} 份）` : '') };
+                 `（队列 ${n} 份${isRound ? ' · 本轮 ' + ovenRoundSize() + '/' + ovenCap() : ''}）` };
 }
 function ovenTake(auto){
   const items = KITCHEN.oven.items;
@@ -132,9 +121,11 @@ function ovenTake(auto){
   if(!KITCHEN.oven.ready) return { ok:false, msg:'还没烤好' };
   /* 手动出炉（auto=false）会按当前火候判定：自动出炉开着也随时可以手动取，卡在精品段就是精品 */
   const q = auto ? 'normal' : gradeOf(KITCHEN.oven.t, KITCHEN.oven.dur, OVEN_PERFECT_MS, OVEN_BURN_MS);
+  /* 只收「本轮」那一批：一次放 5 份而只升到每轮 1 份时，会一份一份依次出炉 */
+  const batch = items.splice(0, ovenCap());
   const out = [];
   let last = null;
-  for(const src of items){
+  for(const src of batch){
     const isRoast = !!(src && src.type === 'piece');
     const recipe = isRoast ? roastRecipe(src.id) : ovenRecipe();
     last = addDish(recipe, q, 1);
@@ -144,11 +135,13 @@ function ovenTake(auto){
     if(q === 'perfect') trackAction('perfect');
   }
   KITCHEN.oven.busy = false; KITCHEN.oven.ready = false; KITCHEN.oven.t = 0;
-  KITCHEN.oven.items = []; KITCHEN.oven.item = null;
+  KITCHEN.oven.item = KITCHEN.oven.items[0] || null;
+  ovenStartRound();                                    /* 队列里还有 → 立刻开下一轮 */
   save();
   const n = out.length;
-  return { ok:true, quality:q, dish:last, dishes:out, n,
-           msg:`${QUALITY[q].tag}${last.name}（${QUALITY[q].name}）` + (n > 1 ? ` ×${n}` : '') };
+  return { ok:true, quality:q, dish:last, dishes:out, n, left:KITCHEN.oven.items.length,
+           msg:`${QUALITY[q].tag}${last.name}（${QUALITY[q].name}）` + (n > 1 ? ` ×${n}` : '') +
+               (KITCHEN.oven.items.length ? ` · 队列还剩 ${KITCHEN.oven.items.length} 份` : '') };
 }
 function ovenPreview(){
   const items = KITCHEN.oven.items;
@@ -159,14 +152,56 @@ function ovenPreview(){
 }
 
 /* ---------- 限时自动化设备（金币买、只能跑一段时间） ---------- */
+const AUTO_SLOT_MAX = 5;                              /* 每台机器**自己的**进料槽能放几份 */
 const AUTO_DEVICES = {
   donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, rate:1.6, durMs:5*60*1000, per:MILL_MS,
-             desc:'自动磨面：进度条走完一次，每头驴产 1 份面粉' },
+             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份小麦，空了自动从仓库补）：进度条走完一次，每头驴产 1 份面粉' },
   chopper: { id:'chopper', name:'自动切块机', icon:'🔪', price:900, rate:1.6, durMs:5*60*1000, per:1500,
-             desc:'自动切块：进度条走完一次，每台切 1 份（优先切最多的作物）' },
+             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份，空了自动补）：进度条走完一次，每台切 1 份（优先切最多的作物）' },
 };
 const AUTO_IDS = Object.keys(AUTO_DEVICES);
 const AUTO_MAX = 5;                                   /* 每种最多同时养几台 */
+/* 各机器的进料槽（独立、不共用）：装什么就加工什么；空了自动从仓库补。
+ * 槽里的东西已经从仓库扣掉，所以它会跟着存档走（state.autoSlot）。 */
+/* 切块机挑料：优先继续切料斗里已有的那种（成品一致），否则挑仓库里最多的 */
+function autoPickCrop(slot){
+  let pick = null, best = 0;
+  if(slot && slot.length){
+    const c0 = slot[slot.length - 1];
+    if(CROPS[c0] && !CROPS[c0].noChop && (state.bag[c0] || 0) > 0) return c0;
+  }
+  for(const c of CROP_IDS){
+    if(CROPS[c].noChop) continue;
+    const m = state.bag[c] || 0;
+    if(m > best){ best = m; pick = c; }
+  }
+  return pick;
+}
+function autoSlotOf(id){
+  if(!state.autoSlot) state.autoSlot = { donkey: [], chopper: [] };
+  if(!Array.isArray(state.autoSlot[id])) state.autoSlot[id] = [];
+  return state.autoSlot[id];
+}
+function autoSlotCan(id){
+  const dev = AUTO_DEVICES[id];
+  if(id === 'donkey') return (state.bag.wheat || 0) > 0 ? 'wheat' : null;
+  if(id === 'chopper') return dev && typeof autoPickCrop === 'function' ? autoPickCrop(autoSlotOf('chopper')) : null;
+  return null;
+}
+/* 从仓库往槽里补料；返回补了几份 */
+function autoSlotRefill(id){
+  const slot = autoSlotOf(id);
+  let added = 0;
+  while(slot.length < AUTO_SLOT_MAX){
+    const pick = autoSlotCan(id);
+    if(!pick) break;
+    if(id === 'donkey') state.bag.wheat--;
+    else state.bag[pick]--;
+    slot.push(pick);
+    added++;
+  }
+  return added;
+}
 function autoCountOf(id){ return (state.autoCount && state.autoCount[id]) || 0; }
 /* 第 n 台的价格：指数上涨（600 → 960 → 1536 …） */
 function autoPrice(id){
@@ -187,6 +222,7 @@ function autoBuy(id){
   const base = Math.max(Date.now(), autoUntilOf(id));       /* 还在跑就顺延 */
   state.autoUntil[id] = base + dev.durMs;
   state.autoAcc[id] = state.autoAcc[id] || 0;
+  autoSlotRefill(id);                       /* 新机器先把自带料斗装满 */
   SFX.play('buy');
   trackAction('coins', 0);
   renderHUD(); renderKitchen(); save();
@@ -213,32 +249,30 @@ function autoTick(dt){
     if(state.autoAcc[id] < dev.per) continue;
     state.autoAcc[id] -= dev.per;
     const n = autoCountOf(id);                 /* 养了几台，一轮就产几份 */
+    const slot = autoSlotOf(id);
     if(id === 'donkey'){
       let made = 0;
       for(let i = 0; i < n; i++){
-        if((state.bag.wheat || 0) <= 0) break;
-        state.bag.wheat--;
+        if(!slot.length) break;                /* 只吃自己料斗里的（不抢别人的） */
+        slot.shift();
         state.prep.flour = (state.prep.flour || 0) + 1;
         trackAction('mill');
         made++;
       }
+      if(made) autoSlotRefill(id);             /* 空了自动从仓库补 */
       if(made){ if(audible) SFX.play('mill'); save(); }
     } else if(id === 'chopper'){
       let cut = 0;
       for(let i = 0; i < n; i++){
-        let pick = null, best = 0;
-        for(const c of CROP_IDS){
-          if(CROPS[c].noChop) continue;
-          const m = state.bag[c] || 0;
-          if(m > best){ best = m; pick = c; }
-        }
-        if(!pick) break;
-        state.bag[pick]--;
+        if(!slot.length) break;
+        const pick = slot.shift();
+        if(!CROPS[pick]) continue;
         state.pieces[pick] = (state.pieces[pick] || 0) + CHOP_PIECES;
         KITCHEN.board.src = pick;
         trackAction('chop', CHOP_PIECES);
         cut++;
       }
+      if(cut) autoSlotRefill(id);
       if(cut){ if(audible) SFX.play('chop'); save(); }
     }
   }
@@ -247,9 +281,9 @@ function autoTick(dt){
 /* 全自动：同一个开关同时负责「自动取出」和「自动投料」（到原料不足才停） */
 function autoLoopFeed(){
   const K = KITCHEN;
-  if(K.oven.auto && !K.oven.busy){
+  if(K.oven.auto && !K.oven.busy && !K.oven.items.length){
     if(!K.oven.lastItem) return;             /* 还没烤过东西，没什么可重复的 */
-    /* 先把槽位装满（有几槽就装几份），装不下/没原料就按情况收手 */
+    /* 队列空了就补一轮的量（每轮加工 ovenCap() 份） */
     let fed = 0;
     while(K.oven.items.length < ovenCap()){
       if(!ovenPut(K.oven.lastItem, true).ok){

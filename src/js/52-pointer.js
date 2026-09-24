@@ -49,6 +49,7 @@ canvas.addEventListener('pointerdown', e => {
   const { gx, gy } = screenToGrid(e.clientX, e.clientY);
   setHover(gx, gy);
   clearTimeout(pressTimer);
+  if(state.longPressBox === false) return;      /* 开关关掉：长按不划范围（免得和"走过去"打架） */
   pressTimer = setTimeout(() => {
     if(!pointerDown || pointerMoved) return;
     boxMode = true; boxStart = { gx, gy };

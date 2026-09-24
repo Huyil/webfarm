@@ -44,6 +44,7 @@ function plantSeed(t, seedId){
   t.watered = (ATMOS.weather === 'rain');    /* 雨天种下去就是湿的，不用等下一帧的雨检 */
   t.fertile = false;
   t.harvestsLeft = def.harvests || 0;
+  pushRecentSeed(seedId);
   trackAction('plant', seedId);
   return { ok:true, msg:`种下 ${def.name}` };
 }
@@ -64,15 +65,18 @@ function fertilizeTile(t, premium){
     const def = CROPS[t.crop];
     t.growth = cropReadyMs(def);
     t.state = 'ready';
+    /* 高级肥料除了催熟，还给 5 次「收完不返草地」 */
+    t.fertLeft = Math.max(t.fertLeft || 0, PREMIUM_KEEP);
     trackAction('premium');
-    return { ok:true, msg:'✨ 高级肥料：立刻催熟！', ripened:true };
+    return { ok:true, msg:'✨ 高级肥料：立刻催熟！（这块地还能收 ' + t.fertLeft + ' 次不返草地）', ripened:true };
   }
   if(t.fertile) return { ok:false, msg:'已施过肥' };
   if(state.fertilizer <= 0) return { ok:false, msg:'肥料不足' };
   state.fertilizer--;
   t.fertile = true;
+  t.fertLeft = Math.max(t.fertLeft || 0, FERT_KEEP);
   trackAction('fert');
-  return { ok:true, msg:'🧪 施肥完成' };
+  return { ok:true, msg:'🧪 施肥完成（这块地还能收 ' + t.fertLeft + ' 次不返草地）' };
 }
 
 /* 收获：多次收获作物会原地复熟 */
@@ -88,7 +92,7 @@ function harvestTile(t){
     trackAction('coins', gain);
   }
   trackAction('harvest', cropId);
-  let multi = false;
+  let multi = false, kept = false;
   if(cropIsMulti(def) && t.harvestsLeft > 1){
     t.harvestsLeft--;
     t.state = 'growing';
@@ -96,11 +100,17 @@ function harvestTile(t){
     t.watered = (ATMOS.weather === 'rain');       // 雨天复熟后自动保持湿润
     t.fertile = false;
     multi = true;
+  } else if((t.fertLeft || 0) > 0){
+    /* 施过肥的地：收完还是耕地（可以直接补种），次数用完才返草地 */
+    t.fertLeft--;
+    t.state = 'tilled'; t.crop = null; t.growth = 0;
+    t.watered = false; t.fertile = false; t.harvestsLeft = 0;
+    kept = true;
   } else {
     t.state = 'wild'; t.terrain = 'grass'; t.crop = null;
-    t.growth = 0; t.watered = false; t.fertile = false; t.harvestsLeft = 0;
+    t.growth = 0; t.watered = false; t.fertile = false; t.harvestsLeft = 0; t.fertLeft = 0;
   }
-  return { ok:true, cropId, n, multi, gain: def.sellPrice * n };
+  return { ok:true, cropId, n, multi, kept, fertLeft: t.fertLeft || 0, gain: def.sellPrice * n };
 }
 
 /* ============ 离线结算 ============ */

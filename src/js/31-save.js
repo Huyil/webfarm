@@ -25,11 +25,14 @@ function serialize(st){
     kitchenAuto: { oven: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.auto),
                    pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto) },
     autoUntil: st.autoUntil, autoAcc: st.autoAcc, autoCount: st.autoCount, ovenSlots: st.ovenSlots,
+    autoSlot: st.autoSlot,
     kExpand: st.kExpand,
+    longPressBox: st.longPressBox !== false,
+    recentSeeds: (st.recentSeeds || []).slice(0, 6),
     tiles: st.tiles.map(t=>({
       gx: t.gx, gy: t.gy, terrain: t.terrain, state: t.state, crop: t.crop,
       growth: Math.round(t.growth), watered: !!t.watered, fertile: !!t.fertile,
-      harvestsLeft: t.harvestsLeft || 0, stone: !!t.stone,
+      harvestsLeft: t.harvestsLeft || 0, fertLeft: t.fertLeft || 0, stone: !!t.stone,
     })),
   };
 }
@@ -128,7 +131,10 @@ function unpackState(d){
   st.autoUntil = Object.assign({ donkey:0, chopper:0 }, d.autoUntil || {});
   st.autoCount = Object.assign({ donkey:0, chopper:0 }, d.autoCount || {});
   st.autoAcc = Object.assign({ donkey:0, chopper:0 }, d.autoAcc || {});
+  st.autoSlot = { donkey: (d.autoSlot && d.autoSlot.donkey) || [], chopper: (d.autoSlot && d.autoSlot.chopper) || [] };
   st.kExpand = { prep: !!(d.kExpand && d.kExpand.prep), cook: !!(d.kExpand && d.kExpand.cook) };
+  st.longPressBox = d.longPressBox !== false;
+  st.recentSeeds = Array.isArray(d.recentSeeds) ? d.recentSeeds.filter(id => !!CROPS[id]).slice(0, 6) : [];
   st.tiles = d.tiles.map(t=>{
     const tt = newTile(t.gx, t.gy, t.terrain, t.stone);
     tt.state = t.state || 'wild';
@@ -137,6 +143,7 @@ function unpackState(d){
     tt.watered = !!t.watered;
     tt.fertile = !!t.fertile;
     tt.harvestsLeft = t.harvestsLeft || 0;
+    tt.fertLeft = t.fertLeft || 0;
     if(tt.crop && CROPS[tt.crop] && CROPS[tt.crop].harvests && !tt.harvestsLeft) tt.harvestsLeft = CROPS[tt.crop].harvests;
     return tt;
   });

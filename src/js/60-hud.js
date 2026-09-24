@@ -24,12 +24,19 @@ function updateHudAnim(dt){
     hudIdleShown = rate;
     const i = $('hudIdle');
     if(i){ i.textContent = rate.toFixed(1); if(i.parentElement) bump(i.parentElement); }
+    /* 手机顶栏把挂机速率并到金币旁边（+x.x/分） */
+    const im = $('hudIdleM');
+    if(im) im.textContent = '+' + rate.toFixed(1) + '/分';
   }
 }
 function renderHUD(){
   const $ = id => document.getElementById(id);
   const f = $('hudFert'); if(f) f.textContent = state.fertilizer;
   const p = $('hudPremium'); if(p) p.textContent = state.premium;
+  const fm = $('hudFarmM'); if(fm) fm.textContent = state.farm.w + '×' + state.farm.h;
+  const lp = $('longPressState'); if(lp) lp.textContent = state.longPressBox === false ? '关' : '开';
+  const ci = $('hudIdleM');
+  if(ci && !ci.textContent) ci.textContent = '+' + idleRate().toFixed(1) + '/分';
   const total = CROP_IDS.reduce((a, id) => a + (state.bag[id] || 0), 0)
     + Object.values(state.pieces).reduce((a, b) => a + b, 0)
     + (state.prep.flour || 0);
@@ -49,18 +56,25 @@ function renderHUD(){
 function renderClock(){
   const c = document.getElementById('hudClock');
   const w = document.getElementById('hudWeather');
-  if(c){
-    const h = Math.floor(ATMOS.hour), m = Math.floor((ATMOS.hour - h) * 60);
-    c.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-  }
-  if(w){
-    w.textContent = ATMOS.weather === 'rain' ? '🌧️' : ATMOS.weather === 'cloudy' ? '⛅' : (atmosIsNight() ? '🌙' : '☀️');
-  }
+  const h = Math.floor(ATMOS.hour), m = Math.floor((ATMOS.hour - h) * 60);
+  const clockText = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  const weatherIcon = ATMOS.weather === 'rain' ? '🌧️' : ATMOS.weather === 'cloudy' ? '⛅' : (atmosIsNight() ? '🌙' : '☀️');
+  if(c) c.textContent = clockText;
+  if(w) w.textContent = weatherIcon;
+  const cm = document.getElementById('hudClockM');
+  const wm = document.getElementById('hudWeatherM');
+  if(cm) cm.textContent = clockText;
+  if(wm) wm.textContent = weatherIcon;
+  const fm = document.getElementById('hudFarmM');
+  if(fm) fm.textContent = state.farm.w + '×' + state.farm.h;
 }
 function renderToolbar(){
   document.querySelectorAll('#toolbar button').forEach(b => {
     b.classList.toggle('active', b.dataset.tool === state.tool);
   });
+  if(typeof renderToolPops === 'function' && (document.getElementById('fertPop') || document.getElementById('seedPop'))){
+    renderToolPops();     /* 小凸起里的数量/已选状态跟着刷新 */
+  }
   const panBtn = document.getElementById('btnPan');
   if(panBtn) panBtn.classList.toggle('active', state.tool === 'pan');
   if(document.body) document.body.classList.toggle('pan-mode', state.tool === 'pan');

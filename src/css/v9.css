@@ -23,6 +23,11 @@
 .side-panel button:active{transform:scale(.97)}
 
 /* ---------- HUD 扩展 ---------- */
+/* v9.19：手机顶栏新增的这几项，桌面一律不显示（桌面沿用「⋯」弹层） */
+.hud-rate,.hud-farm,.hud-clock{display:none}
+.hud-icons{display:flex;align-items:center;gap:calc(6px*var(--ui-scale))}
+.hud-right2{display:flex;align-items:center;gap:calc(6px*var(--ui-scale))}
+.hud-more-btn{background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:0;display:none}
 .hud-item.hud-idle .hud-val{color:#4a8fb8}
 .hud-item.hud-clock .hud-val{color:#3a6a3a;min-width:calc(46px*var(--ui-scale))}
 .hud-unit{font-size:calc(11px*var(--ui-scale));color:#8a8272;margin-left:calc(-2px*var(--ui-scale))}
@@ -254,7 +259,11 @@
     --m-edge: max(6px, calc(8px*var(--ui-scale)));
     --m-safe-b: env(safe-area-inset-bottom, 0px);
     --m-safe-t: env(safe-area-inset-top, 0px);
-    --m-hud-h: calc(max(34px, calc(36px*var(--ui-scale))) + 2*max(5px, calc(6px*var(--ui-scale))));
+    /* --m-hud-top 以前**没有定义**：引用它的 calc() 整条作废，抽屉把手与抽屉都没有 top
+       （表现为"菜单被挡住 / 点不开"）。这里补上，并把顶栏高度按两行算。 */
+    --m-hud-top: calc(max(6px, calc(8px*var(--ui-scale))) + var(--m-safe-t));
+    --m-hud-row: max(30px, calc(32px*var(--ui-scale)));
+    --m-hud-h: calc(2*var(--m-hud-row) + 3*max(3px, calc(4px*var(--ui-scale))));
     --m-toolbar-btn: max(46px, calc(48px*var(--ui-scale)));
     --m-toolbar-h: calc(var(--m-toolbar-btn) + 2*max(4px, calc(6px*var(--ui-scale))));
     --m-toolbar-bottom: calc(max(12px, calc(18px*var(--ui-scale))) + var(--m-safe-b));
@@ -264,12 +273,28 @@
   }
 
   .hud{
-    top: calc(max(6px, calc(8px*var(--ui-scale))) + var(--m-safe-t));
+    top: var(--m-hud-top);
     left: var(--m-edge); right: var(--m-edge); transform: none;
-    justify-content: space-between;
+    /* 三列两行：金币(+挂机) 肥料 [排行榜 公告 更多] / 田块尺寸 高级肥料 [时间 菜单] */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: max(3px, calc(4px*var(--ui-scale)));
+    align-items: center;
     border-radius: calc(14px*var(--ui-scale));
     padding: max(5px, calc(6px*var(--ui-scale)));
   }
+  .hud-money{ grid-area: 1 / 1 / 2 / 2 }
+  .hud-fert{ grid-area: 1 / 2 / 2 / 3 }
+  .hud-icons{ grid-area: 1 / 3 / 2 / 4; justify-content: flex-end }
+  .hud-farm{ grid-area: 2 / 1 / 3 / 2 }
+  .hud-premium{ grid-area: 2 / 2 / 3 / 3 }
+  .hud-right2{ grid-area: 2 / 3 / 3 / 4; justify-content: flex-end }
+  .hud-rate{
+    display: inline; font-size: max(9px, calc(10px*var(--ui-scale)));
+    color: #4a8fb8; margin-left: max(2px, calc(3px*var(--ui-scale))); white-space: nowrap;
+  }
+  .hud-farm,.hud-clock{ display: flex }
+  .hud-more-btn{ display: flex; align-items: center; justify-content: space-between; width: 100% }
   .hud-item{
     flex: 1 1 auto; justify-content: center;
     padding: max(5px, calc(7px*var(--ui-scale))) max(4px, calc(6px*var(--ui-scale)));
@@ -283,8 +308,8 @@
     font-size: max(16px, calc(17px*var(--ui-scale)));
   }
   .hud-sep{ display: none }
-  /* 手机上顶栏已经很满：🏅 排行榜入口收进侧栏（侧栏那个入口一直在），别把顶栏挤变形 */
-  #lbBtn{ display: none }
+  /* v9.19：手机顶栏第一排右侧 = 🏅 排行榜 / 📢 公告 / ⋯ 更多；🏆 成就收进「⋯」弹层 */
+  #achBtn{ display: none }
 
   .toolbar{
     left: var(--m-edge); right: var(--m-edge); transform: none;
@@ -332,22 +357,23 @@
   /* 手机：侧栏收成**右上角浮窗抽屉**，默认收起，只留一个把手 —— 不再整天压着农场。
      桌面端不受影响（这些规则全部只在这个媒体查询里）。 */
   .side-toggle{
-    display: flex; align-items: center; gap: 6px;
-    position: fixed; right: var(--m-edge);
-    top: calc(var(--m-hud-top) + var(--m-hud-h) + 8px);
-    z-index: 31;
-    padding: max(6px, calc(7px*var(--ui-scale))) max(10px, calc(12px*var(--ui-scale)));
-    border-radius: 999px; border: 1px solid #3d4a3f;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    position: static;                     /* 就在顶栏网格里，位置不再靠猜 */
+    min-width: max(32px, calc(34px*var(--ui-scale)));
+    height: max(30px, calc(32px*var(--ui-scale)));
+    padding: 0 max(6px, calc(7px*var(--ui-scale)));
+    border-radius: calc(9px*var(--ui-scale)); border: 1px solid #3d4a3f;
     background: rgba(24,30,24,.92); color: #eaffe6;
-    font-size: max(12px, calc(12px*var(--ui-scale)));
-    box-shadow: 0 8px 22px rgba(0,0,0,.5); cursor: pointer;
+    font-size: max(15px, calc(16px*var(--ui-scale)));
+    cursor: pointer; touch-action: manipulation;
   }
-  .side-toggle .st-ico{ font-size: max(15px, calc(16px*var(--ui-scale))) }
+  .side-toggle .st-txt{ display: none }   /* 顶栏里只留 ☰，省宽度 */
+  .side-toggle[aria-expanded="true"]{ background: rgba(77,138,74,.35); border-color: #4d8a4a }
   .side-toggle:active{ transform: scale(.96) }
   .side-panel{
     display: none;                                  /* 默认收起 */
     position: fixed; right: var(--m-edge); left: auto;
-    top: calc(var(--m-hud-top) + var(--m-hud-h) + 8px + max(38px, calc(40px*var(--ui-scale))) + 8px);
+    top: calc(var(--m-hud-top) + var(--m-hud-h) + 8px);
     z-index: 30;
     padding: max(5px, calc(6px*var(--ui-scale)));
     gap: max(3px, calc(4px*var(--ui-scale)));
@@ -368,4 +394,54 @@
   }
   .side-panel button .st{ font-size: max(10px, calc(10px*var(--ui-scale))); color:#9fd6a2; opacity:.95 }
   .modal-box{ max-width: calc(100vw - 12px); max-height: 78vh }
+}
+
+
+/* ---------- v9.19：工具栏「小凸起」（种子 / 肥料+高级肥料） ---------- */
+.tool-pop{
+  position:fixed; left:50%; transform:translateX(-50%) translateY(6px);
+  bottom:calc(84px*var(--ui-scale));
+  display:flex; flex-direction:column; gap:calc(4px*var(--ui-scale));
+  min-width:calc(196px*var(--ui-scale)); max-width:min(92vw, calc(320px*var(--ui-scale)));
+  padding:calc(7px*var(--ui-scale));
+  background:rgba(24,30,24,.97); backdrop-filter:blur(12px);
+  border:1px solid #3d4a3f; border-radius:calc(13px*var(--ui-scale));
+  box-shadow:0 12px 32px rgba(0,0,0,.55);
+  z-index:12; opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity .16s ease, transform .16s ease, visibility .16s;
+}
+.tool-pop.show{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(-50%) translateY(0) }
+/* 指向工具栏的小凸起（尖角） */
+.tool-pop::after{
+  content:''; position:absolute; left:50%; bottom:calc(-6px*var(--ui-scale));
+  width:calc(11px*var(--ui-scale)); height:calc(11px*var(--ui-scale));
+  transform:translateX(-50%) rotate(45deg);
+  background:rgba(24,30,24,.97); border-right:1px solid #3d4a3f; border-bottom:1px solid #3d4a3f;
+  border-bottom-right-radius:calc(2px*var(--ui-scale));
+}
+.tp-row{
+  display:flex; align-items:center; gap:calc(7px*var(--ui-scale)); width:100%; text-align:left;
+  min-height:max(38px, calc(38px*var(--ui-scale)));
+  padding:calc(6px*var(--ui-scale)) calc(8px*var(--ui-scale));
+  background:rgba(255,255,255,.04); border:1px solid #2f3a30;
+  border-radius:calc(9px*var(--ui-scale)); color:#c8d6c9; font:inherit; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.tp-row:hover{ border-color:#4d8a4a; background:rgba(77,138,74,.14) }
+.tp-row.on{ border-color:#7fd0ff; box-shadow:inset 0 0 0 1px rgba(127,208,255,.35) }
+.tp-row.poor{ opacity:.5 }
+.tp-ico{ font-size:max(18px, calc(20px*var(--ui-scale))); flex:none }
+.tp-txt{ flex:1; min-width:0; display:flex; flex-direction:column }
+.tp-txt b{ font-size:max(12px, calc(12.5px*var(--ui-scale))); font-weight:700 }
+.tp-txt i{ font-style:normal; font-size:max(10px, calc(10px*var(--ui-scale))); color:#8b9a8d }
+.tp-n{ font-weight:700; color:#ffd76e; font-variant-numeric:tabular-nums }
+.tp-cur{ font-size:calc(10px*var(--ui-scale)); color:#9fd8ff }
+.tp-more{
+  margin-top:calc(2px*var(--ui-scale)); min-height:max(34px, calc(34px*var(--ui-scale)));
+  background:rgba(127,208,255,.12); border:1px solid rgba(127,208,255,.4); color:#9fd8ff;
+  border-radius:calc(9px*var(--ui-scale)); font:inherit; font-size:max(12px, calc(12px*var(--ui-scale))); cursor:pointer;
+}
+.tp-empty{ font-size:max(11px, calc(11px*var(--ui-scale))); color:#8b9a8d; padding:calc(6px*var(--ui-scale)) }
+@media (orientation:portrait), (max-width:620px){
+  .tool-pop{ bottom:calc(var(--m-toolbar-bottom) + var(--m-toolbar-h) + 6px) }
 }

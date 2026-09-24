@@ -58,8 +58,12 @@ setTimeout(() => {
   if (D) {
     const api = D.api;
     ok(!!api && typeof api.getTile === 'function', 'FarmDebug.api 可用');
-    ok(W.document.querySelectorAll('.side-panel button').length === 10, '侧栏 10 个按钮都在');
-    ok(W.document.querySelectorAll('.toolbar button').length === 6, '工具栏 6 个工具都在');
+    ok(W.document.querySelectorAll('.side-panel button').length === 11, '侧栏 11 个按钮都在（多了「长按框选」）');
+    ok(W.document.querySelectorAll('.toolbar button').length === 5, '工具栏 5 个工具都在（催熟并进肥料小凸起）');
+    ok(!!W.document.getElementById('fertPop') && !!W.document.getElementById('seedPop'), '两个工具小凸起容器都在');
+    ok(!!W.document.getElementById('btnLongPress'), '侧栏「长按框选」开关在');
+    ok(!!W.document.getElementById('hudFarmM') && !!W.document.getElementById('hudClockM') && !!W.document.getElementById('hudIdleM'),
+      '手机顶栏的田块/时间/挂机速率元素都在');
     ok(!!api.CROPS && Object.keys(api.CROPS).length === 11, '11 种作物数据都在');
     const t = api.getTile(D.state.farm.x0, D.state.farm.y0);
     ok(!!t && t.state === 'wild', '地图与开局状态正常');

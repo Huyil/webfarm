@@ -8,6 +8,9 @@ const STONE_ROWS=3;                             // 超出可耕上限后，每�
 const UP_PLANT_LIMIT=3;                         // 左上/右上各自最多还能扩出几排「可耕地」
 const TILE_W=256, TILE_H=128, HALF_W=128, HALF_H=64, SCALE=0.3, THICKNESS=52;
 const START_COINS=50, WATER_MULT=2, FERT_MULT=1.5, FERT_COST=3, PREMIUM_COST=26;
+/* 施肥后的「兜底收获次数」：收获这么多次都不返草地（可以直接补种）。
+ * 普通肥料 2 次、高级肥料 5 次；用完才像以前一样变回草地。 */
+const FERT_KEEP = 2, PREMIUM_KEEP = 5;
 
 /* 离线：作物按 40% 速度补，最长 8 小时 */
 const OFFLINE_RATE=0.4, OFFLINE_CAP=8*3600*1000;
@@ -45,8 +48,8 @@ const TOOL_META = {
   hoe:    { icon:'⛏️', name:'锄头',     desc:'开垦荒地；顺手把装饰物收回仓库' },
   seed:   { icon:'🌱', name:'种子',     desc:'在开垦过的地块播种' },
   water:  { icon:'💧', name:'水壶',     desc:'浇水：生长 ×2（每周期一次，免费）' },
-  fert:   { icon:'🧪', name:'肥料',     desc:'生长 ×1.5，可与浇水叠加' },
-  premium:{ icon:'✨', name:'高级肥料', desc:'立即催熟当前作物' },
+  fert:   { icon:'🧪', name:'肥料',     desc:'生长 ×1.5；收完还留 ' + FERT_KEEP + ' 次耕地（不返草地）' },
+  premium:{ icon:'✨', name:'高级肥料', desc:'立即催熟，并留 ' + PREMIUM_KEEP + ' 次耕地（不返草地）' },
   sickle: { icon:'✂️', name:'收获',     desc:'收获成熟作物；多次收获作物会继续生长' },
   decor:  { icon:'🏡', name:'装饰',     desc:'把仓库里的装饰物摆回地块' },
 };

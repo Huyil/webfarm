@@ -26,11 +26,63 @@ function bindAll(){
     if(!btn) return;
     const tool = btn.dataset.tool;
     SFX.play('click');
-    if(tool === 'seed'){ state.tool = 'seed'; renderToolbar(); openSheet('seed'); return; }
-    state.tool = tool; renderToolbar();
+    /* 种子 / 肥料：点一下先弹「小凸起」，不再直接开大窗口 */
+    if(tool === 'seed'){ state.tool = 'seed'; renderToolbar(); toggleToolPop('seed'); return; }
+    if(tool === 'fert'){ state.tool = 'fert'; renderToolbar(); toggleToolPop('fert'); return; }
+    state.tool = tool; renderToolbar(); closeToolPops();
   });
+  /* 小凸起里的选项：肥料/高级肥料 切换、常用种子、更多种子 */
+  ['fertPop', 'seedPop'].forEach(id => {
+    const pop = document.getElementById(id);
+    if(!pop) return;
+    pop.addEventListener('click', e => {
+      const tb = e.target.closest('[data-tool-pick]');
+      if(tb){
+        state.tool = tb.dataset.toolPick;
+        SFX.play('click'); renderToolbar(); closeToolPops();
+        toast('已切换：' + (TOOL_META[state.tool] ? TOOL_META[state.tool].name : state.tool));
+        return;
+      }
+      const sb = e.target.closest('[data-seed]');
+      if(sb){
+        const id2 = sb.dataset.seed, def = CROPS[id2];
+        if(!def) return;
+        if(state.coins < def.seedCost){ toast('金币不够'); SFX.play('error'); return; }
+        state.selectedSeed = id2; state.tool = 'seed';
+        pushRecentSeed(id2);
+        SFX.play('click'); renderToolbar(); closeToolPops(); save();
+        toast('已选 ' + def.name);
+        return;
+      }
+      if(e.target.closest('[data-act="seed-more"]')){
+        SFX.play('click'); closeToolPops(); openSheet('seed');
+      }
+    });
+  });
+  /* 点别处收起来 */
+  document.addEventListener('pointerdown', ev => {
+    if(ev.target.closest && (ev.target.closest('.tool-pop') || ev.target.closest('#toolbar'))) return;
+    closeToolPops();
+  }, true);
 
-  bindSideDrawer();                       /* 手机右上角抽屉把手 */
+  bindSideDrawer();                       /* 手机顶栏里的抽屉把手 */
+  /* 👆 长按框选开关：长按到底进框选，还是当普通点击（手机上两者很容易打架） */
+  const lpBtn = document.getElementById('btnLongPress');
+  if(lpBtn) lpBtn.onclick = () => {
+    state.longPressBox = state.longPressBox === false;
+    SFX.play('click');
+    toast(state.longPressBox
+      ? '👆 长按 = 框选（批量作业）；轻点还是让小人走过去'
+      : '👆 长按框选已关闭：长按只会让小人走过去，不会划范围');
+    renderHUD(); save();
+  };
+  /* 手机顶栏把 🏆 收进「⋯」里了，这里给弹层那一行接上 */
+  const achRowM = document.getElementById('achRowM');
+  if(achRowM) achRowM.onclick = () => {
+    SFX.play('click');
+    const p = document.getElementById('hudMore'); if(p) p.classList.remove('show');
+    openSheet('achievements');
+  };
   const pan = document.getElementById('btnPan');
   if(pan) pan.onclick = () => {
     state.tool = (state.tool === 'pan') ? 'hoe' : 'pan';
@@ -139,11 +191,11 @@ function bindAll(){
   bindSidePanelDrag();
 
   /* 键盘快捷键 */
-  const keyMap = { '1':'hoe', '2':'seed', '3':'water', '4':'fert', '5':'premium', '6':'sickle' };
+  const keyMap = { '1':'hoe', '2':'seed', '3':'water', '4':'fert', '5':'sickle' };   /* 催熟并进「肥料」小凸起 */
   window.addEventListener('keydown', e => {
     if(e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key;
-    if(keyMap[k]){ state.tool = keyMap[k]; renderToolbar(); SFX.play('click'); if(state.tool === 'seed') openSheet('seed'); return; }
+    if(keyMap[k]){ state.tool = keyMap[k]; renderToolbar(); SFX.play('click'); closeToolPops(); if(state.tool === 'seed') toggleToolPop('seed'); return; }
     if(k === 'g' || k === 'G'){ state.showGrid = !state.showGrid; renderGridBtn(); return; }
     if(k === 'p' || k === 'P'){ state.tool = state.tool === 'pan' ? 'hoe' : 'pan'; renderToolbar(); return; }
     if(k === 'k' || k === 'K'){ openSheet('kitchen'); return; }

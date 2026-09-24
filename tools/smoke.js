@@ -90,10 +90,10 @@ const frames = n => new Promise(res => {
   ok(!!W.document.getElementById('game'), 'canvas #game 存在');
   eq(W.document.getElementById('hudMoney').textContent, '50', '初始金币 = 50（降低起步难度）');
   ok(/\d+\.\d+\.\d+/.test(W.document.title), '标题带版本号', W.document.title);
-  eq(W.document.querySelectorAll('#sidePanel button .sl').length, 10, '侧栏 10 个按钮都有文字标签');
+  eq(W.document.querySelectorAll('#sidePanel button .sl').length, 11, '侧栏 11 个按钮都有文字标签（v9.19 多了「长按框选」）');
   ok(!!W.document.getElementById('lbBtn'), '顶栏也有 🏅 排行榜入口（两个入口都能点开）');
   eq(W.document.getElementById('lbBtn').textContent, '🏅', '顶栏入口就是奖牌图标');
-  eq(W.document.querySelectorAll('#toolbar button').length, 6, '工具栏 6 个工具');
+  eq(W.document.querySelectorAll('#toolbar button').length, 5, '工具栏 5 个工具（v9.19 起「催熟」并进「肥料」的小凸起）');
 
   const D = W.FarmDebug;
   if (!D) { ok(false, '游戏暴露 FarmDebug 调试接口'); dom.window.close(); process.exit(1); }
@@ -355,34 +355,30 @@ const frames = n => new Promise(res => {
   ok(st().coins > coinsBeforeSell, '点卖出真的进账');
   api.closeSheet();
 
-  section('厨房：小麦 → 面粉 → 面包（手动磨粉是瞬时的）');
+  section('厨房：小麦 → 面粉 → 面包（石磨和切菜板一个操作：点一下直接出粉）');
   st().bag.wheat = 3;
   const flour0 = st().prep.flour || 0;
-  ok(api.cook.millLoad().ok, '小麦装进石磨');
-  eq(st().bag.wheat, 2, '装料时就从仓库扣掉');
-  eq(api.millQueued(), 1, '石磨里有 1 份待磨');
-  const rMill = api.cook.mill();
-  ok(rMill.ok, '手动磨粉立刻出粉（不需要计时）');
+  const rMill = api.cook.mill();                       // 不传参数 = 磨 1 份
+  ok(rMill.ok && rMill.n === 1, '点一下直接出 1 份面粉（不需要先装料、也不计时）');
   eq(st().prep.flour, flour0 + 1, '研磨产出 1 份面粉');
-  eq(api.millQueued(), 0, '磨完石磨清空');
-  /* 一次装多份、一把磨完 */
-  st().bag.wheat = 4;
-  api.cook.millLoad(); api.cook.millLoad(); api.cook.millLoad();
-  eq(api.millQueued(), 3, '可以一次装 3 份待磨');
-  const before3 = st().prep.flour;
-  const rMill3 = api.cook.mill();
-  ok(rMill3.ok && rMill3.n === 3, '一把磨完 3 份');
-  eq(st().prep.flour, before3 + 3, '一次产出 3 份面粉');
-  eq(st().bag.wheat, 1, '消耗对应的小麦');
-  /* 装满就装不下了 */
+  eq(st().bag.wheat, 2, '同时消耗 1 份小麦');
+  ok(!('queued' in api.KITCHEN.mill), '石磨没有「待磨队列」这一步了（和菜板一样一步到位）');
+  eq(api.millBatch(), 2, 'millBatch() = 这一把能磨几份（受仓库与上限限制）');
+  /* 一次放多份：卡上「磨 ×N」一把磨完（上限 MILL_BATCH_MAX） */
   st().bag.wheat = 20;
-  while(api.canMillLoad()) api.cook.millLoad();
-  eq(api.millQueued(), api.MILL_CAP, `最多装 ${api.MILL_CAP} 份`);
-  ok(!api.cook.millLoad().ok, '装满后拒绝继续投料');
-  api.cook.mill();
+  const before5 = st().prep.flour;
+  const rMill5 = api.cook.mill(api.MILL_BATCH_MAX);
+  ok(rMill5.ok && rMill5.n === api.MILL_BATCH_MAX, `一把磨 ${api.MILL_BATCH_MAX} 份`);
+  eq(st().prep.flour, before5 + api.MILL_BATCH_MAX, '一次产出同样多的面粉');
+  eq(st().bag.wheat, 20 - api.MILL_BATCH_MAX, '消耗对应的小麦');
+  eq(api.millBatch(), api.MILL_BATCH_MAX, '仓库够多时一把就是上限份数');
+  /* 没小麦就磨不动 */
+  st().bag.wheat = 0;
+  ok(!api.cook.mill().ok, '仓库没小麦时磨不出粉');
+  ok(!api.canMill(), 'canMill() = 仓库里还有没有小麦');
+  eq(api.millBatch(), 0, '没小麦时一把 0 份');
   st().bag.wheat = 3;
-  ok(api.cook.millLoad().ok, '小麦装进石磨（准备烤面包）');
-  api.cook.mill();
+  api.cook.mill();                                     // 直接磨 1 份备用
   ok(api.cook.ovenPut().ok, '面粉进烤箱');
   api.kitchenTick(api.KITCHEN.oven.dur + 100);
   ok(api.KITCHEN.oven.ready, '面包烤好（进入可出炉状态）');
@@ -854,13 +850,35 @@ const frames = n => new Promise(res => {
   click(W.document.querySelector('#noticeModal [data-close]'));
   ok(!$('noticeModal').classList.contains('show'), '关闭按钮生效');
 
+  eq(W.document.querySelectorAll('#toolbar button').length, 5, '工具栏 5 个键（催熟已并入肥料）');
   const tbBtns = W.document.querySelectorAll('#toolbar button');
   click(tbBtns[2]); eq(st().tool, 'water', '点工具栏切到浇水');
-  click(tbBtns[4]); eq(st().tool, 'premium', '点工具栏切到催熟');
+  click(tbBtns[4]); eq(st().tool, 'sickle', '点工具栏切到收获');
+  /* 种子：先弹「小凸起」（常用种子 + 更多），不再直接开大窗口 */
   click(tbBtns[1]); eq(st().tool, 'seed', '点种子工具');
-  ok($('seedModal').classList.contains('show'), '种子弹层自动打开');
+  ok($('seedPop').classList.contains('show'), '种子先弹小凸起（不是旧的大窗口）');
+  ok(!$('seedModal').classList.contains('show'), '此时不打开旧的种子窗口');
+  /* 种过东西之后，小凸起里就有「常用种子」 */
+  st().coins = 500;
+  const t0 = api.getTile(st().farm.x0, st().farm.y0);
+  t0.state = 'tilled'; t0.crop = null;
+  api.plantSeed(t0, 'carrot');
+  ok((st().recentSeeds || []).includes('carrot'), '播种后记住「最近用过的种子」', JSON.stringify(st().recentSeeds));
+  api.renderToolbar && api.renderToolbar();
+  ok($('seedPop').querySelectorAll('[data-seed]').length >= 1, '小凸起里列出常用种子');
+  click($('seedPop').querySelector('[data-act="seed-more"]'));
+  ok($('seedModal').classList.contains('show'), '点「更多」才展开旧的种子窗口');
   ok($('seedList').children.length >= 8, '种子列表含 7 种作物 + 说明');
   click(W.document.querySelector('#seedModal [data-close]'));
+  /* 肥料：点一下弹小凸起，里面能切到高级肥料（原「催熟」） */
+  click(tbBtns[3]); eq(st().tool, 'fert', '点肥料键 = 选普通肥料');
+  ok($('fertPop').classList.contains('show'), '肥料键弹出小凸起');
+  const premOpt = $('fertPop').querySelector('[data-tool-pick="premium"]');
+  ok(!!premOpt, '小凸起里有「高级肥料」（原来的催熟键）');
+  click(premOpt);
+  eq(st().tool, 'premium', '小凸起里能切到高级肥料');
+  ok(!$('fertPop').classList.contains('show'), '选完自动收起');
+  click(tbBtns[3]); eq(st().tool, 'fert', '再点肥料键切回普通肥料');
 
   const labels = [...W.document.querySelectorAll('#sidePanel .sl')].map(e => e.textContent.trim());
   ok(labels.includes('厨房') && labels.includes('缩放') && labels.includes('装饰') && labels.includes('平移'), '侧栏按钮都有文字（存档已换到设置里的缩放）', labels.join('/'));
@@ -982,7 +1000,7 @@ const frames = n => new Promise(res => {
     const flourBefore = st().prep.flour;
     KD.drop('crop:wheat', 'mill');
     api.kitchenTick(1500);
-    ok(st().prep.flour >= flourBefore, '拖小麦进石磨能出面粉', `${flourBefore} → ${st().prep.flour}`);
+    eq(st().prep.flour, flourBefore + 1, '拖一份小麦进石磨，立刻出 1 份面粉（和切菜板一样一步到位）');
 
     KD.drop('crop:carrot', 'board');
     api.kitchenTick(1200);
@@ -1186,6 +1204,36 @@ const frames = n => new Promise(res => {
     eq(s0.state, 'growing', '种完进入生长状态');
   }
 
+  // v9.19：侧栏「长按框选」开关 —— 关掉后长按不再划范围（免得跟"点哪走哪"打架）
+  {
+    D.api.setTool('water');
+    st().longPressBox = false;
+    const bt2 = [[B.x + 3, B.y + 1], [B.x + 4, B.y + 1]].map(([x, y]) => api.getTile(x, y));
+    for (const t of bt2) { t.state = 'growing'; t.crop = 'carrot'; t.growth = 50; t.watered = false; t.harvestsLeft = 0; }
+    pev('pointerdown', B.x + 3, B.y + 1);
+    await new Promise(r => setTimeout(r, 460));
+    pev('pointermove', B.x + 4, B.y + 1);
+    ok(!st().box, '长按开关关掉后，长按不进入框选');
+    pev('pointerup', B.x + 4, B.y + 1);
+    ok(!st().jobBox, '也不会排出批量作业');
+    eq(bt2.filter(t => !t.watered).length, 2, '长按期间一格都没动（退化成"点哪走哪"）');
+    /* 松手那一下按"单击"处理：会派一格的小活，跑完再收拾干净，别污染后面的用例 */
+    for (let i = 0; i < 300 && api.jobActive(); i++) api.updatePlayer(60);
+    ok(!api.jobActive(), '长按（开关关掉时）退化成的单击作业跑完就结束');
+    ok(!!$('btnLongPress'), '侧栏有「长按框选」开关按钮');
+    st().longPressBox = true;
+    const lp0 = st().longPressBox;
+    click($('btnLongPress'));
+    eq(st().longPressBox, !lp0, '点侧栏按钮能切换长按框选');
+    eq($('longPressState').textContent, st().longPressBox ? '开' : '关', '按钮上的状态字跟着变');
+    click($('btnLongPress'));
+    eq(st().longPressBox, lp0, '再点一下切回来');
+    /* 存进存档 */
+    const sv = api.serialize(st());
+    eq(sv.longPressBox, st().longPressBox, '开关状态写进存档');
+    for (const t of bt2) { t.state = 'wild'; t.terrain = 'grass'; t.crop = null; t.watered = false; }
+  }
+
   // 短按单击：不应该触发框选，而是正常走过去干活
   const one = api.getTile(B.x + 2, B.y + 3);
   one.state = 'wild'; one.terrain = 'grass'; one.crop = null; one.stone = false;
@@ -1285,7 +1333,27 @@ const frames = n => new Promise(res => {
       '工具栏按钮有 46px 最小点按高度');
     ok(css.includes('.hud{top:') && css.includes('left:var(--m-edge);right:var(--m-edge)'), '顶栏在窄屏下铺满宽度');
     ok(css.includes('max(34px'), '顶栏图标按钮有最小尺寸兜底（--ui-scale 缩小时也够点）');
-    ok(css.replace(/\s+/g, '').includes('#lbBtn{display:none}'), '手机端隐藏顶栏 🏅（改由侧栏入口，避免顶栏挤变形）');
+    /* v9.19 手机顶栏：三列两行；🏅 露出来，🏆 收进「⋯」 */
+    ok(css.includes('#achBtn{display:none}'), '手机端把 🏆 收进「⋯」弹层（顶栏第一排 = 🏅 📢 ⋯）');
+    ok(!css.includes('#lbBtn{display:none}'), '手机顶栏露出 🏅 排行榜入口');
+    /* 抽屉把手与抽屉的 top 都依赖 --m-hud-top：这个变量以前没定义，整条 calc() 作废 →
+       表现为「菜单被挡住 / 点不开」。这里钉住它必须存在且被引用。 */
+    ok(css.includes('--m-hud-top:calc('), '定义了 --m-hud-top（抽屉位置链的根）');
+    ok(css.includes('top:var(--m-hud-top)'), '手机顶栏用 --m-hud-top 定位');
+    ok(css.includes('.side-toggle{display:flex') && css.includes('position:static'),
+      '菜单把手改回顶栏网格里的普通按钮（position:static，不会被顶栏压住）');
+    ok(/\.hud\{[^}]*grid-template-columns:minmax\(0,1fr\)minmax\(0,1fr\)auto/.test(css),
+      '手机顶栏是三列两行网格（金币+挂机 / 肥料 / 图标；田块尺寸 / 高级肥料 / 时间+菜单）');
+    ok(css.includes('.hud-money{grid-area:1/1/2/2}') && css.includes('.hud-right2{grid-area:2/3/3/4'),
+      '顶栏各项用 grid-area 明确排位（金币左上 / 时间+菜单右下）');
+    /* 所有 var(--x) 都必须有定义：--m-hud-top 这种漏定义在无头环境里完全看不出来 */
+    {
+      const defs = new Set([...css.matchAll(/(--[a-z0-9-]+):/g)].map(m => m[1]));
+      const inline = new Set(['--ui-scale', '--k-ico', '--p']);  /* JS 运行时写进 style 的 */
+      const missing = [...new Set([...css.matchAll(/var\((--[a-z0-9-]+)/g)].map(m => m[1]))]
+        .filter(n => !defs.has(n) && !inline.has(n));
+      eq(missing.length, 0, 'CSS 里没有引用未定义的自定义属性', missing.join(','));
+    }
     /* 锅里食材再多也只能在那一块里滚，不许把整页/弹层撑出滚动条 */
     ok(/\.k-pot-slot\{[^}]*max-height:/.test(css) && /\.k-pot-slot\{[^}]*overflow-y:auto/.test(css),
       '锅里的食材列表有高度上限并自己滚动（不再撑高整页）');
@@ -1438,6 +1506,45 @@ const frames = n => new Promise(res => {
   api.kitchenTick(api.OVEN_MS + 100);
   api.cook.ovenTake(false);
   eq(st().stats.total.roast, 1, '烤菜记入 roast');
+
+  section('肥料 v9.19：收完不返草地（普通 2 次 / 高级 5 次）+ 颜色更深');
+  {
+    const t = api.getTile(st().farm.x0 + 1, st().farm.y0 + 1);
+    /* 普通肥料：2 次 */
+    t.state = 'growing'; t.crop = 'carrot'; t.growth = 0; t.fertile = false; t.fertLeft = 0;
+    t.terrain = 'tilled';
+    st().fertilizer = 5;
+    const r = api.fertilizeTile(t, false);
+    ok(r.ok, '施肥成功', r.msg);
+    eq(t.fertLeft, api.FERT_KEEP, '普通肥料 = 还能收 2 次不返草地');
+    const ready = () => { t.growth = api.cropReadyMs(api.CROPS.carrot); t.state = 'ready'; };
+    ready();
+    const h1 = api.harvestTile(t);
+    ok(h1.kept === true && t.state === 'tilled', '第 1 次收获：还是耕地（可以直接补种）', t.state);
+    eq(t.fertLeft, 1, '还剩 1 次');
+    eq(t.crop, null, '地上没作物了');
+    api.plantSeed(t, 'carrot');
+    eq(t.state, 'growing', '耕地可以直接补种（不用重新开垦）');
+    ready();
+    api.harvestTile(t);
+    eq(t.state, 'tilled', '第 2 次收获：仍是耕地');
+    eq(t.fertLeft, 0, '兜底次数用完');
+    api.plantSeed(t, 'carrot');
+    ready();
+    api.harvestTile(t);
+    eq(t.state, 'wild', '第 3 次收获：恢复原样，变回草地');
+    /* 高级肥料：催熟 + 5 次 */
+    const t2 = api.getTile(st().farm.x0 + 2, st().farm.y0 + 1);
+    t2.state = 'growing'; t2.crop = 'carrot'; t2.growth = 0; t2.fertLeft = 0; t2.terrain = 'tilled';
+    st().premium = 3;
+    const r2 = api.fertilizeTile(t2, true);
+    ok(r2.ok && r2.ripened === true, '高级肥料立刻催熟', r2.msg);
+    eq(t2.state, 'ready', '催熟后直接可收');
+    eq(t2.fertLeft, api.PREMIUM_KEEP, '高级肥料 = 5 次不返草地');
+    ok(api.FERT_KEEP === 2 && api.PREMIUM_KEEP === 5, '常量：普通 2 / 高级 5');
+    /* 颜色更深：施肥后的地色换成深一档的土色（原来是浅褐 #a38055） */
+    ok(html.includes('#6b5030') && !html.includes("top:'#a38055'"), '施肥后的地色更深（一眼能看出哪块地被伺候过）');
+  }
 
   section('进度条：填充条不能被刻度顶掉（曾显示歪掉）');
   {
@@ -1867,26 +1974,32 @@ const frames = n => new Promise(res => {
     eq(st().ovenSlots, api.OVEN_SLOT_MAX, '能升到最高槽位');
     ok(!api.ovenUpgrade().ok, '满级之后不能再升');
 
-    /* ③ 多槽位：一次装 3 份、一起烤、一起出，品质一致 */
+    /* ③ 每轮出炉份数（升级项）：输入不限量、本轮 3 份一起出、品质一致 */
     st().ovenSlots = 3;
     st().prep.flour = 5;
     K.oven.items = []; K.oven.item = null; K.oven.busy = false; K.oven.ready = false; K.oven.t = 0;
     K.oven.auto = false; K.oven.autoLoop = false;
     ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放第 1 份');
+    api.kitchenTick(1000);
+    const tAfter1 = K.oven.t;
     ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放第 2 份');
     ok(api.cook.ovenPut({ prep: 'flour' }).ok, '放第 3 份');
-    eq(K.oven.items.length, 3, '炉里有 3 份（一次能烤多个）');
-    const rFull = api.cook.ovenPut({ prep: 'flour' });
-    ok(!rFull.ok && /满了/.test(rFull.msg), '第 4 份被拒绝（槽位满了）', rFull.msg);
-    eq(K.oven.t, 0, '每加一份都会重新计时（方便一次装几份）');
+    eq(K.oven.items.length, 3, '炉里有 3 份');
+    eq(K.oven.t, tAfter1, '加料**不会**重置已在走的进度（多份一起烤时不再闪来闪去）');
+    ok(api.cook.ovenPut({ prep: 'flour' }).ok, '还能继续放（输入槽不限量）');
+    eq(K.oven.items.length, 4, '第 4 份排队等着');
+    eq(api.ovenRoundSize(), 3, '本轮只加工 3 份（= 已升级的每轮份数）');
     const dishes0 = api.dishTotal();
     api.kitchenTick(api.OVEN_MS + 100);
     const take3 = api.cook.ovenTake(false);
     ok(take3.ok, '出炉成功', take3.msg);
-    eq(take3.n, 3, '一次出了 3 份');
+    eq(take3.n, 3, '一轮出了 3 份');
     eq(take3.quality, 'perfect', '手动卡在精品段 → 精品');
     eq(api.dishTotal() - dishes0, 3, '菜品仓库多了 3 份');
-    eq(K.oven.items.length, 0, '出炉后炉子空了');
+    eq(K.oven.items.length, 1, '排队的那 1 份还在炉里');
+    ok(K.oven.busy && K.oven.t < 200, '剩下那份立刻开始下一轮（进度条从头开始走）');
+    api.cook.ovenTake(false);                       /* 清干净，别影响后面的用例 */
+    K.oven.items = []; K.oven.busy = false; K.oven.ready = false; K.oven.t = 0;
 
     /* ④ 自动出炉开着时，手动出炉照样按火候判定（精品段就是精品） */
     st().ovenSlots = 2; st().prep.flour = 4;
@@ -1968,12 +2081,18 @@ const frames = n => new Promise(res => {
     eq(st().coins, 6000 - 600, '扣了第 1 台的 600 金');
     eq(st().autoCount.donkey, 1, '第一台已就位');
     ok(api.autoActive('donkey'), '驴正在干活');
-    /* 一台驴：一轮产 1 份 */
+    /* 每台机器有自己的进料槽（不共用）：买来时自动从仓库装满 */
+    eq(api.autoSlotOf('donkey').length, api.AUTO_SLOT_MAX, '驴自带的料斗装满（独立进料槽）');
+    eq(st().bag.wheat, 1, '料斗里的 5 份从仓库扣掉了（还在，只是换了个地方放）');
+    eq(api.autoSlotOf('donkey').filter(c => c === 'wheat').length, api.AUTO_SLOT_MAX, '料斗里全是小麦');
+    /* 一台驴：一轮产 1 份，吃自己料斗里的 */
     st().autoAcc.donkey = 0;
     const flour0 = st().prep.flour || 0;
+    const slot0 = api.autoSlotOf('donkey').length;
     api.kitchenTick(api.AUTO_DEVICES.donkey.per);
     eq((st().prep.flour || 0) - flour0, 1, '一台驴一轮磨 1 份面粉');
-    eq(st().bag.wheat, 5, '消耗 1 份小麦');
+    eq(api.autoSlotOf('donkey').length, api.AUTO_SLOT_MAX, '吃的是自己料斗里的料，吃完立刻从仓库补满');
+    eq(st().bag.wheat, 0, '仓库那 1 份被补进料斗了');
     /* 多台驴：一轮产多份（叠加） */
     st().coins = 99999;
     const price2 = api.autoPrice('donkey');
@@ -1984,6 +2103,12 @@ const frames = n => new Promise(res => {
     const flour2 = st().prep.flour || 0;
     api.kitchenTick(api.AUTO_DEVICES.donkey.per);
     eq((st().prep.flour || 0) - flour2, 2, '两台驴一轮磨 2 份面粉');
+    /* 料斗空了、仓库也没料 → 缺原料，不产出 */
+    api.autoSlotOf('donkey').length = 0; st().bag.wheat = 0;
+    st().autoAcc.donkey = 0;
+    const flourLack = st().prep.flour || 0;
+    api.kitchenTick(api.AUTO_DEVICES.donkey.per);
+    eq(st().prep.flour || 0, flourLack, '料斗与仓库都空 → 不产出（只空转）');
     /* 到期就停 */
     st().autoUntil.donkey = Date.now() - 1000;
     const flour1 = st().prep.flour || 0;
@@ -1993,14 +2118,18 @@ const frames = n => new Promise(res => {
     ok(!api.autoActive('donkey'), '到期状态正确');
     ok(api.KITCHEN.mill.busy === false && api.KITCHEN.mill.t === 0, '驴到期后石磨不再显示成「还在磨」（进度条归零）');
 
-    /* ④ 切块机：优先切库存最多的作物 */
+    /* ④ 切块机：有自己的料斗，优先装库存最多的作物 */
     st().bag.carrot = 5; st().bag.potato = 2; st().coins = 6000;
+    api.autoSlotOf('chopper').length = 0;
     ok(api.autoBuy('chopper').ok, '能买到自动切块机');
+    eq(api.autoSlotOf('chopper').length, api.AUTO_SLOT_MAX, '切块机的料斗也装满了');
+    ok(api.autoSlotOf('chopper').every(c => c === 'carrot'), '装的是库存最多的胡萝卜（不与驴共用进料）');
+    eq(st().bag.carrot, 0, '料斗里的 5 份胡萝卜从仓库扣掉');
+    eq(st().bag.potato, 2, '土豆没动（优先装最多的）');
     const car0 = st().pieces.carrot || 0, pot0 = st().pieces.potato || 0;
     api.kitchenTick(api.AUTO_DEVICES.chopper.per);
-    eq((st().pieces.carrot || 0) - car0, 3, '切的是库存最多的胡萝卜（+3 块）');
-    eq(st().bag.carrot, 4, '胡萝卜 -1');
-    eq((st().pieces.potato || 0) - pot0, 0, '土豆没动（优先切最多的）');
+    eq((st().pieces.carrot || 0) - car0, 3, '切的是料斗里的胡萝卜（+3 块）');
+    eq((st().pieces.potato || 0) - pot0, 0, '土豆没动');
 
     /* ⑤ 金币不够买不了 */
     st().coins = 0;
@@ -2010,6 +2139,8 @@ const frames = n => new Promise(res => {
     st().autoUntil.chopper = Date.now() + 60000;
     const st2 = api.unpackState(JSON.parse(JSON.stringify(api.serialize(st()))));
     ok((st2.autoUntil.chopper || 0) > Date.now(), '设备的到期时间写进了存档');
+    ok((st2.autoSlot.donkey || []).length + (st2.autoSlot.chopper || []).length >= 0 && !!st2.autoSlot,
+      '机器的独立料斗也写进了存档（不然刷新就丢料）', JSON.stringify(st2.autoSlot));
 
     /* ⑦ 自动化产出时会有音效（开着厨房面板才出声） */
     {
@@ -2018,6 +2149,7 @@ const frames = n => new Promise(res => {
       api.SFX.play = function(t){ played.push(t); };
       st().bag.wheat = 5; st().autoCount.donkey = 1; st().autoAcc.donkey = 0;
       st().autoUntil.donkey = Date.now() + 60000;
+      api.autoSlotOf('donkey').length = 0; api.autoSlotRefill('donkey');   /* 先把料斗装满 */
       api.openSheet('kitchen');
       api.kitchenTick(api.AUTO_DEVICES.donkey.per);
       ok(played.indexOf('mill') >= 0, '开着厨房时，驴磨面能听到音效', played.join(',') || '(没出声)');

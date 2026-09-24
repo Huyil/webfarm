@@ -191,6 +191,7 @@
 .k-pot-slot::-webkit-scrollbar{width:calc(6px*var(--ui-scale))}
 .k-pot-slot::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:999px}
 .k-pot-slot::-webkit-scrollbar-track{background:transparent}
+.k-chip-round{border:1px solid rgba(127,224,138,.55);background:rgba(127,224,138,.1)}
 .k-chip{
   --k-ico:calc(22px*var(--ui-scale));
   display:grid;place-items:center;width:calc(26px*var(--ui-scale));height:calc(26px*var(--ui-scale));
@@ -394,24 +395,43 @@
 .k-dev{background:linear-gradient(180deg,rgba(40,48,42,.72),rgba(24,30,26,.82));border-style:dashed;cursor:default}
 
 /* 绕边框转圈的四段进度 */
-.k-ring{position:absolute;inset:0;pointer-events:none;border-radius:inherit}
-.k-ring i{position:absolute;background:#3a4a3c;border-radius:2px;transform:scale(0);transition:transform .1s linear}
+.k-ring{
+  position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  --ring-c:#3a4a3c;
+}
+.k-ring[data-tone="run"]{--ring-c:#7fe08a}
+.k-ring[data-tone="ready"]{--ring-c:#7fd0ff}
+.k-ring[data-tone="perfect"]{--ring-c:#ffd76e}
+.k-ring[data-tone="burnt"]{--ring-c:#c0563a}
+.k-ring[data-tone="normal"]{--ring-c:#9ff0a0}
+.k-ring[data-tone="off"],.k-ring[data-tone="idle"]{--ring-c:#3a4a3c}
+/* 兜底：把边框拆成四段（上→右→下→左）依次点亮 */
+.k-ring i{position:absolute;background:var(--ring-c);border-radius:2px;transform:scale(0);transition:transform .1s linear}
 .k-ring i:nth-child(1){top:0;left:0;right:0;height:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:left center}
 .k-ring i:nth-child(2){top:0;right:0;bottom:0;width:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:top center}
 .k-ring i:nth-child(3){bottom:0;left:0;right:0;height:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:right center}
 .k-ring i:nth-child(4){top:0;left:0;bottom:0;width:max(2px,calc(2.5px*var(--ui-scale)));transform-origin:bottom center}
-.k-ring[data-tone="run"] i{background:linear-gradient(90deg,#5cbf3a,#9fe07a)}
-.k-ring[data-tone="ready"] i{background:#7fd0ff}
-.k-ring[data-tone="perfect"] i{background:#ffd76e;box-shadow:0 0 calc(6px*var(--ui-scale)) rgba(255,215,110,.85)}
-.k-ring[data-tone="burnt"] i{background:#c0563a}
-.k-ring[data-tone="normal"] i{background:linear-gradient(90deg,#7fd67f,#c8f7c5)}
-.k-ring[data-tone="off"] i,.k-ring[data-tone="idle"] i{background:#3a4a3c}
+.k-ring[data-tone="perfect"] i{box-shadow:0 0 calc(6px*var(--ui-scale)) rgba(255,215,110,.85)}
+/* 首选：conic-gradient 描边 —— 进度真的沿着机器的圆角边框走（配 --p: 0~1） */
+@supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)){
+  .k-ring{
+    padding:max(2px,calc(2.5px*var(--ui-scale)));
+    background:conic-gradient(from 0deg, var(--ring-c) calc(var(--p,0) * 360deg), rgba(0,0,0,0) 0);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite:exclude;
+  }
+  .k-ring i{display:none}
+  .k-ring[data-tone="perfect"]{filter:drop-shadow(0 0 calc(4px*var(--ui-scale)) rgba(255,215,110,.8))}
+}
 
 /* 展开区（就是旧的详细界面） */
 .k-expand{display:none;margin:calc(8px*var(--ui-scale)) 0 0}
 .k-expand.open{display:block}
 .k-expand .k-stations{margin-bottom:calc(8px*var(--ui-scale))}
-.k-mill-slots{align-content:center}
+.k-mill-slots{align-content:center;gap:calc(4px*var(--ui-scale))}
+.k-flow-n{font-size:calc(11px*var(--ui-scale));font-weight:700;color:#ffd76e;font-variant-numeric:tabular-nums}
 .k-pot-slot-x{max-height:calc(78px*var(--ui-scale))}   /* 展开后的锅：三行高度 */
 
 /* 空输入位：半透明小方块（没有物品时不该像个实心输入框） */
@@ -433,3 +453,19 @@
   .k-cells{grid-template-columns:repeat(2,minmax(0,1fr))}
   .k-pane .k-cards{grid-template-columns:repeat(auto-fill,minmax(calc(54px*var(--ui-scale)),1fr))}
 }
+
+
+/* ---------- v9.19：机器自带料斗 + 石磨小转盘 ---------- */
+.k-slot-line{display:flex;align-items:center;flex-wrap:wrap;gap:calc(3px*var(--ui-scale));min-height:calc(22px*var(--ui-scale))}
+.k-slot-line .k-chip{--k-ico:calc(18px*var(--ui-scale));width:calc(21px*var(--ui-scale));height:calc(21px*var(--ui-scale))}
+.k-auto-slot{display:flex;align-items:center;flex-wrap:wrap;gap:calc(3px*var(--ui-scale));max-width:min(46%,calc(180px*var(--ui-scale)))}
+/* 石磨缩略卡里的小转盘：驴在磨面时转起来 */
+.k-mill-mini{
+  flex:none;margin-left:auto;width:calc(15px*var(--ui-scale));height:calc(15px*var(--ui-scale));border-radius:50%;
+  background:
+    radial-gradient(circle at 50% 50%,#6f6a60 0 22%,transparent 23%),
+    repeating-conic-gradient(from 0deg,#b9b2a4 0deg 18deg,#8e877a 18deg 36deg);
+  border:1px solid #6a6156;
+  transition:transform .08s linear;
+}
+.k-mill-mini.spin{box-shadow:0 0 calc(7px*var(--ui-scale)) rgba(255,215,110,.4)}

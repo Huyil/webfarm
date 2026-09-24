@@ -31,6 +31,15 @@ function renderSlots(){
   head.textContent = '3 个槽位各自独立：金币、作物、成就、任务、装饰仓库、挂机进度都会分别保存。';
   el.appendChild(head);
 
+  const mig = document.createElement('div');
+  mig.className = 'slot-btns';
+  mig.style.marginBottom = '10px';
+  const mb = document.createElement('button');
+  mb.className = 'mini primary'; mb.textContent = '📦 存档迁移（导出 / 导入）';
+  mb.onclick = () => { SFX.play('click'); openTransfer(); };
+  mig.appendChild(mb);
+  el.appendChild(mig);
+
   for(let n = 1; n <= SLOT_COUNT; n++){
     const m = slotMeta(n);
     const card = document.createElement('div');
@@ -75,6 +84,12 @@ function renderSlots(){
         });
         btns.appendChild(db);
       }
+    }
+    if(m.exists){
+      const eb = document.createElement('button');
+      eb.className = 'mini'; eb.textContent = '导出';
+      eb.onclick = () => { SFX.play('click'); openTransferAt(n); };
+      btns.appendChild(eb);
     }
     card.appendChild(btns);
     el.appendChild(card);

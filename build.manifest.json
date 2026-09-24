@@ -1,5 +1,5 @@
 {
-  "version": "9.20.0",
+  "version": "9.21.0",
   "css": [
     "base.css",
     "hud.css",
@@ -61,6 +61,8 @@
     "73-panels.js",
     "74-bindings.js",
     "78-leaderboard-ui.js",
+    "79-transfer.js",
+    "80-transfer-ui.js",
     "99-init.js"
   ]
 }

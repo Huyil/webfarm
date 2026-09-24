@@ -204,7 +204,16 @@ function loadFromSlot(n){
   const offlineMs = Math.max(0, Date.now() - (d.savedAt || Date.now()));
   return { state: st, offlineMs, savedAt: d.savedAt || 0 };
 }
-function save(){ saveToSlot(currentSlot() || 1, state); }
+let saveWarned = false;
+function save(){
+  const ok = saveToSlot(currentSlot() || 1, state);
+  /* 以前写失败是静默的（配额满 / 无痕模式）—— 存档悄悄丢最坑，这里至少说一次 */
+  if(!ok && !saveWarned){
+    saveWarned = true;
+    if(typeof toast === 'function') toast('⚠️ 这台设备没能写入存档（空间不够或无痕模式）');
+  }
+  return ok;
+}
 
 /* 旧版单槽存档（iso_farm_v8_0）自动搬进槽位 1 */
 function migrateLegacy(){

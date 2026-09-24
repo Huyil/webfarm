@@ -113,6 +113,7 @@ function init(){
   requestAnimationFrame(placeSidePanel);
   lastTick = performance.now(); saveTimer = lastTick;
   requestAnimationFrame(loop);
+  if(typeof tfBoot === 'function') tfBoot();       /* 申请持久化存储 + 认 #s= 迁移链接 */
 }
 
 /* ============ 调试/测试接口 ============ */
@@ -163,6 +164,8 @@ window.FarmDebug = {
     /* 视角 */
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
     isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX,
+    tfEncodeData, tfDecodeData, tfSanitize, tfReadText, tfWriteSlot, tfExportSlot, tfLinkFor, tfParamPayload, tfStorageRisk,
+    tfBoot, openTransfer, renderTransfer, TF_ITER, TF_TAG, TF_MAX_TILES,
     atmSunTrack, atmMoonTrack, atmOrbit, ATM_CLOUDS, ATM_ORBIT,
     /* 交互 */
     applyToolToRect, runTool, boxTool, setHover, gridToScreen, screenToGrid, hash2,

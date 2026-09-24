@@ -71,6 +71,17 @@ const dom = new JSDOM(html, {
     window.HTMLCanvasElement.prototype.toDataURL = function () { return 'data:,'; };
     window.Element.prototype.animate = function () { return { cancel() {}, finished: Promise.resolve(), onfinish: null }; };
     if (!window.performance) window.performance = { now: () => Date.now(), timeOrigin: Date.now() };
+    /* 迁移功能用 WebCrypto + CompressionStream 加密压缩；jsdom 里没有，注入 Node 的实现（真跑一遍，别用桩） */
+    try {
+      const wc = require('crypto').webcrypto;
+      Object.defineProperty(window, 'crypto', { value: wc, configurable: true, writable: true });
+    } catch (e) {}
+    try {
+      if (typeof CompressionStream === 'function') window.CompressionStream = CompressionStream;
+      if (typeof DecompressionStream === 'function') window.DecompressionStream = DecompressionStream;
+      if (typeof TextEncoder === 'function') window.TextEncoder = TextEncoder;
+      if (typeof TextDecoder === 'function') window.TextDecoder = TextDecoder;
+    } catch (e) {}
   },
 });
 
@@ -1626,6 +1637,147 @@ const frames = n => new Promise(res => {
     st().player.gx -= 1; st().player.gy -= 1;
     st().zoomMode = 'auto';
     api.applyPayload(bk);
+  }
+
+  section('v9.21：存档迁移（离线三载体 · 真加密 · 导入体检 · 选槽位）');
+  {
+    const st0 = JSON.parse(JSON.stringify(api.serialize(st())));
+    const cur0 = api.currentSlot();
+    const raw0 = [1, 2, 3].map(n => api.readSlot(n));
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const body = () => W.document.getElementById('transferBody');
+
+    ok(api.tfEncodeData && api.tfDecodeData && api.tfSanitize, '暴露了迁移编解码接口');
+    ok(api.tfLinkFor('FT1:abc').indexOf('#s=FT1') > 0, '自包含链接用 #s= 片段（fragment 不会发给服务器）');
+    ok(api.tfHasCrypto ? true : typeof W.crypto.subtle === 'object', '测试环境注入了 WebCrypto（真跑加解密）');
+
+    /* ① 真往返：gzip + PBKDF2 + AES-GCM */
+    st().coins = 4321; st().bag.carrot = 7;
+    const src = api.serialize(st());
+    const enc = await api.tfEncodeData(src, '1234');
+    ok(enc.ok && enc.text.indexOf('FT1:') === 0, '导出得到 FT1: 开头的存档串', enc.ok ? enc.text.length + ' 字符' : enc.msg);
+    const dec = await api.tfDecodeData(enc.text, '1234');
+    ok(dec.ok, '正确密码能解开', dec.msg);
+    eq(dec.data.coins, 4321, '解出来的金币一致');
+    eq(dec.data.bag.carrot, 7, '解出来的仓库一致');
+    ok(enc.text.indexOf('4321') < 0, '密文里看不到明文数字');
+    const wrong = await api.tfDecodeData(enc.text, '9999');
+    ok(!wrong.ok && /密码/.test(wrong.msg), '密码错了明确拒绝', wrong.msg);
+    ok(!(await api.tfDecodeData('FT1:zzzz', '1234')).ok, '乱码存档串被拒绝');
+    ok(!(await api.tfDecodeData('hello', '1234')).ok, '不是本游戏的串被拒绝');
+    ok(!(await api.tfEncodeData(src, '12')).ok, '密码不是 4 位数字时拒绝导出');
+
+    /* ② 导入体检：把外来档当不可信输入 */
+    ok(!api.tfSanitize(Object.assign({}, src, { tiles: new Array(api.TF_MAX_TILES + 1).fill(src.tiles[0]) })).ok,
+      '地块数超上限 → 拒绝导入');
+    ok(!api.tfSanitize({ v: 999, tiles: [] }).ok, '版本比游戏新 → 拒绝');
+    const dirty = api.tfSanitize(Object.assign({}, src, {
+      coins: 1e18, platform: 'x',
+      bag: { carrot: 5, hack_crop: 999 },
+      tiles: [{ gx: 0, gy: 0, terrain: 'lava', state: 'growing', crop: 'nope' },
+              { gx: 'x', gy: 3 }, { gx: 1, gy: 1, terrain: 'tilled', state: 'tilled' }],
+    }));
+    ok(dirty.ok, '脏数据被清洗而不是崩', dirty.msg);
+    eq(dirty.data.coins, 1e12, '金币被夹到上限');
+    ok(dirty.data.bag.hack_crop === undefined, '未知作物被丢掉');
+    eq(dirty.data.tiles.length, 2, '非法坐标的地块被剔除');
+    eq(dirty.data.tiles[0].crop, null, '未知作物 id 清成 null');
+    eq(dirty.data.tiles[0].state, 'tilled', '没作物的 growing 改成 tilled');
+
+    /* ③ 链接载体：导出 → 链接 → 从链接取回 */
+    const link = api.tfLinkFor(enc.text);
+    W.location.hash = '#' + link.slice(link.indexOf('#') + 1);
+    eq(api.tfParamPayload(), enc.text, '从 #s= 链接里能取回存档串');
+    api.closeSheet();
+    api.tfBoot();
+    ok(W.document.getElementById('transferModal').classList.contains('show'), '打开带 #s= 的链接 → 自动弹出迁移面板');
+    api.closeSheet();
+    W.location.hash = '';
+
+    /* ④ 写盘：指定槽位 + 覆盖前备份 + savedAt 归零 */
+    const target = 2;
+    api.setCurrentSlot(1); st().coins = 111; api.save();
+    const before2 = api.readSlot(target);
+    const w1 = api.tfWriteSlot(target, dec.data);
+    ok(w1.ok && w1.slot === target, '写到指定槽位', w1.msg);
+    eq(w1.backedUp, !!before2, '覆盖已有槽位时留了 .bak 备份');
+    const after2 = api.readSlot(target);
+    eq(after2.coins, 4321, '槽位 2 变成了导入的存档');
+    ok(Date.now() - (after2.savedAt || 0) < 8000, 'savedAt 归到现在（不会弹「离开 30 天」）');
+
+    /* ⑤ UI 端到端：填密码 → 生成 → 粘贴 → 解析 → 预览 → 确认导入 */
+    api.openSheet('slots');
+    const migBtn = [...W.document.querySelectorAll('#slotsBody button')].find(b => /存档迁移/.test(b.textContent));
+    ok(!!migBtn, '存档槽位面板里有「📦 存档迁移」入口');
+    ok([...W.document.querySelectorAll('#slotsBody button')].some(b => b.textContent === '导出'),
+      '每个有内容的槽位都有「导出」按钮');
+    api.closeSheet();
+    api.openTransfer();
+    ok(W.document.getElementById('transferModal').classList.contains('show'), '迁移面板能打开');
+    ok(!!body().querySelector('[data-act="gen"]'), '导出区有「生成」按钮');
+    body().querySelector('[data-pin="1"]').value = '2468';
+    body().querySelector('[data-pin="2"]').value = '2468';
+    click(body().querySelector('[data-act="gen"]'));
+    await sleep(2000);
+    const outEl = body().querySelector('[data-out]');
+    ok(!!outEl && String(outEl.value).indexOf('FT1:') === 0, 'UI 里生成出了存档串',
+      outEl ? String(outEl.value).length + ' 字符' : '(没有)');
+    const uiText = outEl ? outEl.value : '';
+    /* 密码两次不一致要拦下来 */
+    api.openTransfer();
+    body().querySelector('[data-pin="1"]').value = '1111';
+    body().querySelector('[data-pin="2"]').value = '2222';
+    click(body().querySelector('[data-act="gen"]'));
+    await sleep(200);
+    ok(!!body().querySelector('.tf-err'), '两次密码不一致会报错，不会生成废档');
+    /* 导入：确认之前绝对不写盘 */
+    const rawBefore = [1, 2, 3].map(n => JSON.stringify(api.readSlot(n)));
+    api.openTransfer(uiText);
+    body().querySelector('[data-in]').value = uiText;
+    body().querySelector('[data-pin="3"]').value = '2468';
+    click(body().querySelector('[data-act="parse"]'));
+    await sleep(2000);
+    ok(!!body().querySelector('[data-act="doimport"]'), '解析后进入预览（有确认按钮）');
+    eq(body().querySelectorAll('.tf-slot').length, 3, '预览里能选 3 个存档位');
+    ok(!!body().querySelector('.tf-prev'), '预览显示存档摘要');
+    eq([1, 2, 3].map(n => JSON.stringify(api.readSlot(n))).join('|'), rawBefore.join('|'),
+      '只预览、没确认时一个槽位都没动');
+    /* 选一个槽位并确认 */
+    const radios = body().querySelectorAll('input[name="tfSlot"]');
+    let pick = 0;
+    for (const r of radios) { if (r.dataset.slot === '3') { r.checked = true; pick = 3; } }
+    click(body().querySelector('[data-act="doimport"]'));
+    await sleep(600);
+    eq(pick, 3, '挑了槽位 3');
+    ok(!!api.readSlot(3), '确认后槽位 3 写进去了');
+    eq(api.currentSlot(), 3, '导入完自动切到那个槽位');
+    ok(!W.document.getElementById('transferModal').classList.contains('show'), '导入完面板关掉');
+
+    /* 校验用的槽位 -> 换成"密码错就不给预览" */
+    api.openTransfer(uiText);
+    body().querySelector('[data-in]').value = uiText;
+    body().querySelector('[data-pin="3"]').value = '0000';
+    click(body().querySelector('[data-act="parse"]'));
+    await sleep(2000);
+    ok(!!body().querySelector('.tf-err') && !body().querySelector('[data-act="doimport"]'),
+      '密码错了只报错，不进预览、不写盘');
+    api.closeSheet();
+
+    /* ⑥ 写盘失败不再静默 */
+    {
+      const realLS = W.localStorage;
+      Object.defineProperty(W, 'localStorage', { configurable: true, writable: true,
+        value: { getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} } });
+      eq(api.save(), false, '本地存储写不进去时 save() 返回 false（界面会提示一次）');
+      Object.defineProperty(W, 'localStorage', { configurable: true, writable: true, value: realLS });
+    }
+
+    /* 收尾：槽位与内存状态还原 */
+    for (let n = 1; n <= 3; n++) {
+      if (raw0[n - 1]) api.tfWriteSlot(n, raw0[n - 1]); else api.deleteSlot(n);
+    }
+    api.setCurrentSlot(cur0);
+    api.applyPayload(st0);
   }
 
   section('v9.20：抽屉不自动收 · 弹层右上角 ✕ · 厨房选中提示挪位');

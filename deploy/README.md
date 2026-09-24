@@ -207,7 +207,7 @@ curl -s "https://mcu.huyil.cn/farm/api/leaderboard" | head -c 200
 GitHub 的 SSH 认证**已经可用**（用 `id_rsa`，账号 **`Huyil`**；`id_ed25519` 没注册过）。
 但 SSH 只能推代码、**不能建仓库**，所以先要有那个仓库（二选一）：
 
-**A. 你建一个空仓库（30 秒）**：GitHub → New repository → 名字 `web-farm` → **不要**勾 Add README / .gitignore / license → 建完回一句，我跑：
+**A. 你建一个空仓库（30 秒）**：GitHub → New repository → 名字 `webfarm` → **不要**勾 Add README / .gitignore / license → 建完回一句，我跑：
 
 ```bash
 ./deploy/push-github.sh            # 认证 → 建/校正 remote → 推送 → 校验

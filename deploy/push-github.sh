@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把当前仓库推送到 GitHub（默认 HOST_REPO=Huyil/web-farm）
+# 把当前仓库推送到 GitHub（默认 GH_REPO=Huyil/webfarm）
 #
 #   ./deploy/push-github.sh              # 普通推送（远端必须是空仓库，或已包含我们的提交）
 #   ./deploy/push-github.sh --force      # 远端有 README 等无关提交时：强制以本地为准覆盖
@@ -9,7 +9,7 @@
 # 脚本会把它拷到 /tmp 并 chmod 600（/mnt/c 权限是 0777，OpenSSH 会拒绝直接用），用完删掉。
 set -euo pipefail
 
-GH_REPO="${GH_REPO:-Huyil/web-farm}"
+GH_REPO="${GH_REPO:-Huyil/webfarm}"
 KEY_SRC="${KEY_SRC:-/mnt/c/Users/huyil/.ssh/id_rsa}"
 KEY_TMP="$(mktemp -t ghkey.XXXXXX)"
 FORCE=0

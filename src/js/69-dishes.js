@@ -156,8 +156,8 @@ const AUTO_SLOT_MAX = 5;                              /* 每台机器**自己的
 const AUTO_DEVICES = {
   donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, rate:1.6, durMs:5*60*1000, per:MILL_MS,
              desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份小麦，空了自动从仓库补）：进度条走完一次，每头驴产 1 份面粉' },
-  chopper: { id:'chopper', name:'自动切块机', icon:'🔪', price:900, rate:1.6, durMs:5*60*1000, per:1500,
-             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份，空了自动补）：进度条走完一次，每台切 1 份（优先切最多的作物）' },
+  chopper: { id:'chopper', name:'切块机', icon:'🔪', price:900, rate:1.6, durMs:5*60*1000, per:1500,
+             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份，空了自动补）：进度条走完一次，每台切 1 份' },
 };
 const AUTO_IDS = Object.keys(AUTO_DEVICES);
 const AUTO_MAX = 5;                                   /* 每种最多同时养几台 */
@@ -211,6 +211,27 @@ function autoPrice(id){
 function autoUntilOf(id){ return (state.autoUntil && state.autoUntil[id]) || 0; }
 function autoLeftMs(id){ return Math.max(0, autoUntilOf(id) - Date.now()); }
 function autoActive(id){ return autoLeftMs(id) > 0; }
+/* 机器的开 / 停：暂停时不产出、也不吃料，而且**租期冻结**（回来接着用，不白扣租金） */
+function autoPaused(id){ return ((state.autoPause && state.autoPause[id]) || 0) > 0; }
+function autoPause(id){
+  if(!state.autoPause) state.autoPause = { donkey:0, chopper:0 };
+  if(!autoActive(id)) return { ok:false, msg:AUTO_DEVICES[id].name + '还没买 / 已经到期' };
+  if(autoPaused(id)) return { ok:false, msg:AUTO_DEVICES[id].name + '已经在停了' };
+  state.autoPause[id] = Date.now();
+  save();
+  return { ok:true, msg:AUTO_DEVICES[id].name + '已停（租期冻结，回来接着用）' };
+}
+function autoResume(id){
+  if(!state.autoPause) state.autoPause = { donkey:0, chopper:0 };
+  const at = state.autoPause[id] || 0;
+  if(!at) return { ok:false, msg:AUTO_DEVICES[id].name + '本来就在跑' };
+  /* 暂停期间补回租期 —— 停着的时候不该烧租金 */
+  state.autoUntil[id] = autoUntilOf(id) + Math.max(0, Date.now() - at);
+  state.autoPause[id] = 0;
+  save();
+  return { ok:true, msg:AUTO_DEVICES[id].name + '继续工作（剩余 ' + Math.ceil(autoLeftMs(id) / 60000) + ' 分钟）' };
+}
+function autoSetOn(id, on){ return on ? autoResume(id) : autoPause(id); }
 function autoBuy(id){
   const dev = AUTO_DEVICES[id];
   if(!dev) return { ok:false, msg:'没有这个设备' };
@@ -222,6 +243,7 @@ function autoBuy(id){
   const base = Math.max(Date.now(), autoUntilOf(id));       /* 还在跑就顺延 */
   state.autoUntil[id] = base + dev.durMs;
   state.autoAcc[id] = state.autoAcc[id] || 0;
+  if(autoPaused(id)) autoResume(id);        /* 刚买了就顺手让它转起来 */
   autoSlotRefill(id);                       /* 新机器先把自带料斗装满 */
   SFX.play('buy');
   trackAction('coins', 0);
@@ -235,7 +257,7 @@ function autoTick(dt){
   const K = KITCHEN;
   const audible = (typeof kKitchenOpen === 'function') && kKitchenOpen();   /* 开着厨房面板才出声 */
   /* 石磨的进度条画的是「自动磨面」的进度（手动磨粉是瞬时的，不占进度条） */
-  if(autoActive('donkey')){
+  if(autoActive('donkey') && !autoPaused('donkey')){
     K.mill.busy = true; K.mill.dur = AUTO_DEVICES.donkey.per;
     K.mill.t = state.autoAcc.donkey || 0;
   } else {
@@ -243,7 +265,7 @@ function autoTick(dt){
     K.mill.t = 0;
   }
   for(const id of AUTO_IDS){
-    if(!autoActive(id)) continue;
+    if(!autoActive(id) || autoPaused(id)) continue;      /* 停着的机器不产出、也不吃料 */
     state.autoAcc[id] = (state.autoAcc[id] || 0) + dt;
     const dev = AUTO_DEVICES[id];
     if(state.autoAcc[id] < dev.per) continue;
@@ -260,7 +282,7 @@ function autoTick(dt){
         made++;
       }
       if(made) autoSlotRefill(id);             /* 空了自动从仓库补 */
-      if(made){ if(audible) SFX.play('mill'); save(); }
+      if(made){ if(audible && !awayCatchUp) SFX.play('mill'); if(!awayCatchUp) save(); }
     } else if(id === 'chopper'){
       let cut = 0;
       for(let i = 0; i < n; i++){
@@ -273,7 +295,7 @@ function autoTick(dt){
         cut++;
       }
       if(cut) autoSlotRefill(id);
-      if(cut){ if(audible) SFX.play('chop'); save(); }
+      if(cut){ if(audible && !awayCatchUp) SFX.play('chop'); if(!awayCatchUp) save(); }
     }
   }
 }

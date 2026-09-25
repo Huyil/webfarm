@@ -26,11 +26,17 @@ let kSel = null;                // 当前选中的货架 key（全屏唯一；nu
 let kTapGuard = 0;              // pointerup 已按「点击」处理过的时间戳（吞掉紧随其后的 click）
 let kFlyN = 0;                  // 进行中的飞行动效数量（连点保护）
 let kLastTakeAt = 0;            // 手动取出的时间戳（区分逻辑层的自动取出）
+let kRepTimer = 0;              // 长按持续添加：进入重复前的延时
+let kRepIv = 0;                 // 重复定时器
+let kRepStation = null;         // 正在长按的工位
+let kRepDid = false;            // 这一按已经触发过重复（抬手时别再补一次点击）
 let kPrev = { millBusy:false, boardBusy:false, boardSrc:null, ovenBusy:false,
               potLen:0, potPieces:[], dishes:0 };
 const K_ICON_CACHE = Object.create(null);
 const K_ICON_SIZES = { card:42, station:38, dish:30, ghost:46, pot:22 };
 const K_TAP_SLOP = 8;           // 位移 <8px 视为点击（容忍手指抖动）
+const K_REP_DELAY = 420;        // 按住多久开始"持续添加"
+const K_REP_EVERY = 170;        // 之后每隔多久再来一次
 const K_FLY_MAX = 8;            // 同时存在的飞行动效上限（连点不卡顿）
 
 /* ============================================================
@@ -148,6 +154,33 @@ function kBoardBusy(){ const b = KITCHEN.board; return !!(b && b.busy); }
 function kHasCrop(){
   for(let i = 0; i < CROP_IDS.length; i++) if((state.bag[CROP_IDS[i]] || 0) > 0) return true;
   return false;
+}
+
+/* ---------- 长按持续添加：按住工位不放，就按节奏一直投（材料没了自己停） ---------- */
+function kRepeatStop(){
+  if(kRepTimer){ clearTimeout(kRepTimer); kRepTimer = 0; }
+  if(kRepIv){ clearInterval(kRepIv); kRepIv = 0; }
+  kRepStation = null;
+}
+/* 按住某个工位 → 延迟 K_REP_DELAY 后开始按 K_REP_EVERY 一直投；只在"已选中食材"时启用 */
+function kRepeatArm(station){
+  kRepeatStop();
+  if(!station || !kSel || !kShelfItem(kSel)) return false;
+  kRepStation = station;
+  kRepTimer = setTimeout(() => {
+    kRepTimer = 0;
+    if(kRepeatOnce()) kRepIv = setInterval(kRepeatOnce, K_REP_EVERY);
+  }, K_REP_DELAY);
+  return true;
+}
+function kRepeatOnce(){
+  const st = kRepStation;
+  if(!st || !kSel) { kRepeatStop(); return false; }
+  if(!kShelfItem(kSel)) { kRepeatStop(); return false; }   // 货架用完了
+  const res = kDropItem(kSel, st);
+  kRepDid = true;                                          /* 抬手时别再补一次点击（kTapGuard 兜住） */
+  if(!res || !res.ok){ kRepeatStop(); return false; }      // 缺料/满了 → 停下
+  return true;
 }
 
 /* 拖拽/测试共用的投料入口：完全等价于「把货架上的 itemKey 拖到 station」 */
@@ -387,7 +420,9 @@ function kCellAutoHTML(id){
     kCellHeadHTML(dev.icon, dev.name, 'auto-' + id) +
     '<div class="k-cell-sub" data-sub="auto-' + id + '"></div>' +
     '<div class="k-slot-line" data-slot="' + id + '"></div>' +
-    '<div class="k-cell-btns"><button class="mini" data-act="buy-auto" data-dev="' + id + '" data-buy="' + id + '"></button></div>' +
+    '<div class="k-cell-btns"><button class="mini" data-act="buy-auto" data-dev="' + id + '" data-buy="' + id + '"></button>' +
+    '<label class="k-mini-sw" title="停：不产出也不吃料，租期冻结（回来接着用）">' +
+      '<input type="checkbox" data-dev-on="' + id + '"><span>开</span></label></div>' +
     kRingHTML('auto-' + id) + '</div>';
 }
 /* 锅 / 烤箱缩略卡：状态 + 一行缩略信息 + 环形进度 + 取出按钮 */
@@ -400,7 +435,8 @@ function kCellCookHTML(station){
     kCellHeadHTML(oven ? '🔥' : '🍲', oven ? '烤箱' : '锅', station) +
     '<div class="k-cell-sub" data-sub="' + station + '"></div>' +
     '<div class="k-cell-btns"><button class="mini primary" data-act="take" data-station="' + station + '">' + (oven ? '出炉' : '出锅') + '</button>' +
-    '<span class="k-auto-tag" data-autotag="' + station + '">🍳 自动烹饪</span></div>' +
+    '<label class="k-mini-sw" title="自动烹饪：精品窗口一过就取 + 同配方一直做，原料不足自动停">' +
+      '<input type="checkbox" data-auto="' + station + '"' + (KITCHEN[station].auto ? ' checked' : '') + '><span>自动</span></label></div>' +
     kRingHTML(station) + '</div>';
 }
 /* 一行工位：左侧小展开按钮 + 若干缩略卡；展开的大界面放在下方 */
@@ -719,6 +755,7 @@ function kUpdateLive(){
   const all = sel => (kUI.el && kUI.el.querySelectorAll) ? kUI.el.querySelectorAll(sel) : [];
   const setAll = (sel, tone, text) => { const l = all(sel); for(let i = 0; i < l.length; i++) kSetState(l[i], tone, text); };
   const sub = (name, text) => { const l = all('[data-sub="' + name + '"]'); for(let i = 0; i < l.length; i++) if(l[i].textContent !== text) l[i].textContent = text; };
+  const setChk = (sel, on) => { const l = all(sel); for(let i = 0; i < l.length; i++) if(!!l[i].checked !== !!on) l[i].checked = !!on; };
   const rings = (name, r, tone) => { const l = all('[data-ring="' + name + '"]'); for(let i = 0; i < l.length; i++) kSetRing(l[i], r, tone); };
   const buyBtns = (id, tight, wide) => {
     const l = all('[data-buy="' + id + '"]');
@@ -783,10 +820,16 @@ function kUpdateLive(){
           : '<span class="k-add" title="料斗空了 · 仓库有料会自动补">＋</span>';
       }
     }
+    const paused = autoPaused(id);
+    setChk('[data-dev-on="' + id + '"]', running && !paused);
     if(!running){
       setAll('[data-state="auto-' + id + '"]', 'off', '未启用');
       rings('auto-' + id, 0, 'off');
       sub('auto-' + id, '料斗 ' + slotText + ' · 未启用');
+    } else if(paused){
+      setAll('[data-state="auto-' + id + '"]', 'off', '已停');
+      rings('auto-' + id, kRatio(acc, per), 'off');
+      sub('auto-' + id, '料斗 ' + slotText + ' · 已停（租期冻结 ' + kClock(autoLeftMs(id)) + '）');
     } else {
       setAll('[data-state="auto-' + id + '"]', lack ? 'off' : 'busy', (lack ? '缺原料' : '×' + n + ' ' + kClock(autoLeftMs(id))));
       rings('auto-' + id, kRatio(acc, per), lack ? 'off' : 'run');
@@ -834,7 +877,7 @@ function kUpdateLive(){
     sub('pot', (pv ? pv.name : '杂烩') + ' · ' + K.pot.pieces.length + ' 样 · ' + kSecText(K.pot.dur - K.pot.t) + ' 到点');
   }
   if(kUI.n.potBtn) kUI.n.potBtn.disabled = !(potHas && K.pot.done);
-  { const t = el_('[data-autotag="pot"]'); if(t) t.style.display = K.pot.auto ? '' : 'none';
+  { setChk('[data-auto="pot"]', K.pot.auto);
     const h = el_('[data-recipe-hint]'); if(h) h.textContent = pv ? ('＝ ' + pv.name + '（基础 ' + pv.base + ' 金）') : '每加一样食材，进度条会重置';
     const c = el_('[data-cook-hint]'); if(c) c.textContent = state.miniGameEnabled === false ? '小游戏已关：直接出一般' : kSecText(K.pot.dur) + ' 走完即可出锅'; }
 
@@ -884,7 +927,7 @@ function kUpdateLive(){
       up.disabled = state.coins < price;
     }
   }
-  { const t = el_('[data-autotag="oven"]'); if(t) t.style.display = K.oven.auto ? '' : 'none';
+  { setChk('[data-auto="oven"]', K.oven.auto);
     const h = el_('[data-stock-hint]'); if(h) h.textContent = '🥣 面粉 ×' + (state.prep.flour || 0) + ' · 🔪 菜块 ×' + kPieceStock();
     const oh = el_('[data-oven-hint]');
     if(oh) oh.textContent = '输入不限量（先来先烤）· 每轮出炉 ' + ovenCap() + ' 份 · 队列 ' + ovenN + ' 份'; }
@@ -1035,7 +1078,7 @@ function kOnKitchenContext(e){ if(e && e.preventDefault) e.preventDefault(); }
 /* 一次「点击」的统一分流（卡片 → 选中/取消；工位 → 投料/取出） */
 function kHandleTap(t){
   if(!t || !t.closest) return;
-  if(t.closest('.k-star') || t.closest('[data-act]') || t.closest('.k-check')) return;
+  if(t.closest('.k-star') || t.closest('[data-act]') || t.closest('.k-check') || t.closest('.k-mini-sw')) return;
   const card = t.closest('.k-card[data-key]');
   if(card){ kSelectCard(card.dataset.key); return; }
   const st = t.closest('.k-station');
@@ -1112,6 +1155,14 @@ function kOnKitchenChange(e){
     renderKitchen();
     return;
   }
+  const dev = ds.devOn || '';
+  if(dev){
+    const r = autoSetOn(dev, !!box.checked);
+    toast(r.msg);
+    if(kUI) kUI.sig = '';
+    renderKitchen(); renderHUD();
+    return;
+  }
   const st = ds.auto || '';
   if(st !== 'oven' && st !== 'pot') return;
   KITCHEN[st].auto = !!box.checked;
@@ -1128,7 +1179,7 @@ function kOnPointerDown(e){
   const t = e.target;
   if(!t || !t.closest) return;
   /* 按钮 / 收藏 / 勾选框不参与拖拽与工位点击，交给 click 处理 */
-  if(t.closest('.k-star') || t.closest('[data-act]') || t.closest('.k-check')) return;
+  if(t.closest('.k-star') || t.closest('[data-act]') || t.closest('.k-check') || t.closest('.k-mini-sw')) return;
   const card = t.closest('.k-card[data-key]');
   const station = t.closest('.k-station');
   if(!card && !station) return;
@@ -1141,6 +1192,8 @@ function kOnPointerDown(e){
     active: false, over: null,
   };
   if(card && card.classList) card.classList.add('k-pressing');
+  kRepDid = false;
+  if(station && !card) kRepeatArm(station.dataset ? station.dataset.station : '');
   kAcc = 0;
 }
 function kOnPointerMove(e){
@@ -1149,6 +1202,7 @@ function kOnPointerMove(e){
     if(Math.hypot(e.clientX - kDrag.sx, e.clientY - kDrag.sy) < K_TAP_SLOP) return;
     if(!kDrag.draggable){ kDrag = null; return; }   // 工位上的滑动 = 滚动页面，不算点击
     kDrag.active = true;
+    kRepeatStop();                    /* 真拖起来了：长按重复让位给拖拽 */
     kGhostShow(kDrag.key);
   }
   if(e.preventDefault) e.preventDefault();
@@ -1163,8 +1217,10 @@ function kOnPointerUp(e){
   const d = kDrag;
   kDrag = null;
   kGhostRemove();
+  kRepeatStop();
   kDropHighlight(null, d.key);
   kClearPressing(d.key);
+  if(kRepDid){ kRepDid = false; kTapGuard = Date.now(); return; }   /* 长按已经投过了，别再补一次点击 */
   if(!d.active){
     /* 位移 <8px → 算一次点击（鼠标 click / 触屏 tap 共用这条路径） */
     kTapGuard = Date.now();
@@ -1185,6 +1241,8 @@ function kOnPointerCancel(e){
   const d = kDrag;
   kDrag = null;
   kGhostRemove();
+  kRepeatStop();
+  kRepDid = false;                   /* 手势被抢走：不清掉的话会吞掉下一次点击 */
   kDropHighlight(null, d.key);
   kClearPressing(d.key);
 }
@@ -1262,4 +1320,7 @@ window.KitchenDebug = {
   clickStation(station){ return kClickStation(station); },
   /* 幂等渲染一次（无头测试用；连调不会让 DOM 增长） */
   render(){ renderKitchen(); },
+  /* 长按持续添加：手工触发一次（等价于按住不放走到的那一步） */
+  repeatOnce(station){ kRepStation = station; return kRepeatOnce(); },
+  repeatArmed(){ return !!kRepTimer || !!kRepIv; },
 };

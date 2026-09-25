@@ -2493,10 +2493,103 @@ const frames = n => new Promise(res => {
     }
     /* 全自动与自动出已经合并成一个开关：每台设备只有一个 auto 勾选，没有多余的 loop 勾选 */
     ok(!!W.document.querySelector('#kitchenBody [data-auto="oven"]'), '烤箱有「全自动」勾选');
-    eq(W.document.querySelectorAll('#kitchenBody [data-auto="oven"]').length, 1, '烤箱只有一个自动开关（已合并）');
+    eq(W.document.querySelectorAll('#kitchenBody [data-auto="oven"]').length, 2,
+      '烤箱有两个「自动烹饪」开关：缩略卡一个 + 展开区一个（同一个状态）');
     ok(!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '不再有单独的「同配方循环」勾选');
     api.closeSheet();
     api.applyPayload(backup);
+  }
+
+  section('v9.23：缩略卡开关 · 长按持续添加 · 机器开停 · 后台补算');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    const K = api.KITCHEN;
+    /* ① 缩略卡上就有「自动烹饪」开关（不用展开） */
+    st().prep.flour = 3;
+    api.openSheet('kitchen'); api.renderKitchen && api.renderKitchen();
+    const body2 = () => $('kitchenBody');
+    const cookCell = body2().querySelector('.k-cell[data-station="oven"]');
+    ok(!!cookCell, '缩略卡里有烤箱');
+    const sw = cookCell.querySelector('input[data-auto="oven"]');
+    ok(!!sw, '未展开的烤箱卡上就有「自动烹饪」开关');
+    K.oven.auto = false;
+    sw.checked = true;
+    sw.dispatchEvent(new W.Event('change', { bubbles: true }));
+    ok(K.oven.auto === true, '在缩略卡上勾选 → 自动烹饪打开');
+    /* 反过来也能同步（kUpdateLive 会把展开区/缩略卡两个开关都刷成一致） */
+    K.oven.auto = false;
+    api.renderKitchen && api.renderKitchen();
+    const all2 = [...body2().querySelectorAll('input[data-auto="oven"]')];
+    ok(all2.length === 2 && all2.every(i => i.checked === false), '两个开关状态保持一致');
+
+    /* ② 切块机改名 + 缩略卡开停开关 */
+    eq(api.AUTO_DEVICES.chopper.name, '切块机', '「自动切块机」已改名为「切块机」');
+    st().coins = 99999;
+    st().bag.carrot = 20;
+    api.autoSlotOf('chopper').length = 0;
+    if (!api.autoActive('chopper')) { st().autoCount.chopper = 0; api.autoBuy('chopper'); }
+    st().autoUntil.chopper = Date.now() + 5 * 60 * 1000;
+    st().autoAcc.chopper = 0;
+    api.autoSlotRefill('chopper');
+    const devCell = body2().querySelector('.k-cell.k-dev[data-dev="chopper"]');
+    ok(!!devCell, '缩略卡里有切块机');
+    const dsw = devCell.querySelector('input[data-dev-on="chopper"]');
+    ok(!!dsw, '切块机卡上有开停开关');
+    api.renderKitchen && api.renderKitchen();
+    ok(body2().querySelector('input[data-dev-on="chopper"]').checked === true, '默认是「开」');
+    /* 停：不产出、不吃料、租期冻结 */
+    api.autoPause('chopper');
+    ok(api.autoPaused('chopper') === true, '能停');
+    const piecesBefore = st().pieces.carrot || 0;
+    const slotBefore = api.autoSlotOf('chopper').length;
+    api.kitchenTick(api.AUTO_DEVICES.chopper.per * 3);
+    eq(st().pieces.carrot || 0, piecesBefore, '停着的机器不产出');
+    eq(api.autoSlotOf('chopper').length, slotBefore, '停着的机器也不吃料');
+    const leftPaused = api.autoLeftMs('chopper');
+    ok(leftPaused > 4 * 60 * 1000, '停着的时候租期不烧（剩余时间基本不变）', Math.round(leftPaused / 1000) + 's');
+    /* 恢复：暂停的那段补回租期 */
+    st().autoPause.chopper = Date.now() - 30000;      /* 假装已经停了 30 秒 */
+    const untilBefore = st().autoUntil.chopper;
+    api.autoResume('chopper');
+    ok(st().autoUntil.chopper - untilBefore >= 29000, '恢复后把停的那 30 秒补回租期',
+      Math.round((st().autoUntil.chopper - untilBefore) / 1000) + 's');
+    st().autoAcc.chopper = 0;
+    const pb2 = st().pieces.carrot || 0;
+    api.kitchenTick(api.AUTO_DEVICES.chopper.per);
+    ok((st().pieces.carrot || 0) > pb2, '恢复后继续产出');
+
+    /* ③ 长按持续添加：按住工位不放 = 一直投 */
+    const KD3 = W.KitchenDebug;
+    st().bag.carrot = 5; st().pieces.carrot = 0;
+    KD3.select(null);
+    api.renderKitchen && api.renderKitchen();
+    st().bag.carrot = 5; st().pieces.carrot = 0;
+    KD3.select('crop:carrot');
+    eq(KD3.repeatOnce('board'), true, '长按持续添加：来一次');
+    KD3.repeatOnce('board'); KD3.repeatOnce('board');
+    eq(st().pieces.carrot, 9, '连投三次（每次 3 块）');
+    eq(st().bag.carrot, 2, '材料对应减少');
+    /* 材料用完自己停 */
+    KD3.repeatOnce('board'); KD3.repeatOnce('board');
+    eq(st().bag.carrot, 0, '5 份全切完');
+    eq(KD3.repeatOnce('board'), false, '没材料了 → 长按重复自己停');
+    KD3.select(null);
+
+    /* ④ 后台回来要补算（手机挂起时 performance.now 不走，所以必须用墙上时间） */
+    api.closeSheet();
+    st().bag.wheat = 20;
+    st().autoCount.donkey = 1; st().autoUntil.donkey = Date.now() + 5 * 60 * 1000;
+    st().autoAcc.donkey = 0; api.autoSlotOf('donkey').length = 0; api.autoSlotRefill('donkey');
+    const t0 = api.getTile(st().farm.x0, st().farm.y0);
+    t0.state = 'growing'; t0.crop = 'carrot'; t0.growth = 0; t0.fertilLeft = 0; t0.harvestsLeft = 0;
+    const flourBefore2 = st().prep.flour || 0;
+    api.catchUpAway(5 * 60 * 1000);
+    ok(t0.growth > 0, '回到前台：作物按离开的时间补长', 'growth=' + Math.round(t0.growth));
+    ok((st().prep.flour || 0) > flourBefore2, '回到前台：驴也补算了产量（租期不能白扣）',
+      '面粉 ' + flourBefore2 + ' → ' + (st().prep.flour || 0));
+    ok(st().prep.flour - flourBefore2 >= 5, '补算按 ≤1 秒步长推进，不是只算一轮',
+      '补出 ' + (st().prep.flour - flourBefore2) + ' 份');
+    api.applyPayload(bk);
   }
 
   section('厨房 v9.17：顶部「食材 | 菜品」+ 两行缩略工位 + 左侧展开');

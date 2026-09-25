@@ -37,6 +37,29 @@ function renderAll(){
   renderSettings(); renderWarehouseToggle(); updateNoticeDot(); updateHudDots();
   renderDecorBag(); renderExpandHint(); renderZoomBtn();
 }
+let hiddenAt = 0;                  /* 切到后台的时刻（墙上时间） */
+let awayCatchUp = false;           /* 补算期间：不逐次播音效、不逐次写存档 */
+const AWAY_FULL_MS = 10 * 60 * 1000;   /* 10 分钟以内算"还在玩"（全速），更久按离线速率 */
+/* 回到前台时补算离开的这段时间 */
+function catchUpAway(ms){
+  const capped = Math.min(ms, OFFLINE_CAP);
+  const full = Math.min(capped, AWAY_FULL_MS);
+  const rest = capped - full;
+  if(full > 0) advanceGrowth(full);                  /* 短暂切出去：不打折 */
+  if(rest > 0) advanceGrowth(rest, OFFLINE_RATE);    /* 长时间挂后台：按离线速率 */
+  /* 厨房也补：驴 / 切块机是花钱按墙钟租的，不能因为切后台就白扣租金。
+     按 ≤1 秒的步长推进，才不会把好几轮产量挤成一轮。 */
+  awayCatchUp = true;
+  try{
+    let left = capped;
+    while(left > 0){ const step = Math.min(1000, left); kitchenLogicTick(step); left -= step; }
+  } finally { awayCatchUp = false; }
+  idleTick();
+  renderAll(); save();
+  const mins = ms / 60000;
+  toast(mins >= 1 ? ('回到游戏：补算了 ' + Math.round(mins) + ' 分钟（作物 + 厨房）')
+                  : ('回到游戏：补算了 ' + Math.round(ms / 1000) + ' 秒'));
+}
 function centerOnFarm(){
   const f = state.farm;
   /* 卷轴式：倍率大到一屏装不下时，镜头跟着小人走（并夹在地图范围内），
@@ -106,7 +129,17 @@ function init(){
   bindAll();
   renderAll();
   window.addEventListener('beforeunload', save);
-  document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
+  /* 切后台 / 回前台：
+   * 手机浏览器会把 rAF 停掉，而且**挂起期间 performance.now() 不一定往前走**，
+   * 所以"靠帧间隔补算"在手机上基本不生效 —— 表现就是「后台回来庄稼没动静、驴和切块机也白扣租金」。
+   * 这里改用**墙上时间**（Date.now 在挂起期间照样走）判断离开了多久，回来一次性补算。 */
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){ hiddenAt = Date.now(); save(); return; }
+    const away = hiddenAt ? (Date.now() - hiddenAt) : 0;
+    hiddenAt = 0;
+    if(away > 1500) catchUpAway(away);
+    lastTick = performance.now();          /* 已经补过了，别让下一帧再补一次 */
+  });
   const unlockAudio = () => { SFX.resume(); document.removeEventListener('pointerdown', unlockAudio); };
   document.addEventListener('pointerdown', unlockAudio);
 
@@ -135,7 +168,7 @@ window.FarmDebug = {
     KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon,
     OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS, POT_MS, POT_PERFECT_MS, POT_BURN_MS, QUALITY,
     AUTO_DEVICES, AUTO_IDS, autoBuy, autoActive, autoLeftMs, autoTick, autoLoopFeed,
-    autoSlotOf, autoSlotRefill, AUTO_SLOT_MAX, autoPickCrop,
+    autoSlotOf, autoSlotRefill, AUTO_SLOT_MAX, autoPickCrop, autoPaused, autoPause, autoResume, autoSetOn, catchUpAway,
     ovenCap, ovenSlotPrice, ovenCanUpgrade, ovenUpgrade, ovenRoundSize, ovenQueue, ovenStartRound,
     OVEN_SLOT_PRICE0, OVEN_SLOT_MAX, QUALITY,
     millStock, millBatch, MILL_BATCH_MAX, autoCountOf, autoPrice, AUTO_MAX,

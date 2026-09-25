@@ -473,3 +473,17 @@
   transition:transform .08s linear;
 }
 .k-mill-mini.spin{box-shadow:0 0 calc(7px*var(--ui-scale)) rgba(255,215,110,.4)}
+
+/* ---------- v9.23：缩略卡上的小开关（自动烹饪 / 机器开停） ---------- */
+.k-mini-sw{
+  display:inline-flex;align-items:center;gap:calc(3px*var(--ui-scale));
+  font-size:calc(10px*var(--ui-scale));color:#8b9a8d;cursor:pointer;
+  padding:calc(2px*var(--ui-scale)) calc(4px*var(--ui-scale));
+  border-radius:999px;border:1px solid #35422f;background:rgba(0,0,0,.2);
+  -webkit-tap-highlight-color:transparent;
+}
+.k-mini-sw input{
+  width:calc(13px*var(--ui-scale));height:calc(13px*var(--ui-scale));
+  accent-color:#4d8a4a;cursor:pointer;flex:none;margin:0;
+}
+.k-mini-sw:has(input:checked){color:#9fe07a;border-color:rgba(127,224,138,.5);background:rgba(127,224,138,.1)}

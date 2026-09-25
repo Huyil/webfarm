@@ -10,6 +10,61 @@ let pressTimer=0, boxMode=false, boxStart=null, hoverOn=false;
 const LONG_PRESS_MS = 380;
 const MOVE_TOL = 8;
 
+/* ============ 双指缩放（手机 / 触屏） ============
+ * 合拢 = 缩小，张开 = 放大；锚点是**两指中点**（中点底下那块地保持不动），
+ * 两指整体平移也能带着地图走 —— 手机上这就是最自然的"地图手势"。
+ *
+ * 屏幕↔世界的换算（和 render 的变换一致）：
+ *     deviceX = W0/2 + zoom * (camera.x + sx*SCALE)
+ * 中点固定时：camera.x = camX0 + (midX - W0/2) * (1/z1 - 1/z0)
+ * 两指整体移动 dx 时，再补一个 dx/z1 的平移。
+ *
+ * 捏合期间单指那套全部让路：不刷地、不进框选、抬手指也不当成单击。
+ */
+const ptrs = new Map();
+let pinch = null, pinchUsed = false;
+/* 指针表随时可能"脏"：浏览器偶尔丢 pointerup、切后台时手指全没了、
+   或者三根手指同时按。任何一次都可能让捏合判断错乱，所以给几个兜底清空点。 */
+function ptrsClear(){ ptrs.clear(); pinch = null; pinchUsed = false; }
+const PINCH_TOL = 6;                 /* 两指间距变化超过这么多像素才算"在缩放" */
+function pinchDist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+function pinchBegin(){
+  const all = [...ptrs.values()];
+  if(all.length < 2) return;
+  const rect = canvas.getBoundingClientRect();
+  pinch = {
+    d0: Math.max(1, pinchDist(all[0], all[1])),
+    z0: viewZoom(),
+    camX: state.camera.x, camY: state.camera.y,
+    mx: (all[0].x + all[1].x) / 2 - (rect.left || 0),
+    my: (all[0].y + all[1].y) / 2 - (rect.top || 0),
+  };
+  pinchUsed = false;
+  /* 把单指那套收干净：长按计时器、框选、平移、拖拽刷地全都停 */
+  pointerDown = false; pointerMoved = true;
+  clearTimeout(pressTimer);
+  if(boxMode){ boxMode = false; boxStart = null; state.box = null; }
+  panMode = false;
+}
+function pinchMove(){
+  const all = [...ptrs.values()];
+  if(!pinch || all.length < 2) return false;
+  const d = Math.max(1, pinchDist(all[0], all[1]));
+  if(!pinchUsed && Math.abs(d - pinch.d0) < PINCH_TOL) return true;   /* 还在"准备"，别抖 */
+  pinchUsed = true;
+  const W0 = window.innerWidth, H0 = window.innerHeight;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (all[0].x + all[1].x) / 2 - (rect.left || 0);
+  const my = (all[0].y + all[1].y) / 2 - (rect.top || 0);
+  setZoom(pinch.z0 * (d / pinch.d0), true);
+  const z1 = viewZoom();
+  const k = 1 / z1 - 1 / pinch.z0;
+  state.camera.x = pinch.camX + (mx - W0 / 2) * k + (mx - pinch.mx) / z1;
+  state.camera.y = pinch.camY + (my - H0 / 2) * k + (my - pinch.my) / z1;
+  state.cameraAuto = false;
+  return true;
+}
+
 function setHover(gx, gy){
   if(gx == null){ state.hover = null; return; }
   const t = getTile(gx, gy);
@@ -26,6 +81,9 @@ canvas.addEventListener('wheel', e => {
 canvas.addEventListener('pointerdown', e => {
   if(e.button !== 0 && e.pointerType === 'mouse') return;
   e.preventDefault();
+  if(ptrs.size >= 2) ptrsClear();                 /* 已经有两指在按（多半是脏数据）→ 重来 */
+  ptrs.set(e.pointerId == null ? 'p0' : e.pointerId, { x:e.clientX, y:e.clientY });
+  if(ptrs.size >= 2){ pinchBegin(); return; }     /* 第二根手指落下 → 进捏合，不干别的 */
   pointerDown = true; pointerMoved = false;
   toolApplied = false; lastTileKey = '';
   startX = e.clientX; startY = e.clientY;
@@ -60,6 +118,8 @@ canvas.addEventListener('pointerdown', e => {
 });
 
 canvas.addEventListener('pointermove', e => {
+  if(ptrs.has(e.pointerId == null ? 'p0' : e.pointerId)) ptrs.set(e.pointerId == null ? 'p0' : e.pointerId, { x:e.clientX, y:e.clientY });
+  if(pinch){ pinchMove(); return; }               /* 捏合期间不悬停、不刷地 */
   const c = screenToGrid(e.clientX, e.clientY);
   hoverOn = true;
   setHover(c.gx, c.gy);
@@ -92,6 +152,14 @@ canvas.addEventListener('pointermove', e => {
 });
 
 function onPointerEnd(e){
+  const wasPinch = !!pinch;
+  ptrs.delete(e.pointerId == null ? 'p0' : e.pointerId);
+  if(wasPinch){
+    /* 捏合收尾：松掉一根就结束本次手势，剩下的手指也不当点击 */
+    if(ptrs.size < 2){ pinch = null; pinchUsed = false; pointerDown = false; pointerMoved = true; }
+    try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
+    return;
+  }
   if(!pointerDown) return;
   pointerDown = false;
   clearTimeout(pressTimer);
@@ -132,6 +200,9 @@ function onPointerEnd(e){
 }
 canvas.addEventListener('pointerup', onPointerEnd);
 canvas.addEventListener('pointercancel', onPointerEnd);
+/* 切后台 / 失焦：手指位置信息全作废，别留着脏指针影响回来后的手势 */
+window.addEventListener('blur', ptrsClear);
+document.addEventListener('visibilitychange', () => { if(document.hidden) ptrsClear(); });
 canvas.addEventListener('pointerleave', () => { hoverOn = false; setHover(null); state.expandPreview = null; });
 
 /* ---------- 交互指示绘制（由 50-render.js 调用） ---------- */

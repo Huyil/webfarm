@@ -94,11 +94,12 @@ function cycleZoom(){
   toast(state.zoomMode === 'auto' ? '缩放：自动适配农场' : '缩放：' + state.zoomMode + 'x');
   save();
 }
-/* 滚轮微调（会退出自动模式）；接近某个档位时吸附过去 */
-function setZoom(z){
+/* 滚轮微调（会退出自动模式）；接近某个档位时吸附过去。
+ * noSnap：捏合缩放要连续，吸附会一跳一跳，所以捏合时传 true。 */
+function setZoom(z, noSnap){
   z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
   let snapped = Math.round(z * 100) / 100;
-  for(const st of ZOOM_STEPS) if(Math.abs(z - st) < st * 0.06) snapped = st;
+  if(!noSnap) for(const st of ZOOM_STEPS) if(Math.abs(z - st) < st * 0.06) snapped = st;
   state.zoomMode = snapped;
   state.cameraAuto = false;
   renderZoomBtn();

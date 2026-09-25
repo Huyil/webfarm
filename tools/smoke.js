@@ -2502,6 +2502,86 @@ const frames = n => new Promise(res => {
     api.applyPayload(backup);
   }
 
+  section('v9.26：手机双指缩放（合拢=缩小 · 张开=放大 · 锚在中点）');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    const cv = $('game');
+    const rect = cv.getBoundingClientRect();
+    /* 造一个带 pointerId 的指针事件（jsdom 没有 PointerEvent，直接给 Event 挂字段） */
+    const pev2 = (type, x, y, id) => {
+      const e = new W.Event(type, { bubbles: true, cancelable: true });
+      e.clientX = x; e.clientY = y; e.pointerId = id; e.button = 0; e.pointerType = 'touch';
+      cv.dispatchEvent(e);
+      return e;
+    };
+    const cxp = rect.left + W.innerWidth / 2, cyp = rect.top + W.innerHeight / 2;
+    st().cameraAuto = false; st().zoomMode = 1;
+    api.ptrsClear();                              /* 前面的用例用无 pointerId 的合成事件，先清干净 */
+    const z0 = api.viewZoom();
+    eq(api.ptrCount(), 0, '一开始没有按下的指针');
+    /* 两根手指落在中点两侧 */
+    pev2('pointerdown', cxp - 60, cyp, 11);
+    pev2('pointerdown', cxp + 60, cyp, 12);
+    ok(api.pinchActive(), '第二根手指落下 → 进入捏合模式');
+    eq(api.ptrCount(), 2, '两根手指都登记上了');
+    /* 张开（间距 120 → 240）= 放大 */
+    pev2('pointermove', cxp - 120, cyp, 11);
+    pev2('pointermove', cxp + 120, cyp, 12);
+    const zIn = api.viewZoom();
+    ok(zIn > z0 * 1.5, '两指张开 → 放大', z0.toFixed(2) + 'x → ' + zIn.toFixed(2) + 'x');
+    /* 合拢（间距 240 → 60）= 缩小 */
+    pev2('pointermove', cxp - 30, cyp, 11);
+    pev2('pointermove', cxp + 30, cyp, 12);
+    const zOut = api.viewZoom();
+    ok(zOut < zIn * 0.5, '两指合拢 → 缩小', zIn.toFixed(2) + 'x → ' + zOut.toFixed(2) + 'x');
+    /* 锚点：中点底下的那块地基本不动 */
+    st().zoomMode = 1; D.render();
+    const midTile0 = api.screenToGrid(cxp, cyp);
+    pev2('pointerdown', cxp - 40, cyp, 21);
+    pev2('pointerdown', cxp + 40, cyp, 22);
+    pev2('pointermove', cxp - 90, cyp, 21);
+    pev2('pointermove', cxp + 90, cyp, 22);
+    D.render();
+    const midTile1 = api.screenToGrid(cxp, cyp);
+    ok(Math.abs(midTile1.gx - midTile0.gx) <= 1 && Math.abs(midTile1.gy - midTile0.gy) <= 1,
+      '缩放锚在两指中点（中点底下的地没跑）',
+      JSON.stringify(midTile0) + ' → ' + JSON.stringify(midTile1));
+    /* 捏合期间不干活：不派活、不刷地；抬手也不当成单击 */
+    const tile = api.getTile(st().farm.x0, st().farm.y0);
+    tile.state = 'wild'; tile.terrain = 'grass'; tile.crop = null; tile.stone = false;
+    api.setTool('hoe');
+    ok(!api.jobActive(), '捏合前没有作业');
+    pev2('pointerup', cxp - 90, cyp, 21);
+    pev2('pointerup', cxp + 90, cyp, 22);
+    ok(!api.pinchActive(), '抬手后退出捏合');
+    eq(api.ptrCount(), 0, '指针都出栈了');
+    eq(tile.state, 'wild', '捏合过程不会把地给锄了');
+    ok(!api.jobActive(), '捏合过程不会派活');
+    /* 上下限 */
+    st().zoomMode = 1;
+    pev2('pointerdown', cxp - 10, cyp, 31); pev2('pointerdown', cxp + 10, cyp, 32);
+    pev2('pointermove', cxp - 400, cyp, 31); pev2('pointermove', cxp + 400, cyp, 32);
+    ok(api.viewZoom() <= api.ZOOM_MAX + 1e-6, '放大不超过上限', String(api.viewZoom()));
+    pev2('pointermove', cxp - 1, cyp, 31); pev2('pointermove', cxp + 1, cyp, 32);
+    ok(api.viewZoom() >= api.ZOOM_MIN - 1e-6, '缩小不低于下限', String(api.viewZoom()));
+    pev2('pointerup', cxp - 1, cyp, 31); pev2('pointerup', cxp + 1, cyp, 32);
+    /* 单指仍然照常工作（别把正常点击弄坏） */
+    api.cancelJob();                              /* 手上别有作业，否则点地图＝取消作业 */
+    api.setTool('hoe');
+    const t2 = api.getTile(st().farm.x0 + 1, st().farm.y0);
+    t2.state = 'wild'; t2.terrain = 'grass'; t2.crop = null;
+    st().player.x = st().farm.x0 + 1; st().player.y = st().farm.y0;
+    st().player.tx = st().player.x; st().player.ty = st().player.y;
+    const tp = api.gridToScreen(st().farm.x0 + 1, st().farm.y0);   /* 精确点在这格上 */
+    pev2('pointerdown', rect.left + tp.x, rect.top + tp.y, 41);
+    pev2('pointerup', rect.left + tp.x, rect.top + tp.y, 41);
+    ok(api.jobActive() || t2.state === 'tilled', '单指点击仍然照常干活（没被捏合逻辑弄坏）');
+    api.cancelJob && api.cancelJob();
+    st().zoomMode = 'auto'; st().cameraAuto = true;
+    api.ptrsClear();
+    api.applyPayload(bk);
+  }
+
   section('v9.24：渲染性能（框选覆盖层一次成图 · 地块细节分级）');
   {
     const bk = JSON.parse(JSON.stringify(api.serialize(st())));

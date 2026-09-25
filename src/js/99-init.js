@@ -198,13 +198,14 @@ window.FarmDebug = {
     expandCountOf,
     /* 视角 */
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
-    isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX,
+    isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX, ZOOM_MIN, ZOOM_MAX, ZOOM_STEPS,
     tileLOD, TILE_W, TILE_H, SCALE, HALF_W, HALF_H, cropSpriteStats, CROP_SPR_STEPS, cropSpriteFor,
     tfEncodeData, tfDecodeData, tfSanitize, tfReadText, tfWriteSlot, tfExportSlot, tfLinkFor, tfParamPayload, tfStorageRisk,
     tfBoot, openTransfer, renderTransfer, TF_ITER, TF_TAG, TF_TAG2, TF_MAX_TILES, tfQrFit, TF_QR_MAX, TF_QR_COMFY,
     atmSunTrack, atmMoonTrack, atmOrbit, ATM_CLOUDS, ATM_ORBIT,
     /* 交互 */
     applyToolToRect, runTool, boxTool, setHover, gridToScreen, screenToGrid, hash2,
+    pinchMove, pinchBegin, ptrCount: () => ptrs.size, pinchActive: () => !!pinch, ptrsClear,
     cancelJob, jobActive, playerEnqueue, playerQueue, planPath, playerClearQueue,
     grant: (k, n) => { state[k] = (state[k] || 0) + n; },
     setTool: t => { state.tool = t; },

@@ -2525,10 +2525,11 @@ const frames = n => new Promise(res => {
     api.cook.addDish({ id:'disanxian', name:'地三鲜', emoji:'🥘', base:100, pieces:['potato','eggplant','chili'], counts:{ potato:1, eggplant:1, chili:1 } }, 'normal');
     const k1 = Object.keys(st().dishes)[0];
     eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '3 材料的菜 = 30 点饱食度');
-    eq(AF.dishSatiety(k1), 30, '数值就是 30（每块材料 10 点）');
+    eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '数值 = 3 块 × 每块点数（现在每块 25 点）',
+      '每块 ' + AF.AF_SAT_PER_MATERIAL + ' 点 → ' + AF.dishSatiety(k1) + ' 点');
     const pr = api.cook.addDish({ id:'soup', name:'田园浓汤', emoji:'🥣', base:100, pieces:['carrot'], counts:{ carrot:1 } }, 'perfect');
     const pkey = Object.keys(st().dishes).find(k => st().dishes[k] === pr);
-    eq(AF.dishSatiety(pkey), 15, '精品 1 材料 = 15 点（×1.5）');
+    eq(AF.dishSatiety(pkey), Math.round(AF.AF_SAT_PER_MATERIAL * 1.5), '精品 1 材料 = 每块点数 ×1.5');
     /* ③ 只有成品菜能当饭；贵菜不能选 */
     st().bag.potato = 500; st().pieces.potato = 500; st().prep.flour = 50;
     ok(AF.rationList().length === 0 || AF.rationList().every(k => !!st().dishes[k]),
@@ -2545,13 +2546,13 @@ const frames = n => new Promise(res => {
     const before = st().dishes[k1].n;
     ok(AF.spend(1), '饿了自己吃一份口粮');
     eq(st().dishes[k1].n, before - 1, '菜品仓库里少了一份');
-    eq(AF.satietyLeft(), 30 - 1, '吃到 30 点，扣掉这次操作的 1 点');
+    eq(AF.satietyLeft(), 3 * AF.AF_SAT_PER_MATERIAL - 1, '吃到 3 块材料的点数，扣掉这次操作的 1 点');
     /* ⑤ 每一步都扣 1 点（耕地/播种/施肥/收获都算），扣不出来就停机 */
     const w0 = AF.state.worked;
     AF.state.on = true;                          /* 自动农活开着才会扣 */
     AF.workDone({ afStep:'till', auto:true });
     eq(AF.state.worked, w0 + 1, '自动操作计数 +1');
-    eq(AF.satietyLeft(), 28, '每完成一步扣 1 点');
+    eq(AF.satietyLeft(), 3 * AF.AF_SAT_PER_MATERIAL - 2, '每完成一步扣 1 点（耕地/播种/施肥/收获/浇水都算）');
     AF.state.ration = {}; AF.state.satiety = 0;
     AF.state.on = true;
     api.playerEnqueue(st().farm.x0, st().farm.y0, 'hoe');
@@ -2565,7 +2566,12 @@ const frames = n => new Promise(res => {
     AF.state.satiety = 50; AF.state.on = true;
     AF.workDone({ afStep:'harvest', auto:true });
     eq(AF.state.seedIx, 1, '收获一次 → 换下一种种子（轮作）');
-    /* ⑦ 规划一趟：按 耕地→播种→施肥→收获 收格 */
+    /* ⑥b 步骤顺序：浇水**排在最后** */
+    eq(AF.AF_STEPS[AF.AF_STEPS.length - 1], 'water', '浇水是最后一步（地大了少折返）',
+      AF.AF_STEPS.join(' → '));
+    eq(AF.AF_STEPS[0], 'till', '第一步是耕地');
+
+    /* ⑦ 规划一趟：按 耕地→播种→施肥→收获→浇水 收格 */
     st().fertilizer = 5;
     const b = AF.state.box;
     for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) {
@@ -2581,6 +2587,32 @@ const frames = n => new Promise(res => {
     ok(plan2.some(s2 => s2.tool === 'seed'), '开垦过且空着的地 → 排播种', plan2.map(s2 => s2.tool).join(','));
     const t02 = api.getTile(b.x0 + 2, b.y0); t02.state = 'ready'; t02.crop = 'carrot';
     ok(AF.plan().some(s2 => s2.tool === 'sickle'), '熟了的地 → 排收获');
+    /* 浇水：生长中且没浇过的 → 排浇水，而且排在所有步骤的最后 */
+    const t03 = api.getTile(b.x0, b.y0 + 2);      /* 区域内的另一格 */
+    t03.state = 'growing'; t03.crop = 'carrot'; t03.watered = false; t03.growth = 100;
+    const planW = AF.plan();
+    ok(planW.some(s2 => s2.tool === 'water'), '生长中没浇水的 → 排浇水');
+    const lastWater = planW.map(s2 => s2.tool).lastIndexOf('water');
+    ok(planW.slice(lastWater).every(s2 => s2.tool === 'water'), '浇水不会插在别的步骤前面（最后一遍走完）',
+      planW.map(s2 => s2.tool).join(','));
+    t03.watered = true;
+    ok(!AF.plan().some(s2 => s2.tool === 'water' && s2.gx === t03.gx), '浇过的地不再排浇水');
+    /* ⑦b 肥料自动购买：勾了才买，单趟有上限 */
+    st().coins = 10000; st().fertilizer = 0;
+    AF.state.fert = true; AF.state.buyFert = false;
+    eq(AF.ensureFertilizer(5), 0, '没勾"自动购买肥料" → 一份也不买');
+    eq(st().fertilizer, 0, '肥料还是 0');
+    AF.state.buyFert = true;
+    const coins0 = st().coins;
+    eq(AF.ensureFertilizer(5), 5, '勾了 → 按需要买 5 份');
+    eq(st().fertilizer, 5, '肥料到账');
+    ok(st().coins < coins0, '金币相应减少', coins0 + ' → ' + st().coins);
+    st().fertilizer = 0; st().coins = 10000;
+    eq(AF.ensureFertilizer(999), AF.AF_BUY_FERT_MAX, '单趟最多买 ' + AF.AF_BUY_FERT_MAX + ' 份（不会一口气清空金币）');
+    st().fertilizer = 0; st().coins = 0;
+    eq(AF.ensureFertilizer(5), 0, '没钱就不买（不会出现负数金币）');
+    ok(st().coins >= 0, '金币不会变成负数');
+    st().fertilizer = 5; st().coins = 10000; AF.state.buyFert = false;
     /* ⑧ 驱动：队列自动排上（带 auto 标记，且用轮作里的种子） */
     AF.resetRetry();
     st().player.queue = []; st().player.pendingOp = null; st().player.moving = false;
@@ -2591,11 +2623,20 @@ const frames = n => new Promise(res => {
     ok(st().player.queue.every(q => q.auto), '队列里每一步都带 auto 标记（好扣饱食度）');
     eq(st().selectedSeed, 'carrot', '播种用的是轮作里选的那种种子');
     ok(!!st().jobBox, '作业区域在地图上有高亮');
+    /* ⑧b 饱食度显示：面板 + 侧栏都能看到 */
+    AF.state.satiety = 42;
+    api.renderAutoFarm();
+    ok(/饱食度/.test($('autoFarmBody').textContent) && /42/.test($('autoFarmBody').textContent),
+      '面板顶部显示当前饱食度', '42 点');
+    api.renderHUD();
+    ok(/🍚42/.test($('autoFarmState').textContent), '侧栏按钮也显示饱食度', $('autoFarmState').textContent);
+
     /* ⑨ 面板：该有的控件都在 */
     api.openAutoFarm();
     const body = $('autoFarmBody');
     ok(!!body && !!body.querySelector('[data-af-on]'), '面板有总开关');
-    eq(body.querySelectorAll('[data-af-step]').length, 4, '轮作四个步骤都能勾');
+    eq(body.querySelectorAll('[data-af-step]').length, 5, '轮作五个步骤都能勾（含浇水）');
+    ok(!!body.querySelector('[data-af-buyfert]'), '有"自动购买肥料"勾选项');
     ok(body.querySelectorAll('[data-af-seed]').length >= 8, '种子顺序可以点选');
     ok(body.querySelectorAll('[data-af-ration]').length >= 2, '预备口粮列出仓库里的菜');
     ok([...body.querySelectorAll('[data-af-ration]')].some(i => i.disabled), '贵的菜在列表里被禁用（不能选成口粮）');

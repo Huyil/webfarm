@@ -539,3 +539,15 @@
 .af-r-name i{font-style:normal;font-size:calc(10.5px*var(--ui-scale));color:#8b9a8d}
 .af-warn{font-size:max(11px,calc(11.5px*var(--ui-scale)));color:#ffd76e;background:rgba(255,215,110,.08);
   border:1px dashed rgba(255,215,110,.35);border-radius:calc(10px*var(--ui-scale));padding:calc(8px*var(--ui-scale))}
+
+
+/* ---------- v9.29：饱食度显示 ---------- */
+.af-sat{
+  display:flex;flex-direction:column;gap:calc(2px*var(--ui-scale));
+  padding:calc(9px*var(--ui-scale)) calc(12px*var(--ui-scale));
+  border:1px solid #3d4a3f;border-radius:calc(11px*var(--ui-scale));
+  background:rgba(0,0,0,.25);font-size:max(12px,calc(12.5px*var(--ui-scale)));color:#c8d6c9;
+}
+.af-sat b{color:#ffd76e;font-size:max(15px,calc(16px*var(--ui-scale)));font-variant-numeric:tabular-nums}
+.af-sat i{font-style:normal;font-size:calc(10.5px*var(--ui-scale));color:#8b9a8d}
+.af-sat.on{border-color:rgba(127,224,138,.5);background:rgba(127,224,138,.08)}

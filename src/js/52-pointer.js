@@ -257,7 +257,8 @@ function drawInteractionUI(g, cx, cy){
     g.textAlign = 'center';
     g.fillStyle = 'rgba(200,236,255,.95)';
     const c0 = iso((ab.x0 + ab.x1) / 2, ab.y0 - 0.5);
-    g.fillText('🤖 ' + (ab.x1 - ab.x0 + 1) + '×' + (ab.y1 - ab.y0 + 1),
+    const afSat = (state.autoFarm && state.autoFarm.satiety) || 0;
+    g.fillText('🤖 ' + (ab.x1 - ab.x0 + 1) + '×' + (ab.y1 - ab.y0 + 1) + ' · 🍚' + afSat,
       cx + c0.sx * SCALE, cy + c0.sy * SCALE - 4);
     g.restore();
   }

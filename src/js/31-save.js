@@ -144,6 +144,7 @@ function unpackState(d){
       on: !!af.on,
       box: (af.box && typeof af.box.x0 === 'number') ? { x0:af.box.x0|0, y0:af.box.y0|0, x1:af.box.x1|0, y1:af.box.y1|0 } : null,
       till: af.till !== false, seed: af.seed !== false, fert: af.fert !== false, harvest: af.harvest !== false,
+      water: af.water !== false, buyFert: !!af.buyFert,
       seeds: (Array.isArray(af.seeds) ? af.seeds.filter(id => !!CROPS[id]) : ['wheat']).slice(0, SEED_ORDER.length),
       seedIx: Math.max(0, af.seedIx | 0),
       ration: (af.ration && typeof af.ration === 'object') ? af.ration : {},

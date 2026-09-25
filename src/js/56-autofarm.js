@@ -15,9 +15,11 @@
  */
 const AF_AREA_MAX = 12;                 /* 框选边长上限（12×12 = 144 格） */
 const AF_RATION_MAX_VALUE = 2000;       /* 超过这个价值的菜不参与口粮 */
-const AF_SAT_PER_MATERIAL = 10;         /* 每块材料的基础饱食度 */
-const AF_STEP_TOOL = { till:'hoe', seed:'seed', fert:'fert', harvest:'sickle' };
-const AF_STEPS = ['till', 'seed', 'fert', 'harvest'];
+const AF_SAT_PER_MATERIAL = 25;         /* 每块材料的基础饱食度（一轮 5 步都要扣，所以给得足一点） */
+const AF_STEP_TOOL = { till:'hoe', seed:'seed', fert:'fert', harvest:'sickle', water:'water' };
+/* 顺序就是小人跑腿的顺序：耕地 → 播种 → 施肥 → 收获 → **浇水放最后**
+   （地块一大，前面刚种下的后面可能就熟了；水留到最后一遍走完，不用来回折返） */
+const AF_STEPS = ['till', 'seed', 'fert', 'harvest', 'water'];
 const AF_RETRY_MS = 700;                /* 没活干时的重试间隔（别每帧重排） */
 let afRetryAt = 0;
 
@@ -25,7 +27,7 @@ let afRetryAt = 0;
 function afDefaults(){
   return {
     on:false, box:null,
-    till:true, seed:true, fert:true, harvest:true,
+    till:true, seed:true, fert:true, harvest:true, water:true, buyFert:false,
     seeds:['wheat'], seedIx:0,
     ration:{}, satiety:0, eats:0, worked:0, lastMsg:'',
   };
@@ -126,6 +128,7 @@ function afStepWanted(step, t){
   if(step === 'till')    return t.state === 'wild' && !decorAt(t.gx, t.gy);
   if(step === 'seed')    return t.state === 'tilled' && !t.crop && inFarm(t.gx, t.gy);
   if(step === 'fert')    return t.state === 'growing' && !t.fertile && (state.fertilizer || 0) > 0;
+  if(step === 'water')   return t.state === 'growing' && !t.watered;
   if(step === 'harvest') return t.state === 'ready';
   return false;
 }
@@ -145,6 +148,23 @@ function afPlanPass(){
   }
   return list;
 }
+/* 肥料不够时自动买（要用户勾了"自动购买肥料"；顺带守住金币和单趟上限，别把钱一次清空） */
+function afEnsureFertilizer(need){
+  const A = afGet();
+  if(!A.buyFert || need <= 0) return 0;
+  const have = state.fertilizer || 0;
+  if(have >= need) return 0;
+  const want = need - have;
+  const afford = Math.floor((state.coins || 0) / FERT_COST);
+  const buy = Math.max(0, Math.min(want, AF_BUY_FERT_MAX, afford));
+  if(buy <= 0) return 0;
+  state.coins -= buy * FERT_COST;
+  state.fertilizer = have + buy;
+  if(typeof toast === 'function') toast('🧪 自动买了 ' + buy + ' 份肥料（-' + (buy * FERT_COST) + ' 金）');
+  renderHUD();
+  return buy;
+}
+const AF_BUY_FERT_MAX = 20;              /* 单趟最多自动买这么多份，避免一口气把金币清空 */
 function afStop(msg, quiet){
   const A = afGet();
   A.on = false; A.lastMsg = msg || '';
@@ -173,6 +193,15 @@ function afTick(dt){
   /* 种子：轮作里选中的第一种先摆上，runTool('seed') 用的是 state.selectedSeed */
   const seedId = A.seeds[A.seedIx % A.seeds.length];
   if(A.seed && seedId && CROPS[seedId]) state.selectedSeed = seedId;
+  if(A.fert && A.buyFert){
+    let needFert = 0;
+    const bb = A.box;
+    for(let y = bb.y0; y <= bb.y1; y++) for(let x = bb.x0; x <= bb.x1; x++){
+      const t0 = getTile(x, y);
+      if(t0 && t0.state === 'growing' && !t0.fertile && !t0.stone) needFert++;
+    }
+    afEnsureFertilizer(needFert);
+  }
   const list = afPlanPass();
   if(!list.length){ afRetryAt = now + AF_RETRY_MS; return; }  /* 这趟没活：等作物长 */
   /* 饱食度先备一点：至少够这一趟开头几步（后面边干边吃，不够就停机） */
@@ -220,6 +249,8 @@ function renderAutoFarm(){
   const stepRow = (id, label, hint) =>
     `<label class="af-step${A[id] ? ' on' : ''}"><input type="checkbox" data-af-step="${id}" ${A[id] ? 'checked' : ''}>` +
     `<span>${label}</span><i>${hint}</i></label>`;
+  const STEP_LABEL = { till:['耕地','荒地 → 耕地'], seed:['播种','按下面顺序轮换'], fert:['施肥','肥料不够可以自动买'],
+                       harvest:['收获','熟了才收'], water:['浇水','**放最后**（地大了少折返）'] };
   /* 种子顺序（按勾选顺序轮作） */
   const seedChips = SEED_ORDER.map(id => {
     const on = A.seeds.indexOf(id) >= 0;
@@ -243,6 +274,7 @@ function renderAutoFarm(){
   el.innerHTML = `
     <div class="af-wrap">
       ${A.lastMsg ? '<div class="af-warn">上次停机：' + afEsc(A.lastMsg) + '</div>' : ''}
+      <div class="af-sat${A.satiety > 0 ? ' on' : ''}">🍚 饱食度 <b>${A.satiety}</b> 点<i>每执行一个方块的动作扣 1 点（耕地/播种/施肥/收获/浇水都算）</i></div>
       <section class="af-sec">
         <div class="k-sec-title">🤖 自动农活<span class="k-hint">小人自己干 · 每步扣 1 点饱食度</span></div>
         <label class="af-on${A.on ? ' on' : ''}"><input type="checkbox" data-af-on ${A.on ? 'checked' : ''}><span>启动</span></label>
@@ -254,10 +286,8 @@ function renderAutoFarm(){
       </section>
       <section class="af-sec">
         <div class="k-sec-title">🔄 轮作流水线</div>
-        ${stepRow('till', '耕地', '荒地 → 耕地')}
-        ${stepRow('seed', '播种', '按下面顺序轮换')}
-        ${stepRow('fert', '施肥', '有肥料才施')}
-        ${stepRow('harvest', '收获', '熟了才收')}
+        ${AF_STEPS.map(id => stepRow(id, STEP_LABEL[id][0], STEP_LABEL[id][1])).join('')}
+        <label class="af-step${A.buyFert ? ' on' : ''}"><input type="checkbox" data-af-buyfert ${A.buyFert ? 'checked' : ''}><span>自动购买肥料</span><i>不够时按 ${FERT_COST} 金/份买（单趟最多 ${AF_BUY_FERT_MAX} 份）</i></label>
         <div class="af-line">种子顺序（点选，数字是轮作次序）：</div>
         <div class="af-seeds">${seedChips}</div>
       </section>
@@ -287,6 +317,9 @@ function afOnChange(e){
     if(A.on && !A.box){ A.on = false; toast('先框一块地'); }
     else if(A.on && !A.rationList().length && afSatietyLeft() <= 0) toast('提醒：还没勾选预备口粮，饿了会自动停');
     else if(A.on) toast('🤖 自动农活启动');
+  } else if(t.dataset.afBuyfert !== undefined){
+    A.buyFert = !!t.checked;
+    if(A.buyFert) toast('肥料不够时会自动买（单趟最多 ' + AF_BUY_FERT_MAX + ' 份）');
   } else if(t.dataset.afStep){
     A[t.dataset.afStep] = !!t.checked;
   } else if(t.dataset.afRation !== undefined){
@@ -349,5 +382,6 @@ window.AutoFarmDebug = {
   status: afStatusText,
   stop: (m) => afStop(m, true),
   stepWanted: afStepWanted,
-  AF_AREA_MAX, AF_RATION_MAX_VALUE, AF_SAT_PER_MATERIAL,
+  ensureFertilizer: n => afEnsureFertilizer(n),
+  AF_AREA_MAX, AF_RATION_MAX_VALUE, AF_SAT_PER_MATERIAL, AF_STEPS, AF_BUY_FERT_MAX,
 };

@@ -18,7 +18,7 @@ function loadJsdom() {
 }
 const { JSDOM, VirtualConsole } = loadJsdom();
 
-function ctxStub() {
+function ctxStub(onCall) {
   const grad = { addColorStop() {} };
   const base = {
     canvas: { width: 800, height: 600 },
@@ -34,6 +34,7 @@ function ctxStub() {
     get(t, k) {
       if (k in t) return t[k];
       if (k === 'then' || typeof k === 'symbol') return undefined;
+      if (onCall) return function () { onCall(); };
       return noop;
     },
     set(t, k, v) { t[k] = v; return true; },
@@ -67,7 +68,8 @@ const dom = new JSDOM(html, {
   url: 'http://localhost/',
   virtualConsole: vc,
   beforeParse(window) {
-    window.HTMLCanvasElement.prototype.getContext = function () { return ctxStub(); };
+    window.__ctxOps = 0;
+    window.HTMLCanvasElement.prototype.getContext = function () { return ctxStub(() => { window.__ctxOps++; }); };
     window.HTMLCanvasElement.prototype.toDataURL = function () { return 'data:,'; };
     window.Element.prototype.animate = function () { return { cancel() {}, finished: Promise.resolve(), onfinish: null }; };
     if (!window.performance) window.performance = { now: () => Date.now(), timeOrigin: Date.now() };
@@ -2498,6 +2500,36 @@ const frames = n => new Promise(res => {
     ok(!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '不再有单独的「同配方循环」勾选');
     api.closeSheet();
     api.applyPayload(backup);
+  }
+
+  section('v9.24：渲染性能（框选覆盖层一次成图 · 地块细节分级）');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    ok(typeof W.__ctxOps === 'number', '测试桩能数每帧 canvas 调用次数');
+    const opsFor = (setup) => {
+      setup();
+      W.__ctxOps = 0;
+      D.render();
+      return W.__ctxOps;
+    };
+    /* ① 覆盖层：绘制量与"选区大小"无关（以前是逐格画菱形：26×26 就是 676×2 次路径操作） */
+    const small = opsFor(() => { st().box = { x0: 1, y0: 1, x1: 3, y1: 3 }; st().jobBox = null; });
+    const big = opsFor(() => { st().box = { x0: 1, y0: 1, x1: 26, y1: 26 }; });
+    ok(big - small < 60, '框选覆盖层与选区大小无关（一次成图，不再逐格）',
+      '3×3=' + small + ' 次 → 26×26=' + big + ' 次，差 ' + (big - small));
+    /* ② 任务进行中只描边：比拖动时更省（拖动才有半透明填充） */
+    const job = opsFor(() => { st().box = null; st().jobBox = { x0: 1, y0: 1, x1: 26, y1: 26 }; });
+    ok(job <= big, '作业中的覆盖层只描边（比拖动时更省）', 'job=' + job + ' ≤ drag=' + big);
+    st().jobBox = null;
+    /* ③ 地块细节分级：小格子不该再画砂粒（大地图最贵的那部分） */
+    const t0 = api.getTile(st().farm.x0, st().farm.y0);
+    const wide = opsFor(() => { st().zoomMode = 1.6; });
+    const narrow = opsFor(() => { st().zoomMode = 0.35; });
+    ok(narrow < wide, '缩小/大地图时每帧绘制次数明显更少（细节分级生效）',
+      '1.6x=' + wide + ' 次 → 0.35x=' + narrow + ' 次，省 ' + Math.round((1 - narrow / wide) * 100) + '%');
+    ok(!!t0 && api.tileLOD() >= 0, 'tileLOD() 可读');
+    st().zoomMode = 'auto';
+    api.applyPayload(bk);
   }
 
   section('v9.23：缩略卡开关 · 长按持续添加 · 机器开停 · 后台补算');

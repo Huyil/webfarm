@@ -1,6 +1,6 @@
 {
   "name": "xiao-tianyuan",
-  "version": "9.23.0",
+  "version": "9.24.0",
   "private": true,
   "description": "小田园 v9 —— 单文件种田小游戏（多文件源码 + 构建组装，零运行时依赖）",
   "scripts": {

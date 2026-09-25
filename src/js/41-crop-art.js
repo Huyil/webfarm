@@ -213,14 +213,21 @@ function drawCrop(px, py, t){
     }
     ctx.restore();
   }
-  /* 生长进度条 */
+  /* 生长进度条。
+   * 圆角是靠 arcTo 画的，一条进度条 = 2 次 roundRect = 8 次 arcTo + 8 次 moveTo/lineTo + 2 次 fill；
+   * 40×40 农场一拍就是 1600 条，光这一项每帧就 2.5 万次调用。缩小时圆角根本看不出来，
+   * 所以按 tileLOD() 分级：贴近看用圆角，缩小/大地图直接用 fillRect。 */
   if(t.state === 'growing' && ratio > 0.03){
     ctx.save();
     const w = 30, h = 3.4, x0 = px - w / 2, y0 = py - 42;
+    const round = (typeof tileLOD === 'function') && tileLOD() >= 2;
     ctx.fillStyle = 'rgba(0,0,0,.35)';
-    roundRect(ctx, x0, y0, w, h, h / 2); ctx.fill();
+    if(round){ roundRect(ctx, x0, y0, w, h, h / 2); ctx.fill(); }
+    else ctx.fillRect(x0, y0, w, h);
     ctx.fillStyle = t.watered ? '#6fd0ff' : '#9fe07a';
-    roundRect(ctx, x0, y0, w * ratio, h, h / 2); ctx.fill();
+    const fw = w * ratio;
+    if(round){ roundRect(ctx, x0, y0, fw, h, h / 2); ctx.fill(); }
+    else ctx.fillRect(x0, y0, fw, h);
     ctx.restore();
   }
 }

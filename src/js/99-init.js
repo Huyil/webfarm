@@ -152,6 +152,8 @@ function init(){
 /* ============ 调试/测试接口 ============ */
 window.FarmDebug = {
   get state(){ return state; },
+  render: () => render(),
+  buildDrawOrder,
   version: GAME_VERSION,
   api: {
     /* 田间 */
@@ -197,6 +199,7 @@ window.FarmDebug = {
     /* 视角 */
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
     isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX,
+    tileLOD, TILE_W, TILE_H, SCALE, HALF_W, HALF_H,
     tfEncodeData, tfDecodeData, tfSanitize, tfReadText, tfWriteSlot, tfExportSlot, tfLinkFor, tfParamPayload, tfStorageRisk,
     tfBoot, openTransfer, renderTransfer, TF_ITER, TF_TAG, TF_TAG2, TF_MAX_TILES, tfQrFit, TF_QR_MAX, TF_QR_COMFY,
     atmSunTrack, atmMoonTrack, atmOrbit, ATM_CLOUDS, ATM_ORBIT,

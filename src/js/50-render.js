@@ -4,6 +4,7 @@ function render(){
 
   const W0 = W, H0 = H;
   const zoom = viewZoom();
+  renderZoom = zoom;               /* 地块细节分级用（见 40-tiles.js tileLOD） */
   const w = TILE_W*SCALE, h = TILE_H*SCALE, D = THICKNESS*SCALE;
 
   /* 世界层整体缩放。坐标换算（设备坐标 d ↔ 未缩放坐标 u）：

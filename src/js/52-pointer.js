@@ -161,25 +161,31 @@ function drawInteractionUI(g, cx, cy){
     }
     g.restore();
   }
-  /* 框选范围（作业期间保持高亮） */
+  /* 框选范围：**一个平行四边形**，不再逐格画菱形。
+   * 以前是「每个格子各画一遍填充 + 一遍描边」——40×40 的选区就是 3200 次路径操作/帧，
+   * 这正是"框选开始干活之后特别卡"的主因；现在无论多大选区都只有 1 条路径。
+   * 另外：任务已经在跑（jobBox）时**只画边框**，不铺半透明覆盖层 —— 地块本身看得更清楚。 */
   if(boxNow){
     const b = boxNow;
     const ax = Math.min(b.x0, b.x1), bx = Math.max(b.x0, b.x1);
     const ay = Math.min(b.y0, b.y1), by = Math.max(b.y0, b.y1);
     g.save();
-    g.globalAlpha = 0.25; g.fillStyle = '#8fe07a';
-    for(let y = ay; y <= by; y++) for(let x = ax; x <= bx; x++){
-      const { sx, sy } = iso(x, y);
-      diamond(cx + sx * SCALE, cy + sy * SCALE);
+    /* 半格偏移取的是外轮廓：iso(ax-0.5, ay-0.5) 正好是这个矩形左上角格的顶点 */
+    const o = [[ax - 0.5, ay - 0.5], [bx + 0.5, ay - 0.5], [bx + 0.5, by + 0.5], [ax - 0.5, by + 0.5]];
+    g.beginPath();
+    for(let i = 0; i < 4; i++){
+      const { sx, sy } = iso(o[i][0], o[i][1]);
+      const px = cx + sx * SCALE, py = cy + sy * SCALE;
+      if(i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+    if(!state.jobBox){                       /* 只有"正在拖"的时候铺一点面积感 */
+      g.fillStyle = 'rgba(143,224,122,.14)';
       g.fill();
     }
-    g.globalAlpha = 1;
-    g.strokeStyle = 'rgba(190,255,170,.95)'; g.lineWidth = 2;
-    for(let y = ay; y <= by; y++) for(let x = ax; x <= bx; x++){
-      const { sx, sy } = iso(x, y);
-      diamond(cx + sx * SCALE, cy + sy * SCALE);
-      g.stroke();
-    }
+    g.strokeStyle = state.jobBox ? 'rgba(190,255,170,.9)' : 'rgba(190,255,170,.95)';
+    g.lineWidth = state.jobBox ? 3 : 2;
+    g.stroke();
     g.font = 'bold 13px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
     g.textAlign = 'center';
     g.fillStyle = '#eaffe6';

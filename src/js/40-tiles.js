@@ -27,8 +27,21 @@ function hash2(x, y){
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
+/* 当前渲染倍率下，"一格地在屏幕上有多宽"（设备像素）。
+ * 由 render() 每帧写一次；小格子上还逐格画 1~3px 的砂粒/噪点纯属浪费 ——
+ * 40×40 农场实测每帧 17.8 万次 fillRect 全花在这上面，而且放大率低时基本看不见。 */
+let renderZoom = 1;
+/* 屏幕格子宽 ≥34px：全细节（195 砂粒 + 22 噪点 + 10 垄痕）
+ * ≥26px：中等（60 砂粒 + 10 噪点）
+ * <26px：只留底色（1~3px 的砂粒在这个尺寸本来就糊成一团，省下的正是大地图最贵的那部分） */
+const LOD_FULL = 34, LOD_MID = 30;
+function tileLOD(){
+  const tw = TILE_W * SCALE * renderZoom;
+  return tw >= LOD_FULL ? 2 : (tw >= LOD_MID ? 1 : 0);
+}
 function drawTileBlock(px, py, t){
   const w = TILE_W*SCALE, h = TILE_H*SCALE, D = THICKNESS*SCALE, c = tileColors(t);
+  const lod = tileLOD();
   const top = {x:px, y:py-h/2}, right = {x:px+w/2, y:py}, bottom = {x:px, y:py+h/2}, left = {x:px-w/2, y:py};
 
   ctx.beginPath();
@@ -49,7 +62,8 @@ function drawTileBlock(px, py, t){
 
   /* 纹理跟着世界一起缩放（放大就是放大，不做反向补偿——那会让高倍率下只剩大块平色） */
   const hb = t.gx * 1000 + t.gy;
-  for(let i=0; i<22; i++){
+  const nNoise = lod === 2 ? 22 : (lod === 1 ? 10 : 0);
+  for(let i=0; i<nNoise; i++){
     const r1 = hash2(hb+i, 7), r2 = hash2(hb+i, 13);
     const u = r1*2-1, v = r2*2-1;
     if(Math.abs(u) + Math.abs(v) > 0.95) continue;
@@ -59,13 +73,14 @@ function drawTileBlock(px, py, t){
   /* 耕地/石头：矢量土壤纹理 —— 参数与之前那版「位图图案」对齐
      （菱形过滤会滤掉约一半，所以按 ~195 颗投放、落点约 95 颗 + 10 条短垄痕），所以观感一致；
      但用 fillRect 逐帧光栅化，任何倍率都清晰、缩放时也不抖。 */
-  if(!(t.state === 'wild' && !t.stone)){
+  if(lod > 0 && !(t.state === 'wild' && !t.stone)){
     const liteC = t.stone ? 'rgba(226,226,238,.22)' : 'rgba(216,188,150,.22)';
     const darkC = t.stone ? 'rgba(52,52,64,.24)'   : 'rgba(56,34,16,.20)';
     const dashA = t.stone ? 'rgba(150,150,168,.16)' : 'rgba(150,116,80,.16)';
     const dashB = t.stone ? 'rgba(206,206,220,.16)' : 'rgba(196,166,124,.16)';
     /* ① 细砂：铺满整格、两色交错 */
-    for(let i=0; i<195; i++){
+    const nSand = lod === 2 ? 195 : 44;
+    for(let i=0; i<nSand; i++){
       const q1 = hash2(hb + i * 11, 811), q2 = hash2(hb + i * 11, 823);
       const cu = q1*2-1, cv = q2*2-1;
       if(Math.abs(cu) + Math.abs(cv) > 1.0) continue;
@@ -74,7 +89,8 @@ function drawTileBlock(px, py, t){
       ctx.fillRect(px + cu*w*0.5, py + cv*h*0.5, r, r * (0.75 + q1 * 0.5));
     }
     /* ② 短垄痕：3~6px 的浅短痕，只是"耙过土"的暗示，不是长线条 */
-    for(let i=0; i<10; i++){
+    const nDash = lod === 2 ? 10 : 4;
+    for(let i=0; i<nDash; i++){
       const q1 = hash2(hb + i * 71, 907), q2 = hash2(hb + i * 71, 911);
       const cu = q1*2-1, cv = q2*2-1;
       if(Math.abs(cu) + Math.abs(cv) > 0.85) continue;

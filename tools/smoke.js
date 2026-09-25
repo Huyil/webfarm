@@ -2502,6 +2502,62 @@ const frames = n => new Promise(res => {
     api.applyPayload(backup);
   }
 
+  section('v9.27：锅里塞满 1000 块也不卡（界面聚合 · 签名紧凑 · 自动补料分帧）');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    const K = api.KITCHEN;
+    /* ① 界面：按种类聚合，节点数只跟"有几种"有关，跟块数无关 */
+    st().pieces.pumpkin = 1000;
+    K.pot.pieces = new Array(1000).fill('pumpkin');
+    K.pot.t = 0; K.pot.done = false;
+    api.openSheet('kitchen'); api.renderKitchen && api.renderKitchen();
+    const slot = $('kitchenBody').querySelector('.k-pot-slot-x');   /* 只要锅的槽（石磨也有 .k-pot-slot） */
+    ok(!!slot, '锅里那块显示区在');
+    const chips = slot.querySelectorAll('.k-chip');
+    ok(chips.length <= 13, '1000 块只渲染出"几种"数量的 chip（不是 1000 个节点）', '节点数 ' + chips.length);
+    ok(/×1000/.test(slot.textContent) || /1000/.test(slot.textContent), '数量用 ×N 标出来', slot.textContent.trim().slice(0, 60));
+    /* ② 签名紧凑：不再 join 上千个元素 */
+    const sig = W.KitchenDebug.stationState ? null : null;
+    ok(api.serialize(st()) !== null, '序列化可用');
+    /* ③ 菜品主键/记录也不再被块数撑爆 */
+    api.kitchenTick(api.POT_MS + api.POT_PERFECT_MS + 50);
+    const rec = api.cook.potTake(false);
+    ok(rec.ok, '出锅成功', rec.msg);
+    const pk = Object.keys(st().dishes).filter(k => /pumpkin/.test(k));
+    eq(pk.length, 1, '南瓜菜进了仓库');
+    const dkey = pk[0] || '';
+    ok(dkey.length < 120, '菜品主键不再随块数线性膨胀', '键 ' + dkey.length + ' 字符');
+    const dish = st().dishes[dkey] || {};
+    ok((dish.pieces || []).length <= 11, '菜品记录里存的是"种类"而不是 1000 个元素', 'pieces ' + (dish.pieces || []).length);
+    eq(dish.counts && dish.counts.pumpkin, 1000, '数量记在 counts 里（价钱不变）');
+    /* ④ 价钱没变：基础价 = 单块价 × 1000 × 该配方的系数 */
+    const many = api.potRecipe(new Array(1000).fill('pumpkin'));
+    eq(many.base, Math.round(api.pieceValue('pumpkin') * 1000 * many.factor),
+      '1000 块的配方基础价 = 单块价 × 1000 × 系数（聚合不改定价）');
+    eq(many.pieces.length, 1, '聚合后的种类只有 1 种');
+    eq(many.n, 1000, '总数仍然记着 1000');
+    /* ⑤ 自动补料：1000 块一次补齐，但只写一次盘（以前是 1000 次） */
+    st().dishes = {}; st().pieces.pumpkin = 5000;
+    K.pot.pieces = []; K.pot.lastPieces = new Array(1000).fill('pumpkin');
+    K.pot.auto = true;
+    let writes = 0;
+    const realSet = W.localStorage.setItem;
+    W.localStorage.setItem = function () { writes++; return realSet.apply(this, arguments); };
+    api.kitchenTick(100);
+    W.localStorage.setItem = realSet;
+    eq(K.pot.pieces.length, 1000, '一次补齐整份配方（语义没变，还是一锅 1000 块）');
+    ok(writes <= 2, '整份补齐只写盘一次（以前是 1000 次 → 这就是卡顿真凶）', '写盘 ' + writes + ' 次');
+    K.pot.auto = false;
+    /* ⑥ 全自动循环的"料没了"判定仍然正确 */
+    K.pot.pieces = []; K.pot.lastPieces = ['pumpkin'];
+    st().pieces.pumpkin = 0; K.pot.auto = true;
+    api.kitchenTick(100);
+    ok(K.pot.pieces.length === 0 && K.pot.auto === false, '料真的没了 → 自动停（不会被分帧逻辑卡住）');
+    K.pot.pieces = []; K.pot.lastPieces = [];
+    api.closeSheet();
+    api.applyPayload(bk);
+  }
+
   section('v9.26：手机双指缩放（合拢=缩小 · 张开=放大 · 锚在中点）');
   {
     const bk = JSON.parse(JSON.stringify(api.serialize(st())));

@@ -345,6 +345,17 @@ function kKitchenOpen(){
   return !!m.className && String(m.className).indexOf('show') >= 0;
 }
 /* ---------- 结构签名：变了才重建 DOM ---------- */
+/* 锅里内容的紧凑签名：种类 + 数量（最多 11 项），不再 join 上千个元素 */
+function kPotSig(){
+  const list = KITCHEN.pot.pieces;
+  if(!list.length) return '0';
+  const cnt = {};
+  for(let i = 0; i < list.length; i++) cnt[list[i]] = (cnt[list[i]] || 0) + 1;
+  const keys = Object.keys(cnt).sort();
+  let s = String(list.length);
+  for(const k of keys) s += ',' + k + ':' + cnt[k];
+  return s;
+}
 function kKitchenSig(){
   const K = KITCHEN;
   const shelf = kitchenShelf().map(it => it.key + ':' + it.n + (state.fav && state.fav[it.key] ? '*' : '')).join(',');
@@ -356,7 +367,7 @@ function kKitchenSig(){
     (K.oven.items || []).length, state.ovenSlots || 1,
     AUTO_IDS.map(id => (autoActive(id) ? 1 : 0) + ':' + autoCountOf(id) + ':' + autoSlotOf(id).length).join(''),
     kBoardBusy() ? 1 : 0, (K.board && K.board.src) || '',
-    K.pot.pieces.join('.'), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0,
+    kPotSig(), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0,
     state.prep.flour || 0, state.bag.wheat || 0,
     state.miniGameEnabled === false ? 0 : 1,
     kExpandOf('prep') ? 1 : 0, kExpandOf('cook') ? 1 : 0,
@@ -388,7 +399,7 @@ function kLineSummary(line){
   }
   const pv = K.pot.pieces.length ? potRecipe(K.pot.pieces) : null;
   const ovenN = (K.oven.items || []).length;
-  return '🍳 烹饪台 · 锅：' + (pv ? pv.name + '（' + K.pot.pieces.length + ' 样）' : '空') +
+  return '🍳 烹饪台 · 锅：' + (pv ? pv.name + '（' + pv.pieces.length + ' 种 ' + pv.n + ' 块）' : '空') +
          ' · 烤箱：' + (ovenN ? ovenN + ' 份在烤' : '空') +
          ' · 面粉 ×' + (state.prep.flour || 0) + ' · 菜块 ×' + kPieceStock();
 }
@@ -490,6 +501,24 @@ function kStationMillHTML(){
       </div>
     </div>`;
 }
+/* 锅里的食材：按种类聚合（图标 + ×数量），再给一个总数标签。上限与块数无关。 */
+function kPotChipsHTML(){
+  const list = KITCHEN.pot.pieces;
+  if(!list.length) return '';
+  const cnt = {};
+  for(let i = 0; i < list.length; i++) cnt[list[i]] = (cnt[list[i]] || 0) + 1;
+  const K_POT_CHIP_KINDS = 12;                      /* 种类最多 11（作物数），留一点余量 */
+  const kinds = Object.keys(cnt).slice(0, K_POT_CHIP_KINDS);
+  let out = '';
+  for(const id of kinds){
+    out += '<span class="k-chip k-chip-n" title="' + kEsc(kItemLabel('piece:' + id)) + ' ×' + cnt[id] + '">' +
+      kIconHTML('piece:' + id, K_ICON_SIZES.pot) +
+      '<i class="k-chip-num">' + (cnt[id] > 1 ? '×' + cnt[id] : '') + '</i></span>';
+  }
+  if(Object.keys(cnt).length > K_POT_CHIP_KINDS) out += '<span class="k-slots-num">…</span>';
+  out += '<span class="k-slots-num">共 ' + list.length + ' 块 / ' + Object.keys(cnt).length + ' 种</span>';
+  return out;
+}
 /* 烤箱里的原料 chips（可多份）+ 槽位计数 */
 function kOvenChipsHTML(){
   const items = KITCHEN.oven.items || [];
@@ -565,9 +594,10 @@ function kStationBoardHTML(){
 function kStationPotHTML(){
   const K = KITCHEN;
   const has = K.pot.pieces.length > 0;
-  const chips = has
-    ? K.pot.pieces.map(id => '<span class="k-chip">' + kIconHTML('piece:' + id, K_ICON_SIZES.pot) + '</span>').join('')
-    : '<span class="k-add" title="拖入菜块 / 大米">＋</span>';
+  /* v9.27：按种类聚合 + 数量角标。
+   * 以前一块一个 chip —— 塞 1000 块南瓜就是 1000 个 <img> 节点，每次刷新都要重排整片，
+   * "菜越多越卡"的一大半来自这里。现在无论塞多少块，节点数 = **有几种**（最多 11 种 + 总数）。 */
+  const chips = has ? kPotChipsHTML() : '<span class="k-add" title="拖入菜块 / 大米">＋</span>';
   return `
     <div class="k-station" data-station="pot">
       <div class="k-st-head"><span class="k-st-ico">🍲</span><span class="k-st-name">锅</span><span class="k-st-state" data-state="pot-x"></span></div>
@@ -586,6 +616,15 @@ function kStationPotHTML(){
     </div>`;
 }
 /* 菜品仓库（右侧栏）：一行一道菜，按钮窄一点免得把内容顶出去 */
+/* 菜品的配料文案：有 counts 就显示 名称×数量；老存档只有名字数组，按老样子显示 */
+function kDishPiecesText(d){
+  const list = d.pieces || [];
+  if(d.counts){
+    const keys = Object.keys(d.counts);
+    if(keys.length) return keys.map(id => itemName(id) + (d.counts[id] > 1 ? '×' + d.counts[id] : '')).join(' + ');
+  }
+  return list.slice(0, 12).map(itemName).join(' + ') + (list.length > 12 ? ' …' : '');
+}
 function kDishListHTML(){
   const keys = Object.keys(state.dishes);
   if(!keys.length){
@@ -595,7 +634,7 @@ function kDishListHTML(){
   for(const key of keys){
     const d = state.dishes[key];
     const q = QUALITY[d.quality] || QUALITY.normal;
-    const pieces = (d.pieces || []).map(itemName).join(' + ') || '—';
+    const pieces = kDishPiecesText(d);
     rows += `
       <div class="row k-dish-row">
         <div class="r-ico k-dish-ico">${kIconHTML('dish:' + key, K_ICON_SIZES.dish)}</div>
@@ -747,6 +786,20 @@ function kClock(ms){
   const s = Math.max(0, Math.ceil(ms / 1000));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+/* 配方缓存：kUpdateLive 每帧都要用（名字/基础价），但锅内容不变时结果也不变。
+ * 以前每帧都算一遍 + 复制一份 pieces 数组，塞满 1000 块时纯属浪费（也喂 GC）。 */
+let kPvCache = { key:'', pv:null };
+function kPotRecipeCached(){
+  const list = KITCHEN.pot.pieces;
+  const cnt = {};
+  for(let i = 0; i < list.length; i++) cnt[list[i]] = (cnt[list[i]] || 0) + 1;
+  const keys = Object.keys(cnt).sort();
+  const key = list.length + '|' + keys.map(k => k + ':' + cnt[k]).join(',');
+  if(kPvCache.key === key) return kPvCache.pv;
+  const pv = potRecipe(list);
+  kPvCache = { key, pv };
+  return pv;
+}
 /* 每帧的轻量刷新：缩略卡 / 环形进度 / 状态字 / 按钮可用性（不重建 DOM） */
 function kUpdateLive(){
   if(!kUI || !kUI.n) return;
@@ -848,7 +901,7 @@ function kUpdateLive(){
 
   /* ---- 锅 ---- */
   const potHas = K.pot.pieces.length > 0;
-  const pv = potHas ? potRecipe(K.pot.pieces) : null;
+  const pv = potHas ? kPotRecipeCached() : null;
   const pTotal = K.pot.dur + POT_BURN_MS;
   if(!potHas){
     kSetBar(kUI.n.potBar, 0, 'idle');
@@ -874,7 +927,8 @@ function kUpdateLive(){
       setAll('[data-state="pot"]', 'burnt', '🔥 焦糊');
       setAll('[data-state="pot-x"]', 'burnt', '🔥 已焦糊');
     }
-    sub('pot', (pv ? pv.name : '杂烩') + ' · ' + K.pot.pieces.length + ' 样 · ' + kSecText(K.pot.dur - K.pot.t) + ' 到点');
+    sub('pot', (pv ? pv.name + ' · ' + pv.pieces.length + ' 种 ' + pv.n + ' 块' : '杂烩 · ' + K.pot.pieces.length + ' 块')
+      + ' · ' + kSecText(K.pot.dur - K.pot.t) + ' 到点');
   }
   if(kUI.n.potBtn) kUI.n.potBtn.disabled = !(potHas && K.pot.done);
   { setChk('[data-auto="pot"]', K.pot.auto);
@@ -1052,7 +1106,7 @@ function kFrameEvents(visible){
   kPrev.boardSrc = (K.board && K.board.src) || null;
   kPrev.ovenBusy = K.oven.busy;
   kPrev.potLen = K.pot.pieces.length;
-  kPrev.potPieces = K.pot.pieces.slice();
+  kPrev.potPieces = kPotSig();          /* 存签名，别再每帧复制上千个元素 */
   kPrev.dishes = dishes;
 }
 

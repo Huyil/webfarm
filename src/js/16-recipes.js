@@ -40,16 +40,26 @@ function countPieces(pieces){
   for(const p of pieces) c[p] = (c[p] || 0) + 1;
   return c;
 }
-/* 目标菜（未定品质）：返回 {id,name,emoji,factor,base,pieces} */
+/* 目标菜（未定品质）：返回 {id,name,emoji,factor,base,pieces,counts,n}
+ *
+ * v9.27：`pieces` 改成**去重后的种类表**，数量放在 `counts` 里。
+ * 以前是原样复制整个多重集 —— 塞 1000 块南瓜时，菜品主键会变成 6KB 的长串、
+ * 菜品记录里存 1000 个元素的数组、存档也跟着膨胀。聚合后：键 / 存档 / 界面都是
+ * "有几种"，跟塞了多少块无关（`n` 保留总数，`base` 仍然按块数算，价钱不变）。 */
 function potRecipe(pieces){
   const need = countPieces(pieces);
   const combo = POT_COMBOS.find(c => sameNeed(c.need, need));
   const def = combo || POT_FALLBACK;
   let base = 0;
-  for(const id of pieces) base += pieceValue(id);
+  const kinds = Object.keys(need);
+  for(const id of kinds) base += pieceValue(id) * need[id];
   base *= def.factor;
-  return { id:def.id, name:def.name, emoji:def.emoji, factor:def.factor, base:Math.round(base), pieces:pieces.slice() };
+  kindCacheKey = kinds.join(',') + '|' + pieces.length;      /* 给 UI 做缓存键（种类 + 总数） */
+  return { id:def.id, name:def.name, emoji:def.emoji, factor:def.factor,
+           base:Math.round(base), pieces:kinds, counts:need, n:pieces.length };
 }
+/* 锅里的内容摘要（种类 + 数量），UI 缓存用；对同一锅内容稳定不变 */
+let kindCacheKey = '';
 /* 品质定价 */
 function applyQuality(baseValue, qualityId){
   const q = QUALITY[qualityId] || QUALITY.normal;

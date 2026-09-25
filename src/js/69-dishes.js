@@ -27,7 +27,8 @@ function addDish(recipe, qualityId, n){
   if(cur) cur.n += n;
   else {
     cur = state.dishes[key] = { n, name: recipe.name, emoji: recipe.emoji, value,
-      quality: qualityId, qname: q.name, qtag: q.tag, pieces: recipe.pieces.slice(), id: recipe.id };
+      quality: qualityId, qname: q.name, qtag: q.tag, pieces: recipe.pieces.slice(), id: recipe.id,
+      counts: recipe.counts ? Object.assign({}, recipe.counts) : null };
   }
   state.stats.total.dishTypes[recipe.id] = true;
   return cur;
@@ -322,9 +323,10 @@ function autoLoopFeed(){
   if(K.pot.auto && !K.pot.pieces.length){
     const last = K.pot.lastPieces || [];
     if(!last.length) return;
-    let ok = true;
-    for(const id of last) if(!potAdd({ piece: id }).ok) ok = false;
-    if(!ok){
+    /* 一次补齐整份配方，但**只写一次盘**（以前是逐块 potAdd → 1000 次 save）。
+       语义不变：1000 块的配方还是煮成一锅 1000 块的菜，不会被人为切碎。 */
+    const added = potAddMany(last);
+    if(added === 0){
       K.pot.auto = false;
       toast('🔪 菜块用完了：锅全自动已停（原料不足）');
     }
@@ -367,6 +369,27 @@ function potAdd(kind){
   KITCHEN.pot.lastPieces = KITCHEN.pot.pieces.slice();   // 记住配方：全自动照着再做一锅
   save();
   return { ok:true, msg:`下锅：${itemName(id)}` };
+}
+/* 批量下锅：一次记账、一次存档。
+ * 自动补料以前是 for(...) 里逐块 potAdd()，而 potAdd 每次都 save() ——
+ * 1000 块的配方就是**同帧 1000 次写 localStorage**（整个存档序列化 1000 遍），
+ * 这就是"锅里塞多了会越来越卡"的真凶。 */
+function potAddMany(ids){
+  const list = ids || [];
+  let added = 0;
+  for(let i = 0; i < list.length; i++){
+    const id = list[i];
+    if((state.pieces[id] || 0) <= 0) break;          /* 不够了就停 */
+    state.pieces[id]--;
+    KITCHEN.pot.pieces.push(id);
+    added++;
+  }
+  if(added > 0){
+    KITCHEN.pot.t = 0; KITCHEN.pot.done = false;     /* 每加一样重置进度条（和手动一致） */
+    KITCHEN.pot.lastPieces = KITCHEN.pot.pieces.slice();
+    save();
+  }
+  return added;
 }
 function potPreview(){
   const pieces = KITCHEN.pot.pieces;

@@ -164,10 +164,10 @@ window.FarmDebug = {
     CROPS, cropReadyMs, cropTotalMs, cropProfit, cropRate,
     applyRainWatering, rollWeather, updateAtmosphere, hourFromClock, DAY_PHASES,
     /* 厨房 */
-    cook: { mill, ovenPut, ovenTake, boardPut, potAdd, potTake, sellDish, addDish },
+    cook: { mill, ovenPut, ovenTake, boardPut, potAdd, potAddMany, potTake, sellDish, addDish },
     canBoard, canOvenPut, canMill, FERT_KEEP, PREMIUM_KEEP, pushRecentSeed,
     kitchenTick: ms => { kitchenLogicTick(ms); },
-    KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon,
+    KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon, pieceValue,
     OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS, POT_MS, POT_PERFECT_MS, POT_BURN_MS, QUALITY,
     AUTO_DEVICES, AUTO_IDS, autoBuy, autoActive, autoLeftMs, autoTick, autoLoopFeed,
     autoSlotOf, autoSlotRefill, AUTO_SLOT_MAX, autoPickCrop, autoPaused, autoPause, autoResume, autoSetOn, catchUpAway,

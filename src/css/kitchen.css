@@ -487,3 +487,15 @@
   accent-color:#4d8a4a;cursor:pointer;flex:none;margin:0;
 }
 .k-mini-sw:has(input:checked){color:#9fe07a;border-color:rgba(127,224,138,.5);background:rgba(127,224,138,.1)}
+
+
+/* ---------- v9.27：锅里按种类聚合的数量角标 ---------- */
+.k-chip-n{position:relative;overflow:visible}
+.k-chip-num{
+  position:absolute;right:calc(-3px*var(--ui-scale));bottom:calc(-3px*var(--ui-scale));
+  font-style:normal;font-size:max(8px,calc(8.5px*var(--ui-scale)));font-weight:700;
+  color:#fff3b0;background:rgba(20,26,20,.9);border-radius:999px;
+  padding:0 calc(2.5px*var(--ui-scale));line-height:1.25;
+  box-shadow:0 0 0 1px rgba(0,0,0,.5);font-variant-numeric:tabular-nums;
+}
+.k-chip-num:empty{display:none}

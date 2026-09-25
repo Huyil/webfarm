@@ -59,6 +59,27 @@ function renderHUD(){
   }
   renderToolbar();
 }
+/* 资源签名：后台产出（自动烹饪 / 驴 / 切块机 / 自动农活 / 离线补算）改了这些东西时，
+ * 顶栏徽标与**打开着的面板**必须跟着刷新 —— 以前打开仓库盯着看，数字是"冻住"的，
+ * 得关掉再开才更新。这里每帧比一次签名（纯数字运算，很便宜），变了才刷。 */
+let resSigShown = null;
+function resSig(){
+  let n = 0;
+  for(const id of CROP_IDS) n = (n * 31 + (state.bag[id] || 0) * 7 + (state.pieces[id] || 0) * 13) | 0;
+  n = (n * 31 + Math.floor(state.coins) * 3 + (state.prep.flour || 0) * 17) | 0;
+  n = (n * 31 + (state.fertilizer || 0) * 23 + (state.premium || 0) * 29) | 0;
+  return n + '|' + dishTotal() + '|' + Object.keys(state.dishes).length;
+}
+function refreshIfResChanged(){
+  const sig = resSig();
+  if(sig === resSigShown) return false;
+  resSigShown = sig;
+  renderHUD();
+  /* 打开着的仓库面板：立刻重画（用户就是盯着它看产出） */
+  const sm = document.getElementById('storeModal');
+  if(sm && sm.classList && sm.classList.contains('show') && typeof renderStore === 'function') renderStore();
+  return true;
+}
 function renderClock(){
   const c = document.getElementById('hudClock');
   const w = document.getElementById('hudWeather');

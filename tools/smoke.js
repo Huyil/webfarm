@@ -2502,6 +2502,53 @@ const frames = n => new Promise(res => {
     api.applyPayload(backup);
   }
 
+  section('v9.31：自动农活大区域（一键整个农场 · 规划不再 O(n²)）');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    const AF = W.AutoFarmDebug;
+    /* ① 一键选中整个农场（大地图上"拖框"只能拖到屏幕内，框不全） */
+    AF.clearArea();
+    ok(!AF.state.box, '先清空');
+    AF.selectWholeFarm();
+    const f = st().farm;
+    ok(!!AF.state.box, '一键选中了整个农场');
+    eq(AF.state.box.x1 - AF.state.box.x0 + 1, f.w, '宽度 = 农场宽');
+    eq(AF.state.box.y1 - AF.state.box.y0 + 1, f.h, '高度 = 农场高');
+    /* ② 大区域的规划：不能是 O(n²)（原来 100×100 要 120ms） */
+    const big = [];
+    for (let y = 0; y < 100; y++) for (let x = 0; x < 100; x++) big.push({ gx: x, gy: y });
+    const t0 = Date.now();
+    const path = api.planPath(big, { gx: 0, gy: 0 });
+    const ms = Date.now() - t0;
+    eq(path.length, 10000, '一万格全都排进路径');
+    ok(ms < 60, '一万格规划在 60ms 内完成（不再是 O(n²)）', ms + 'ms');
+    /* 蛇形：按行走，相邻两行方向相反 */
+    let okRows = true;
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i];
+      if (a.gy === b.gy) { if (Math.abs(a.gx - b.gx) !== 1) { okRows = false; break; } }
+    }
+    ok(okRows, '同一行内是一格一格走过去的（不是来回跳）');
+    const row0 = path.filter(q => q.gy === 0).map(q => q.gx);
+    const row1 = path.filter(q => q.gy === 1).map(q => q.gx);
+    ok(row0[0] === 0 && row0[row0.length - 1] === 99, '第 0 行从左到右');
+    ok(row1[0] === 99 && row1[row1.length - 1] === 0, '第 1 行从右到左（蛇形折返）');
+    /* 小规模仍走原来的最近邻（不打乱既有手感） */
+    const small = api.planPath([{ gx: 5, gy: 0 }, { gx: 0, gy: 0 }, { gx: 1, gy: 0 }], { gx: 0, gy: 0 });
+    eq(small[0].gx, 0, '小规模：从最近的一格开始（贪心仍然生效）');
+    eq(small[1].gx, 1, '小规模：然后是第二近的');
+    /* ③ 整个农场当区域时，规划能盖住所有该干的格子 */
+    st().fertilizer = 99;
+    const b = AF.state.box;
+    for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) {
+      const t = api.getTile(x, y); if (!t) continue;
+      t.stone = false; t.state = 'wild'; t.terrain = 'grass'; t.crop = null; t.fertLeft = 0;
+    }
+    ok(AF.plan().length >= f.w * f.h, '整个农场都排上了耕地', '规划 ' + AF.plan().length + ' 步 / 共 ' + (f.w * f.h) + ' 格');
+    AF.clearArea();
+    api.applyPayload(bk);
+  }
+
   section('v9.30：切块机指定作物 · 面包切片（每片 +2 金）· 区域无上限 · 虚线只在交互时显示');
   {
     const bk = JSON.parse(JSON.stringify(api.serialize(st())));

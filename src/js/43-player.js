@@ -26,7 +26,31 @@ function playerClearQueue(){
   p.queue = []; p.pendingOp = null; state.jobBox = null; state.box = null;
 }
 /* 贪心最近邻：让小人按一条顺路走完框选区域（简易路径规划） */
+/* 超过这个格子数就换成"蛇形按行走"（见下） */
+const PLAN_FAST_N = 400;
 function planPath(list, from){
+  /* 贪心最近邻是 O(n²)：100×100 的区域一趟要 120ms（每次重排都卡一下）。
+     大地图改用**蛇形按行走** —— 矩形区域上本来就接近最优（一行走到底、下一行折返），
+     而且只要 O(n log n)；小规模仍走原来的最近邻（更贴合零散格子）。 */
+  if(list.length > PLAN_FAST_N){
+    const arr = list.slice().sort((a, b) => (a.gy - b.gy) || (a.gx - b.gx));
+    const out = [];
+    let row = [], rowIx = 0;
+    const flush = () => {
+      if(!row.length) return;
+      if(rowIx % 2 === 1) row.reverse();
+      for(const t of row) out.push(t);
+      row = []; rowIx++;
+    };
+    let gy = null;
+    for(const t of arr){
+      if(gy === null) gy = t.gy;
+      if(t.gy !== gy){ flush(); gy = t.gy; }
+      row.push(t);
+    }
+    flush();
+    return out;
+  }
   const rest = list.slice(), out = [];
   let cur = from;
   while(rest.length){

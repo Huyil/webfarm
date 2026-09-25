@@ -325,7 +325,8 @@ function autoLoopFeed(){
       }
       fed++;
     }
-    return;
+    /* 注意：这里**不能 return** —— 烤箱开着自动但没料时，锅的自动补料也得继续跑
+       （以前是 return，两个都开自动时锅就永远不补料了） */
   }
   if(K.pot.auto && !K.pot.pieces.length){
     const last = K.pot.lastPieces || [];

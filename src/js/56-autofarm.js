@@ -113,6 +113,12 @@ function afSetArea(b){
   toast(`自动农活区域：${bx - ax + 1}×${by - ay + 1}（${(bx - ax + 1) * (by - ay + 1)} 格）`);
   return true;
 }
+/* 一键选中整块农场：大地图上"拖框"只能拖到屏幕内，根本框不全 —— 直接按农场矩形选 */
+function afSelectWholeFarm(){
+  const f = state.farm;
+  if(!f || !f.w || !f.h) return false;
+  return afSetArea({ x0:f.x0, y0:f.y0, x1:f.x0 + f.w - 1, y1:f.y0 + f.h - 1 });
+}
 function afClearArea(){
   const A = afGet();
   A.box = null; A.lastMsg = ''; A.on = false;
@@ -279,6 +285,7 @@ function renderAutoFarm(){
         <div class="af-line">区域：<b>${boxTxt}</b>${A.box ? '（' + (A.box.x1 - A.box.x0 + 1) * (A.box.y1 - A.box.y0 + 1) + ' 格）' : ''}</div>
         <div class="af-btns">
           <button class="mini primary" data-af-act="pick">${state.afPicking ? '在地图上拖出范围…' : '框选区域'}</button>
+          <button class="mini" data-act="whole">整个农场</button>
           <button class="mini" data-af-act="clear">清空区域</button>
         </div>
       </section>
@@ -350,6 +357,7 @@ function afOnClick(e){
     toast('在地图上拖出一个范围（松手生效）');
     return;
   }
+  if(act === 'whole'){ SFX.play('click'); afSelectWholeFarm(); return; }
   if(act === 'clear'){ SFX.play('click'); afClearArea(); return; }
   if(act === 'all'){
     for(const k of Object.keys(state.dishes)) if(afRationOK(k)) A.ration[k] = true;
@@ -365,6 +373,7 @@ function openAutoFarm(){ openSheet('autofarm'); }
 window.AutoFarmDebug = {
   get state(){ return afGet(); },
   setArea: b => afSetArea(b),
+  selectWholeFarm: afSelectWholeFarm,
   clearArea: afClearArea,
   plan: () => afPlanPass(),
   planSize(){ return afPlanPass().length; },

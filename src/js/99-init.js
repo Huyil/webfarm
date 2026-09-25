@@ -192,6 +192,7 @@ window.FarmDebug = {
     /* 排行榜 */
     SFX, kKitchenOpen, LB_METRICS, lbMyStats, lbSetName, lbLoad, lbSubmit, lbSortEntries, lbMetric, lbCleanName, lbOpen, lbRefresh, renderLeaderboard, lbPlayerId,
     openSheet, closeSheet, trackAction, checkAchievements, openAutoFarm, renderAutoFarm,
+    resSig, refreshIfResChanged, renderStore,
     afGet, afSetArea, afTick, afSpend, afEatOne, afDishSatiety, afRationOK, afPlanPass,
     /* 扩建 */
     normalizeTopStone, expandInfo, expandPrice, doExpand, buyExpand, rebuildMapTiles, inFarm, inMap,

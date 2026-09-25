@@ -15,6 +15,7 @@ function loop(now){
   updatePlayer(dt);
   updateKitchen(dt);
   if(typeof afTick === 'function') afTick(dt);      /* 自动农活：队列空了就排下一趟 */
+  if(typeof refreshIfResChanged === 'function') refreshIfResChanged();   /* 后台产出 → 顶栏/面板跟着刷 */
   updateParticles(dt);
   updateEffects(dt);
   /* 没动过镜头就始终把农场摆在正中（平移或缩放后不再自动跟随） */

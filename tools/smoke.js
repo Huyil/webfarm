@@ -1655,7 +1655,22 @@ const frames = n => new Promise(res => {
     st().coins = 4321; st().bag.carrot = 7;
     const src = api.serialize(st());
     const enc = await api.tfEncodeData(src, '1234');
-    ok(enc.ok && enc.text.indexOf('FT1:') === 0, '导出得到 FT1: 开头的存档串', enc.ok ? enc.text.length + ' 字符' : enc.msg);
+    ok(enc.ok && enc.text.indexOf('FT2:') === 0, '导出得到 FT2: 开头的紧凑存档串', enc.ok ? enc.text.length + ' 字符' : enc.msg);
+    ok(enc.text.length < JSON.stringify(src).length / 2, '压缩后明显小于明文 JSON（gzip 生效）',
+      enc.text.length + ' < ' + Math.round(JSON.stringify(src).length / 2));
+    {
+      /* 信封结构：FT 头 + 版本 + flags + 迭代下标 + salt16 + iv12 + 密文，只套一层 base64 */
+      const t = enc.text.slice(4).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice(0, (4 - enc.text.slice(4).length % 4) % 4);
+      const raw = W.atob(t);
+      const bb = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bb[i] = raw.charCodeAt(i);
+      ok(bb[0] === 0x46 && bb[1] === 0x54 && bb[2] === 1, '紧凑信封头正确（FT + 版本）');
+      ok(bb.length > 34 && bb.length < enc.text.length, '信封就是 salt+iv+密文，没有二次 base64 套娃', bb.length + ' B');
+    }
+    /* 二维码可行性判断如实：整档二维码基本装不下 */
+    const fit = api.tfQrFit(enc.text);
+    ok(typeof fit.ok === 'boolean' && fit.bytes === enc.text.length, '能算出这个档适不适合二维码', JSON.stringify(fit));
+    ok(api.tfQrFit('x'.repeat(4000)).ok === false, '超过 QR 上限的档会被判定为装不下');
     const dec = await api.tfDecodeData(enc.text, '1234');
     ok(dec.ok, '正确密码能解开', dec.msg);
     eq(dec.data.coins, 4321, '解出来的金币一致');
@@ -1666,6 +1681,25 @@ const frames = n => new Promise(res => {
     ok(!(await api.tfDecodeData('FT1:zzzz', '1234')).ok, '乱码存档串被拒绝');
     ok(!(await api.tfDecodeData('hello', '1234')).ok, '不是本游戏的串被拒绝');
     ok(!(await api.tfEncodeData(src, '12')).ok, '密码不是 4 位数字时拒绝导出');
+
+    /* ①b v9.21 导出的 FT1 老串照样要能读（向后兼容） */
+    {
+      const subtle = W.crypto.subtle;
+      const salt = W.crypto.getRandomValues(new Uint8Array(16));
+      const iv = W.crypto.getRandomValues(new Uint8Array(12));
+      const b64 = b => { let t = ''; for (const x of b) t += String.fromCharCode(x); return W.btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+      const base = await subtle.importKey('raw', new W.TextEncoder().encode('farm:1234'), 'PBKDF2', false, ['deriveKey']);
+      const key = await subtle.deriveKey({ name:'PBKDF2', salt, iterations:1000, hash:'SHA-256' }, base,
+        { name:'AES-GCM', length:256 }, false, ['encrypt']);
+      const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv }, key,
+        new W.TextEncoder().encode(JSON.stringify(src))));
+      const env = { v:1, alg:'A256GCM', it:1000, r:1, salt:b64(salt), iv:b64(iv), ct:b64(ct) };
+      const oldStr = 'FT1:' + b64(new W.TextEncoder().encode(JSON.stringify(env)));
+      const back = await api.tfDecodeData(oldStr, '1234');
+      ok(back.ok, 'v9.21 导出的 FT1 老串还能导入（向后兼容）', back.msg);
+      eq(back.data.coins, src.coins, '老串解出来的内容一致');
+      api.tfSanitize(back.data);
+    }
 
     /* ② 导入体检：把外来档当不可信输入 */
     ok(!api.tfSanitize(Object.assign({}, src, { tiles: new Array(api.TF_MAX_TILES + 1).fill(src.tiles[0]) })).ok,
@@ -1715,13 +1749,21 @@ const frames = n => new Promise(res => {
     api.openTransfer();
     ok(W.document.getElementById('transferModal').classList.contains('show'), '迁移面板能打开');
     ok(!!body().querySelector('[data-act="gen"]'), '导出区有「生成」按钮');
+    {
+      const pins = [...body().querySelectorAll('input.tf-pin')];
+      ok(pins.length >= 3, '密码框都在', String(pins.length));
+      ok(pins.every(p => p.getAttribute('type') === 'text'), '密码框是 text 而不是 password（不会被密码管理器/系统当成真密码）');
+      ok(pins.every(p => p.getAttribute('inputmode') === 'numeric' && p.getAttribute('autocomplete') === 'off'),
+        '密码框仍然是数字键盘 + 关掉自动填充');
+    }
     body().querySelector('[data-pin="1"]').value = '2468';
     body().querySelector('[data-pin="2"]').value = '2468';
     click(body().querySelector('[data-act="gen"]'));
     await sleep(2000);
     const outEl = body().querySelector('[data-out]');
-    ok(!!outEl && String(outEl.value).indexOf('FT1:') === 0, 'UI 里生成出了存档串',
+    ok(!!outEl && String(outEl.value).indexOf('FT2:') === 0, 'UI 里生成出了存档串',
       outEl ? String(outEl.value).length + ' 字符' : '(没有)');
+    ok(!!body().querySelector('[data-act="selectall"]'), '导出区有「全选」（复制失败时手动拷贝）');
     const uiText = outEl ? outEl.value : '';
     /* 密码两次不一致要拦下来 */
     api.openTransfer();

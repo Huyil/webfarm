@@ -19,12 +19,16 @@
  */
 const TF_VER = 1;
 const TF_ITER = 600000;              /* PBKDF2 迭代次数 */
-const TF_TAG = 'FT1:';               /* 存档串前缀（认得出是我们家的） */
+const TF_TAG = 'FT1:';               /* 老前缀：JSON 信封（v9.21 那一版，还能读） */
+const TF_TAG2 = 'FT2:';              /* 新前缀：紧凑二进制信封（同一个档小 ~27%） */
 const TF_PIN_LEN = 4;
 const TF_MAX_TILES = 20000;          /* 导入体检：地块数上限 */
 const TF_MAX_DECOR = 5000;
 const TF_COORD_MAX = 100000;
 const TF_CAP = { coins: 1e12, fertilizer: 1e6, premium: 1e6, ovenSlots: 6 };
+/* PBKDF2 迭代档位：信封里只存下标（2 字节），别把 600000 写进去占地方 */
+const TF_ITER_STEPS = [100000, 300000, 600000, 1000000];
+const TF_ITER_IDX = 2;               /* 默认 60 万次 */
 
 /* ---------- 基础工具 ---------- */
 function tfHasCrypto(){
@@ -52,14 +56,29 @@ function tfB64ToBytes(str){
 function tfUtf8(str){ return new TextEncoder().encode(str); }
 function tfFromUtf8(buf){ return new TextDecoder().decode(buf); }
 /* gzip：能用 CompressionStream 就压（典型档 1~3KB），不能就原样带个 r1: 标记 */
+async function tfReadAllStream(readable){
+  const reader = readable.getReader();
+  const chunks = [];
+  let total = 0;
+  for(;;){
+    const r = await reader.read();
+    if(r.done) break;
+    if(r.value){ chunks.push(r.value); total += r.value.length; }
+  }
+  const out = new Uint8Array(total);
+  let off = 0;
+  for(const c of chunks){ out.set(c, off); off += c.length; }
+  return out;
+}
+/* 用 CompressionStream 压（gzip）；取不到就原样带个 r=1 标记。
+ * 注意别用 new Response(...) —— 那玩意 jsdom 没有，会让测试和部分老浏览器悄悄退化成不压缩。 */
 async function tfDeflate(text){
   if(typeof CompressionStream === 'function'){
     try{
       const cs = new CompressionStream('gzip');
       const w = cs.writable.getWriter();
       w.write(tfUtf8(text)); w.close();
-      const buf = await new Response(cs.readable).arrayBuffer();
-      return { r:0, b:new Uint8Array(buf) };
+      return { r:0, b: await tfReadAllStream(cs.readable) };
     }catch(e){}
   }
   return { r:1, b:tfUtf8(text) };
@@ -70,7 +89,7 @@ async function tfInflate(bytes, raw){
     const ds = new DecompressionStream('gzip');
     const w = ds.writable.getWriter();
     w.write(bytes); w.close();
-    return await new Response(ds.readable).text();
+    return tfFromUtf8(await tfReadAllStream(ds.readable));
   }
   throw new Error('这台设备不支持 gzip 解压');
 }
@@ -91,22 +110,52 @@ async function tfEncodeData(payload, pin){
   const salt = tfRandomBytes(16), iv = tfRandomBytes(12);
   const key = await tfKey(pin, salt);
   const ct = new Uint8Array(await window.crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, z.b));
-  const env = { v:TF_VER, alg:'A256GCM', it:TF_ITER, r:z.r, salt:tfBytesToB64(salt), iv:tfBytesToB64(iv), ct:tfBytesToB64(ct) };
-  return { ok:true, text: TF_TAG + tfBytesToB64(tfUtf8(JSON.stringify(env))) };
+  /* 紧凑信封（单次 base64，省掉 JSON + 再 base64 那一圈）：
+   *   0x46 0x54 | ver(1) | flags(1: bit0=gzip) | iterIdx(2,大端) | salt(16) | iv(12) | ct(余下) */
+  const body = new Uint8Array(2 + 1 + 1 + 2 + 16 + 12 + ct.length);
+  body[0] = 0x46; body[1] = 0x54;      /* 'FT' */
+  body[2] = TF_VER;
+  body[3] = z.r ? 1 : 0;
+  body[4] = (TF_ITER_IDX >> 8) & 255; body[5] = TF_ITER_IDX & 255;
+  body.set(salt, 6); body.set(iv, 22); body.set(ct, 34);
+  return { ok:true, text: TF_TAG2 + tfBytesToB64(body) };
 }
 /* 解出存档对象（**不做**结构体检；体检交给 tfSanitize） */
+/* 认两种信封：FT2（紧凑，新）和 FT1（JSON，v9.21 导出的老串照样能导入） */
+function tfParseEnvelope(raw){
+  if(raw.indexOf(TF_TAG2) === 0){
+    let body;
+    try { body = tfB64ToBytes(raw.slice(TF_TAG2.length)); }
+    catch(e){ return { err:'存档串损坏了（base64 读不出来）' }; }
+    if(body.length < 40 || body[0] !== 0x46 || body[1] !== 0x54) return { err:'存档串损坏了（信封头不对）' };
+    const ver = body[2];
+    if(ver > TF_VER) return { err:'存档来自更新的版本，请先更新游戏' };
+    const idx = (body[4] << 8) | body[5];
+    return { env:{ v:ver, r:(body[3] & 1) ? 1 : 0, it:TF_ITER_STEPS[idx] || TF_ITER,
+                   salt:body.slice(6, 22), iv:body.slice(22, 34), ct:body.slice(34) } };
+  }
+  if(raw.indexOf(TF_TAG) === 0){
+    let env;
+    try { env = JSON.parse(tfFromUtf8(tfB64ToBytes(raw.slice(TF_TAG.length)))); }
+    catch(e){ return { err:'存档串损坏了（读不出信封）' }; }
+    if(!env || env.v > TF_VER) return { err:'存档来自更新的版本，请先更新游戏' };
+    try{
+      return { env:{ v:env.v, r:env.r ? 1 : 0, it:env.it || TF_ITER,
+                     salt:tfB64ToBytes(env.salt), iv:tfB64ToBytes(env.iv), ct:tfB64ToBytes(env.ct) } };
+    }catch(e){ return { err:'存档串损坏了（信封字段不对）' }; }
+  }
+  return { err:'这不像是本游戏的存档串（应以 ' + TF_TAG2 + ' 开头）' };
+}
 async function tfDecodeData(text, pin){
   const raw = String(text || '').trim().replace(/\s+/g, '');
   if(!raw) return { ok:false, msg:'没有内容' };
-  if(raw.indexOf(TF_TAG) !== 0) return { ok:false, msg:'这不像是本游戏的存档串（应以 ' + TF_TAG + ' 开头）' };
-  let env;
-  try { env = JSON.parse(tfFromUtf8(tfB64ToBytes(raw.slice(TF_TAG.length)))); }
-  catch(e){ return { ok:false, msg:'存档串损坏了（读不出信封）' }; }
-  if(!env || env.v > TF_VER) return { ok:false, msg:'存档来自更新的版本，请先更新游戏' };
+  const p = tfParseEnvelope(raw);
+  if(p.err) return { ok:false, msg:p.err };
+  const env = p.env;
   if(!/^\d{4}$/.test(String(pin || ''))) return { ok:false, msg:`请输入 ${TF_PIN_LEN} 位数字密码` };
   try {
-    const key = await tfKey(pin, tfB64ToBytes(env.salt), env.it || TF_ITER);
-    const buf = await window.crypto.subtle.decrypt({ name:'AES-GCM', iv:tfB64ToBytes(env.iv) }, key, tfB64ToBytes(env.ct));
+    const key = await tfKey(pin, env.salt, env.it);
+    const buf = await window.crypto.subtle.decrypt({ name:'AES-GCM', iv:env.iv }, key, env.ct);
     const text2 = await tfInflate(new Uint8Array(buf), !!env.r);
     return { ok:true, data: JSON.parse(text2) };
   } catch(e){
@@ -237,6 +286,16 @@ function tfWriteSlot(slot, data){
                         : '导入失败：这台设备没能写入本地存储（可能是空间不够或无痕模式）' };
 }
 
+/* 二维码可行性：QR byte 模式上限 2953 字节（v40-L），而手机上对着屏幕扫，
+   超过 ~1.2KB 就会变成密密麻麻的点阵、很难扫。所以这里如实告诉用户。 */
+const TF_QR_MAX = 2900, TF_QR_COMFY = 1200;
+function tfQrFit(text){
+  const n = String(text || '').length;
+  if(n <= TF_QR_COMFY) return { ok:true, level:'comfortable', bytes:n };
+  if(n <= TF_QR_MAX) return { ok:true, level:'dense', bytes:n };
+  return { ok:false, bytes:n };
+}
+
 /* ---------- 载体：文件 / 存档串 / 自包含链接 ---------- */
 function tfLinkFor(text){
   const base = (typeof location !== 'undefined')
@@ -325,6 +384,8 @@ function tfBoot(){
 }
 
 window.TransferDebug = {
+  qrFit: tfQrFit,
+  QR_MAX: TF_QR_MAX,
   encode: (st, pin) => tfEncodeData(serialize(st), pin),
   decode: (text, pin) => tfDecodeData(text, pin),
   sanitize: d => tfSanitize(d),

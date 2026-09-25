@@ -487,6 +487,10 @@
   height:max(36px,calc(38px*var(--ui-scale)));padding:0 calc(8px*var(--ui-scale));
 }
 .tf-pin:focus{outline:none;border-color:#4d8a4a;box-shadow:0 0 0 2px rgba(77,138,74,.3)}
+/* 视觉上打点遮住，但**不是** type=password —— 免得浏览器/系统密码管理器把它当成真密码
+   （弹"保存密码"、触发自动填充）。Firefox 不支持 -webkit-text-security 时就是明文 4 位数字，
+   对"迁移口令"来说可以接受。 */
+.tf-pin{-webkit-text-security:disc}
 .tf-text{
   width:100%;box-sizing:border-box;resize:vertical;
   background:rgba(0,0,0,.28);border:1px solid #3d4a3f;border-radius:calc(9px*var(--ui-scale));

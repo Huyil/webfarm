@@ -181,7 +181,11 @@ function onPointerEnd(e){
   if(boxMode){
     const b = state.box;
     boxMode = false; boxStart = null; state.box = null;
-    if(b) applyToolToRect(b.x0, b.y0, b.x1, b.y1);
+    if(state.afPicking && b){                    /* 「框选区域」模式：这一框拿来定自动农活的区域 */
+      state.afPicking = false;
+      afSetArea(b);
+      openAutoFarm();
+    } else if(b) applyToolToRect(b.x0, b.y0, b.x1, b.y1);
     try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
     return;
   }
@@ -230,6 +234,31 @@ function drawInteractionUI(g, cx, cy){
       g.font = '14px serif'; g.textAlign = 'center';
       g.fillText(meta.icon, px, py - h * 0.34);
     }
+    g.restore();
+  }
+  /* 自动农活的作业区域：常驻虚线框（和一次性框选的实线区分开） */
+  if(!boxNow && state.autoFarm && state.autoFarm.box){
+    const ab = state.autoFarm.box;
+    const o = [[ab.x0 - 0.5, ab.y0 - 0.5], [ab.x1 + 0.5, ab.y0 - 0.5], [ab.x1 + 0.5, ab.y1 + 0.5], [ab.x0 - 0.5, ab.y1 + 0.5]];
+    g.save();
+    g.beginPath();
+    for(let i = 0; i < 4; i++){
+      const { sx, sy } = iso(o[i][0], o[i][1]);
+      const px = cx + sx * SCALE, py = cy + sy * SCALE;
+      if(i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+    if(g.setLineDash) g.setLineDash([7, 5]);
+    g.strokeStyle = 'rgba(127,208,255,.8)';
+    g.lineWidth = 2;
+    g.stroke();
+    if(g.setLineDash) g.setLineDash([]);
+    g.font = 'bold 12px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+    g.textAlign = 'center';
+    g.fillStyle = 'rgba(200,236,255,.95)';
+    const c0 = iso((ab.x0 + ab.x1) / 2, ab.y0 - 0.5);
+    g.fillText('🤖 ' + (ab.x1 - ab.x0 + 1) + '×' + (ab.y1 - ab.y0 + 1),
+      cx + c0.sx * SCALE, cy + c0.sy * SCALE - 4);
     g.restore();
   }
   /* 框选范围：**一个平行四边形**，不再逐格画菱形。

@@ -1,6 +1,7 @@
 /* ============ 弹层 ============ */
 const SHEET_IDS = ['seedModal','shopModal','storeModal','decorModal','settingsModal',
-                   'achievementModal','noticeModal','kitchenModal','slotsModal','transferModal','leaderboardModal'];
+                   'achievementModal','noticeModal','kitchenModal','slotsModal','transferModal','leaderboardModal',
+                   'autofarmModal'];
 function openSheet(name){
   closeSheet();
   const el = document.getElementById(name + 'Modal');
@@ -17,6 +18,7 @@ function openSheet(name){
   if(name === 'slots')       renderSlots();
   if(name === 'leaderboard') lbOpen();
   if(name === 'transfer')    renderTransfer();
+  if(name === 'autofarm')    renderAutoFarm();
 }
 function closeSheet(){
   if(typeof state !== 'undefined') state.expandPreview = null;

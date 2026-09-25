@@ -35,6 +35,7 @@ function renderHUD(){
   const p = $('hudPremium'); if(p) p.textContent = state.premium;
   const fm = $('hudFarmM'); if(fm) fm.textContent = state.farm.w + '×' + state.farm.h;
   const lp = $('longPressState'); if(lp) lp.textContent = state.longPressBox === false ? '关' : '开';
+  const afS = $('autoFarmState'); if(afS) afS.textContent = (state.autoFarm && state.autoFarm.on) ? '开' : '关';
   const ci = $('hudIdleM');
   if(ci && !ci.textContent) ci.textContent = '+' + idleRate().toFixed(1) + '/分';
   const total = CROP_IDS.reduce((a, id) => a + (state.bag[id] || 0), 0)

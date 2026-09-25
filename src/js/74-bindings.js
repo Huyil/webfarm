@@ -67,6 +67,8 @@ function bindAll(){
 
   bindSideDrawer();                       /* 手机顶栏里的抽屉把手 */
   /* 👆 长按框选开关：长按到底进框选，还是当普通点击（手机上两者很容易打架） */
+  const afBtn = document.getElementById('btnAutoFarm');
+  if(afBtn) afBtn.onclick = () => { SFX.play('click'); openAutoFarm(); sideDrawerClose(); };
   const lpBtn = document.getElementById('btnLongPress');
   if(lpBtn) lpBtn.onclick = () => {
     state.longPressBox = state.longPressBox === false;

@@ -1,5 +1,5 @@
 {
-  "version": "9.27.0",
+  "version": "9.28.0",
   "css": [
     "base.css",
     "hud.css",
@@ -45,6 +45,7 @@
     "52-pointer.js",
     "53-decor-bag.js",
     "55-expand.js",
+    "56-autofarm.js",
     "60-hud.js",
     "61-modals.js",
     "62-seedlist.js",

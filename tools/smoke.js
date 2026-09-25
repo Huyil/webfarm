@@ -103,7 +103,7 @@ const frames = n => new Promise(res => {
   ok(!!W.document.getElementById('game'), 'canvas #game 存在');
   eq(W.document.getElementById('hudMoney').textContent, '50', '初始金币 = 50（降低起步难度）');
   ok(/\d+\.\d+\.\d+/.test(W.document.title), '标题带版本号', W.document.title);
-  eq(W.document.querySelectorAll('#sidePanel button .sl').length, 11, '侧栏 11 个按钮都有文字标签（v9.19 多了「长按框选」）');
+  eq(W.document.querySelectorAll('#sidePanel button .sl').length, 12, '侧栏 12 个按钮都有文字标签（v9.28 多了「🤖 自动农活」）');
   ok(!!W.document.getElementById('lbBtn'), '顶栏也有 🏅 排行榜入口（两个入口都能点开）');
   eq(W.document.getElementById('lbBtn').textContent, '🏅', '顶栏入口就是奖牌图标');
   eq(W.document.querySelectorAll('#toolbar button').length, 5, '工具栏 5 个工具（v9.19 起「催熟」并进「肥料」的小凸起）');
@@ -2500,6 +2500,112 @@ const frames = n => new Promise(res => {
     ok(!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '不再有单独的「同配方循环」勾选');
     api.closeSheet();
     api.applyPayload(backup);
+  }
+
+  section('v9.28：自动农活（框区域 · 轮作 · 每次操作扣 1 点饱食度 · 预备口粮）');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    const AF = W.AutoFarmDebug;
+    ok(!!AF, '暴露 AutoFarmDebug');
+    /* ① 默认与存档 */
+    st().autoFarm = AF.state;
+    ok(!AF.state.on && AF.state.box === null, '默认没开、也没框区域');
+    AF.setArea({ x0: 0, y0: 0, x1: 3, y1: 3 });
+    eq(AF.state.box.x1, 3, '框选区域生效');
+    AF.setArea({ x0: 0, y0: 0, x1: 99, y1: 99 });
+    eq(AF.state.box.x1 - AF.state.box.x0 + 1, AF.AF_AREA_MAX, '区域边长按上限截断', String(AF.AF_AREA_MAX));
+    AF.setArea({ x0: 0, y0: 0, x1: 2, y1: 2 });
+    AF.state.seeds = ['wheat', 'carrot'];
+    const sv = api.serialize(st());
+    ok(!!sv.autoFarm && sv.autoFarm.box && sv.autoFarm.seeds.length === 2, '自动农活写进存档');
+    const rt = api.unpackState(JSON.parse(JSON.stringify(sv)));
+    ok(rt.autoFarm && rt.autoFarm.box.x1 === 2 && rt.autoFarm.seeds.join() === 'wheat,carrot', '读档还原（区域 + 轮作种子）');
+    /* ② 饱食度公式：材料块数 × 10 × 品质系数 */
+    st().dishes = {};
+    api.cook.addDish({ id:'disanxian', name:'地三鲜', emoji:'🥘', base:100, pieces:['potato','eggplant','chili'], counts:{ potato:1, eggplant:1, chili:1 } }, 'normal');
+    const k1 = Object.keys(st().dishes)[0];
+    eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '3 材料的菜 = 30 点饱食度');
+    eq(AF.dishSatiety(k1), 30, '数值就是 30（每块材料 10 点）');
+    const pr = api.cook.addDish({ id:'soup', name:'田园浓汤', emoji:'🥣', base:100, pieces:['carrot'], counts:{ carrot:1 } }, 'perfect');
+    const pkey = Object.keys(st().dishes).find(k => st().dishes[k] === pr);
+    eq(AF.dishSatiety(pkey), 15, '精品 1 材料 = 15 点（×1.5）');
+    /* ③ 只有成品菜能当饭；贵菜不能选 */
+    st().bag.potato = 500; st().pieces.potato = 500; st().prep.flour = 50;
+    ok(AF.rationList().length === 0 || AF.rationList().every(k => !!st().dishes[k]),
+      '原材料/菜块/面粉不会出现在口粮清单里（只有菜品仓库里的菜）');
+    const cheapKey = k1, cheapValue = st().dishes[k1].value;
+    ok(AF.rationOK(k1), '普通菜可以当口粮', String(cheapValue) + ' 金');
+    const rich = api.cook.addDish({ id:'mix', name:'杂烩', emoji:'🍲', base:AF.AF_RATION_MAX_VALUE + 500, pieces:['potato'], counts:{ potato:1 } }, 'normal');
+    const richKey = Object.keys(st().dishes).find(k => st().dishes[k] === rich);
+    ok(!AF.rationOK(richKey), '价值 >' + AF.AF_RATION_MAX_VALUE + ' 金的菜不能当口粮', String(rich.value) + ' 金');
+    /* ④ 花钱：没饱食度就自动吃口粮 */
+    AF.state.satiety = 0;
+    AF.state.ration = {}; AF.state.ration[k1] = true;
+    st().dishes[k1].n = 3;                       /* 多备几份，免得吃光后记录被删掉 */
+    const before = st().dishes[k1].n;
+    ok(AF.spend(1), '饿了自己吃一份口粮');
+    eq(st().dishes[k1].n, before - 1, '菜品仓库里少了一份');
+    eq(AF.satietyLeft(), 30 - 1, '吃到 30 点，扣掉这次操作的 1 点');
+    /* ⑤ 每一步都扣 1 点（耕地/播种/施肥/收获都算），扣不出来就停机 */
+    const w0 = AF.state.worked;
+    AF.state.on = true;                          /* 自动农活开着才会扣 */
+    AF.workDone({ afStep:'till', auto:true });
+    eq(AF.state.worked, w0 + 1, '自动操作计数 +1');
+    eq(AF.satietyLeft(), 28, '每完成一步扣 1 点');
+    AF.state.ration = {}; AF.state.satiety = 0;
+    AF.state.on = true;
+    api.playerEnqueue(st().farm.x0, st().farm.y0, 'hoe');
+    ok(api.jobActive(), '先给小人排一个活，好验证"停机时会把队列清掉"');
+    AF.workDone({ afStep:'till', auto:true });
+    ok(AF.state.on === false, '没口粮了 → 自动停机');
+    ok(/口粮/.test(AF.state.lastMsg), '停机原因写清楚', AF.state.lastMsg);
+    ok(!api.jobActive(), '停机时把剩下的队列清掉（不会白干活）');
+    /* ⑥ 轮作：收过一次就换下一种种子 */
+    AF.state.seeds = ['wheat', 'carrot', 'potato']; AF.state.seedIx = 0;
+    AF.state.satiety = 50; AF.state.on = true;
+    AF.workDone({ afStep:'harvest', auto:true });
+    eq(AF.state.seedIx, 1, '收获一次 → 换下一种种子（轮作）');
+    /* ⑦ 规划一趟：按 耕地→播种→施肥→收获 收格 */
+    st().fertilizer = 5;
+    const b = AF.state.box;
+    for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) {
+      const t = api.getTile(x, y); t.stone = false; t.state = 'wild'; t.terrain = 'grass'; t.crop = null;
+    }
+    const t00 = api.getTile(b.x0, b.y0);
+    const plan = AF.plan();
+    ok(plan.length >= 9, '荒地全都要耕（9 格）', '规划 ' + plan.length + ' 步');
+    ok(plan.every(s2 => s2.tool === 'hoe'), '这一步用的都是锄头', plan.map(s2 => s2.tool).join(','));
+    t00.state = 'tilled'; t00.terrain = 'tilled';
+    const t01 = api.getTile(b.x0 + 1, b.y0); t01.state = 'tilled'; t01.terrain = 'tilled'; t01.crop = null;
+    const plan2 = AF.plan();
+    ok(plan2.some(s2 => s2.tool === 'seed'), '开垦过且空着的地 → 排播种', plan2.map(s2 => s2.tool).join(','));
+    const t02 = api.getTile(b.x0 + 2, b.y0); t02.state = 'ready'; t02.crop = 'carrot';
+    ok(AF.plan().some(s2 => s2.tool === 'sickle'), '熟了的地 → 排收获');
+    /* ⑧ 驱动：队列自动排上（带 auto 标记，且用轮作里的种子） */
+    AF.resetRetry();
+    st().player.queue = []; st().player.pendingOp = null; st().player.moving = false;
+    AF.state.satiety = 100;
+    AF.state.seeds = ['carrot']; AF.state.seedIx = 0;
+    AF.tick(16);
+    ok(st().player.queue.length > 0, '自动农活把活排进小人的队列', '队列 ' + st().player.queue.length);
+    ok(st().player.queue.every(q => q.auto), '队列里每一步都带 auto 标记（好扣饱食度）');
+    eq(st().selectedSeed, 'carrot', '播种用的是轮作里选的那种种子');
+    ok(!!st().jobBox, '作业区域在地图上有高亮');
+    /* ⑨ 面板：该有的控件都在 */
+    api.openAutoFarm();
+    const body = $('autoFarmBody');
+    ok(!!body && !!body.querySelector('[data-af-on]'), '面板有总开关');
+    eq(body.querySelectorAll('[data-af-step]').length, 4, '轮作四个步骤都能勾');
+    ok(body.querySelectorAll('[data-af-seed]').length >= 8, '种子顺序可以点选');
+    ok(body.querySelectorAll('[data-af-ration]').length >= 2, '预备口粮列出仓库里的菜');
+    ok([...body.querySelectorAll('[data-af-ration]')].some(i => i.disabled), '贵的菜在列表里被禁用（不能选成口粮）');
+    ok(/饱食度|点/.test(body.textContent), '面板显示饱食度');
+    click(body.querySelector('[data-af-act="all"]'));
+    ok(AF.rationList().length >= 1, '「全选」把能当口粮的都勾上（跳过贵菜）');
+    ok(AF.rationList().every(k => AF.rationOK(k)), '全选后没有贵菜混进来');
+    api.closeSheet();
+    api.cancelJob && api.cancelJob();
+    api.applyPayload(bk);
   }
 
   section('v9.27：锅里塞满 1000 块也不卡（界面聚合 · 签名紧凑 · 自动补料分帧）');

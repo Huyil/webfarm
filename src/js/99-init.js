@@ -191,7 +191,8 @@ window.FarmDebug = {
     renderAchievements, renderKitchen, renderSeedList,
     /* 排行榜 */
     SFX, kKitchenOpen, LB_METRICS, lbMyStats, lbSetName, lbLoad, lbSubmit, lbSortEntries, lbMetric, lbCleanName, lbOpen, lbRefresh, renderLeaderboard, lbPlayerId,
-    openSheet, closeSheet, trackAction, checkAchievements,
+    openSheet, closeSheet, trackAction, checkAchievements, openAutoFarm, renderAutoFarm,
+    afGet, afSetArea, afTick, afSpend, afEatOne, afDishSatiety, afRationOK, afPlanPass,
     /* 扩建 */
     normalizeTopStone, expandInfo, expandPrice, doExpand, buyExpand, rebuildMapTiles, inFarm, inMap,
     expandKind, expandStrip, expandDirAt, toggleExpandMode, renderExpandHint, UP_PLANT_LIMIT,

@@ -58,7 +58,7 @@ setTimeout(() => {
   if (D) {
     const api = D.api;
     ok(!!api && typeof api.getTile === 'function', 'FarmDebug.api 可用');
-    ok(W.document.querySelectorAll('.side-panel button').length === 11, '侧栏 11 个按钮都在（多了「长按框选」）');
+    ok(W.document.querySelectorAll('.side-panel button').length === 12, '侧栏 12 个按钮都在（多了「长按框选」和「自动农活」）');
     ok(W.document.querySelectorAll('.toolbar button').length === 5, '工具栏 5 个工具都在（催熟并进肥料小凸起）');
     ok(!!W.document.getElementById('fertPop') && !!W.document.getElementById('seedPop'), '两个工具小凸起容器都在');
     ok(!!W.document.getElementById('btnLongPress'), '侧栏「长按框选」开关在');

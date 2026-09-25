@@ -71,6 +71,7 @@
   <button id="btnPan"><span class="si">✋</span><span class="sl">平移</span></button>
   <button id="btnZoom"><span class="si">🔍</span><span class="sl">缩放</span><span class="st" id="zoomState">自动</span></button>
   <button id="btnLongPress"><span class="si">👆</span><span class="sl">长按框选</span><span class="st" id="longPressState">开</span></button>
+  <button id="btnAutoFarm"><span class="si">🤖</span><span class="sl">自动农活</span><span class="st" id="autoFarmState">关</span></button>
   <button id="btnSettings"><span class="si">⚙️</span><span class="sl">设置</span></button>
 </div>
 
@@ -195,6 +196,14 @@
   <div class="modal-box">
     <h4>💾 存档槽位</h4>
     <div id="slotsBody"></div>
+    <button class="modal-close" data-close>关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="autofarmModal">
+  <div class="modal-box">
+    <h4>🤖 自动农活</h4>
+    <div id="autoFarmBody"></div>
     <button class="modal-close" data-close>关闭</button>
   </div>
 </div>

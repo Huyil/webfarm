@@ -97,7 +97,11 @@ function playerGoto(gx, gy, actionType, op){
   if(dist < 0.6){
     p.actionType = actionType; p.actionStart = Date.now(); p.actionUntil = Date.now() + ACTION_MS;
     p.queuedAction = null;
-    if(p.pendingOp){ const o = p.pendingOp; p.pendingOp = null; runTool(o.gx, o.gy, o.silent, o.tool); }
+    if(p.pendingOp){
+      const o = p.pendingOp; p.pendingOp = null;
+      runTool(o.gx, o.gy, o.silent, o.tool);
+      if(o.auto && typeof afOnWorkDone === 'function') afOnWorkDone(o);
+    }
   } else {
     p.queuedAction = actionType;
   }
@@ -118,6 +122,7 @@ function updatePlayer(dt){
     if(p.pendingOp){
       const op = p.pendingOp; p.pendingOp = null;
       runTool(op.gx, op.gy, !!op.silent, op.tool);
+      if(op.auto && typeof afOnWorkDone === 'function') afOnWorkDone(op);
     }
   };
   /* 队列里还有活、人又闲着 → 领下一个目标 */
@@ -127,8 +132,10 @@ function updatePlayer(dt){
     const stop = queueStopMsg(jobTool);
     if(stop){
       /* 钱/肥料/装饰用光：整条队列就地停手（剩下的格子不再空走） */
+      const wasAuto = !!(head && head.auto);
       playerClearQueue();
       toastStop(stop);
+      if(wasAuto && typeof afStop === 'function') afStop(stop, true);   /* 自动农活一起停，免得每 700ms 反复重排 */
       renderHUD(); save();
     } else {
       const next = p.queue.shift();

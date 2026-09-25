@@ -28,6 +28,7 @@ function serialize(st){
     autoSlot: st.autoSlot, autoPause: st.autoPause,
     kExpand: st.kExpand,
     longPressBox: st.longPressBox !== false,
+    autoFarm: st.autoFarm,
     showCropBars: st.showCropBars !== false,
     recentSeeds: (st.recentSeeds || []).slice(0, 6),
     tiles: st.tiles.map(t=>({
@@ -136,6 +137,21 @@ function unpackState(d){
   st.autoPause = Object.assign({ donkey:0, chopper:0 }, d.autoPause || {});
   st.kExpand = { prep: !!(d.kExpand && d.kExpand.prep), cook: !!(d.kExpand && d.kExpand.cook) };
   st.longPressBox = d.longPressBox !== false;
+  {
+    const af = Object.assign({}, afDefaults(), d.autoFarm || {});
+    /* 只留认识的字段，防止存档里的脏数据带进来 */
+    st.autoFarm = {
+      on: !!af.on,
+      box: (af.box && typeof af.box.x0 === 'number') ? { x0:af.box.x0|0, y0:af.box.y0|0, x1:af.box.x1|0, y1:af.box.y1|0 } : null,
+      till: af.till !== false, seed: af.seed !== false, fert: af.fert !== false, harvest: af.harvest !== false,
+      seeds: (Array.isArray(af.seeds) ? af.seeds.filter(id => !!CROPS[id]) : ['wheat']).slice(0, SEED_ORDER.length),
+      seedIx: Math.max(0, af.seedIx | 0),
+      ration: (af.ration && typeof af.ration === 'object') ? af.ration : {},
+      satiety: Math.max(0, af.satiety | 0), eats: Math.max(0, af.eats | 0), worked: Math.max(0, af.worked | 0),
+      lastMsg: typeof af.lastMsg === 'string' ? af.lastMsg : '',
+    };
+    if(!st.autoFarm.seeds.length) st.autoFarm.seeds = ['wheat'];
+  }
   st.showCropBars = d.showCropBars !== false;
   st.recentSeeds = Array.isArray(d.recentSeeds) ? d.recentSeeds.filter(id => !!CROPS[id]).slice(0, 6) : [];
   st.tiles = d.tiles.map(t=>{

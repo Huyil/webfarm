@@ -13,7 +13,6 @@
  *
  * 只在页面开着时跑（离线不结算，免得平衡崩掉）。
  */
-const AF_AREA_MAX = 12;                 /* 框选边长上限（12×12 = 144 格） */
 const AF_RATION_MAX_VALUE = 2000;       /* 超过这个价值的菜不参与口粮 */
 const AF_SAT_PER_MATERIAL = 25;         /* 每块材料的基础饱食度（一轮 5 步都要扣，所以给得足一点） */
 const AF_STEP_TOOL = { till:'hoe', seed:'seed', fert:'fert', harvest:'sickle', water:'water' };
@@ -107,12 +106,11 @@ function afSetArea(b){
   if(!b) return false;
   const ax = Math.min(b.x0, b.x1), bx = Math.max(b.x0, b.x1);
   const ay = Math.min(b.y0, b.y1), by = Math.max(b.y0, b.y1);
-  const w = Math.min(AF_AREA_MAX, bx - ax + 1), h = Math.min(AF_AREA_MAX, by - ay + 1);
   const A = afGet();
-  A.box = { x0:ax, y0:ay, x1:ax + w - 1, y1:ay + h - 1 };
+  A.box = { x0:ax, y0:ay, x1:bx, y1:by };      /* v9.30：去掉了边长上限，框多大就是多大 */
   A.lastMsg = '';
   save(); renderAutoFarm();
-  toast(`自动农活区域：${w}×${h}` + ((bx - ax + 1 > w || by - ay + 1 > h) ? `（已按上限 ${AF_AREA_MAX}×${AF_AREA_MAX} 截断）` : ''));
+  toast(`自动农活区域：${bx - ax + 1}×${by - ay + 1}（${(bx - ax + 1) * (by - ay + 1)} 格）`);
   return true;
 }
 function afClearArea(){
@@ -278,7 +276,7 @@ function renderAutoFarm(){
       <section class="af-sec">
         <div class="k-sec-title">🤖 自动农活<span class="k-hint">小人自己干 · 每步扣 1 点饱食度</span></div>
         <label class="af-on${A.on ? ' on' : ''}"><input type="checkbox" data-af-on ${A.on ? 'checked' : ''}><span>启动</span></label>
-        <div class="af-line">区域：<b>${boxTxt}</b>（上限 ${AF_AREA_MAX}×${AF_AREA_MAX}）</div>
+        <div class="af-line">区域：<b>${boxTxt}</b>${A.box ? '（' + (A.box.x1 - A.box.x0 + 1) * (A.box.y1 - A.box.y0 + 1) + ' 格）' : ''}</div>
         <div class="af-btns">
           <button class="mini primary" data-af-act="pick">${state.afPicking ? '在地图上拖出范围…' : '框选区域'}</button>
           <button class="mini" data-af-act="clear">清空区域</button>
@@ -383,5 +381,5 @@ window.AutoFarmDebug = {
   stop: (m) => afStop(m, true),
   stepWanted: afStepWanted,
   ensureFertilizer: n => afEnsureFertilizer(n),
-  AF_AREA_MAX, AF_RATION_MAX_VALUE, AF_SAT_PER_MATERIAL, AF_STEPS, AF_BUY_FERT_MAX,
+  AF_RATION_MAX_VALUE, AF_SAT_PER_MATERIAL, AF_STEPS, AF_BUY_FERT_MAX,
 };

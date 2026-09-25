@@ -133,6 +133,7 @@ function kDropCheck(key, station){
     return { ok:false, msg:'烤箱只烤面粉或菜块' };
   }
   if(station === 'board'){
+    if(kind === 'dish') return canSliceDish(id) ? { ok:true } : { ok:false, msg:'这道菜不能切片（目前只有面包能）' };
     if(kind === 'crop' && CROPS[id] && CROPS[id].noChop) return { ok:false, msg:CROPS[id].name + '不能切块，只能磨面' };
     if(kind === 'crop' && CROPS[id]) return { ok:true };
     if(kind === 'piece') return { ok:false, msg:'已经切好了，直接下锅吧' };
@@ -198,7 +199,7 @@ function kDropItem(itemKey, station){
     res = ovenPut(kind === 'piece' ? { piece:id } : undefined);
     if(res.ok) SFX.play('cook');
   } else if(station === 'board'){
-    res = boardPut(id);
+    res = (kind === 'dish') ? boardSliceBread(id) : boardPut(id);
     if(res.ok) SFX.play('chop');
   } else {
     res = potAdd(kind === 'piece' ? { piece:id } : { raw:id });
@@ -366,6 +367,7 @@ function kKitchenSig(){
     K.oven.busy ? 1 : 0, K.oven.ready ? 1 : 0, K.oven.auto ? 1 : 0,
     (K.oven.items || []).length, state.ovenSlots || 1,
     AUTO_IDS.map(id => (autoActive(id) ? 1 : 0) + ':' + autoCountOf(id) + ':' + autoSlotOf(id).length).join(''),
+    (state.autoCrop && state.autoCrop.chopper) || '',
     kBoardBusy() ? 1 : 0, (K.board && K.board.src) || '',
     kPotSig(), K.pot.done ? 1 : 0, K.pot.auto ? 1 : 0,
     state.prep.flour || 0, state.bag.wheat || 0,
@@ -553,9 +555,24 @@ function kAutoRowHTML(id){
       <span class="k-auto-desc" title="${kEsc(dev.desc)}">${dev.desc}</span>
     </span>
     <span class="k-auto-slot" data-slot="${id}"></span>
+    ${id === 'chopper' ? kAutoCropPickerHTML() : ''}
     <span class="k-auto-state" data-dev-state="${id}"></span>
     <button class="mini${running ? '' : ' primary'}" data-act="buy-auto" data-dev="${id}" data-buy="${id}" ${maxed ? 'disabled' : ''}></button>
   </div>`;
+}
+/* 切块机：指定只切哪一种作物（'' = 自动挑最多的） */
+function kAutoCropPickerHTML(){
+  const want = (state.autoCrop && state.autoCrop.chopper) || '';
+  const ids = CROP_IDS.filter(c => CROPS[c] && !CROPS[c].noChop);
+  let out = '<span class="k-crop-pick">' +
+    '<button class="k-crop-chip' + (want ? '' : ' on') + '" data-act="pick-crop" data-crop="" title="自动：切仓库里最多的那种">自动</button>';
+  for(const c of ids){
+    const n = state.bag[c] || 0;
+    out += '<button class="k-crop-chip' + (want === c ? ' on' : '') + (n ? '' : ' poor') + '" data-act="pick-crop" data-crop="' + c + '" title="' +
+      kEsc(CROPS[c].produce) + '（仓库 ' + n + '）">' + CROPS[c].emoji + (n ? '<i>' + n + '</i>' : '') + '</button>';
+  }
+  out += '</span>';
+  return out;
 }
 function kStationOvenHTML(){
   const K = KITCHEN;
@@ -886,7 +903,8 @@ function kUpdateLive(){
     } else {
       setAll('[data-state="auto-' + id + '"]', lack ? 'off' : 'busy', (lack ? '缺原料' : '×' + n + ' ' + kClock(autoLeftMs(id))));
       rings('auto-' + id, kRatio(acc, per), lack ? 'off' : 'run');
-      sub('auto-' + id, '料斗 ' + slotText + ' · 每轮 ' + (id === 'donkey' ? '+1' : '+' + CHOP_PIECES) + '×' + n);
+      sub('auto-' + id, '料斗 ' + slotText + ' · 每轮 ' + (id === 'donkey' ? '+1' : '+' + CHOP_PIECES) + '×' + n +
+        (id === 'chopper' ? ' · ' + ((state.autoCrop && state.autoCrop.chopper) ? ('只切' + CROPS[state.autoCrop.chopper].produce) : '自动选') : ''));
     }
     const wide = (n >= AUTO_MAX) ? ('已满 ' + AUTO_MAX + ' 台') : ('＋第 ' + (n + 1) + ' 台 ' + autoPrice(id) + ' 金');
     const tight = (n >= AUTO_MAX) ? ('已满 ' + AUTO_MAX) : ('＋' + autoPrice(id) + '金');
@@ -1020,7 +1038,7 @@ function kChopFx(srcId, n){
   /* 缩略卡里没有 .k-board-slot（那块在展开区），就弹缩略卡自己的图标 */
   const slot = st.querySelector ? (st.querySelector('.k-board-slot') || st.querySelector('.k-cell-ico')) : null;
   if(slot){
-    slot.innerHTML = kIconHTML('crop:' + srcId, K_ICON_SIZES.station);
+    slot.innerHTML = kIconHTML(CROPS[srcId] ? ('crop:' + srcId) : srcId, K_ICON_SIZES.station);
     kRestartAnim(slot, 'k-pop');
   }
   let badge = st.querySelector ? st.querySelector('[data-chopbadge]') : null;
@@ -1036,7 +1054,7 @@ function kChopFx(srcId, n){
   }
   if(kFlyN < K_FLY_MAX){
     kFlyN++;
-    kFlyFromStation('board', 'piece:' + srcId, () => { kFlyN--; });
+    kFlyFromStation('board', CROPS[srcId] ? ('piece:' + srcId) : srcId, () => { kFlyN--; });
   }
 }
 function kFlyFromStation(station, key, onDone){
@@ -1178,6 +1196,17 @@ function kOnKitchenClick(e){
     return;
   }
   if(act === 'expand'){ SFX.play('click'); kExpandToggle(btn.dataset.line); return; }
+  if(act === 'pick-crop'){
+    const c = btn.dataset.crop || '';
+    if(!state.autoCrop) state.autoCrop = { chopper:'' };
+    state.autoCrop.chopper = c;
+    SFX.play('click');
+    toast(c ? ('🔪 切块机：只切 ' + CROPS[c].produce + '（没货就停）') : '🔪 切块机：自动挑库存最多的作物');
+    save();
+    if(kUI) kUI.sig = '';
+    renderKitchen();
+    return;
+  }
   if(act === 'unsel'){ if(e.preventDefault) e.preventDefault(); kSetSel(null); SFX.play('click'); renderKitchen(); return; }
   if(act === 'sell'){
     const gain = sellDish(btn.dataset.key, parseInt(btn.dataset.n, 10) || 1);

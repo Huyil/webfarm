@@ -152,6 +152,7 @@ canvas.addEventListener('pointermove', e => {
 });
 
 function onPointerEnd(e){
+  hoverOn = false;                       /* 手指抬起来就不算"悬浮"了（否则自动农活虚线框会一直挂着） */
   const wasPinch = !!pinch;
   ptrs.delete(e.pointerId == null ? 'p0' : e.pointerId);
   if(wasPinch){
@@ -236,8 +237,9 @@ function drawInteractionUI(g, cx, cy){
     }
     g.restore();
   }
-  /* 自动农活的作业区域：常驻虚线框（和一次性框选的实线区分开） */
-  if(!boxNow && state.autoFarm && state.autoFarm.box){
+  /* 自动农活的作业区域：**只在交互时**提示（鼠标悬浮 / 按住 / 正在框选）。
+     常驻一条虚线横在地里太吵了；作业运行时本来就有实线绿框。 */
+  if(!boxNow && (hoverOn || pointerDown || boxMode) && state.autoFarm && state.autoFarm.box){
     const ab = state.autoFarm.box;
     const o = [[ab.x0 - 0.5, ab.y0 - 0.5], [ab.x1 + 0.5, ab.y0 - 0.5], [ab.x1 + 0.5, ab.y1 + 0.5], [ab.x0 - 0.5, ab.y1 + 0.5]];
     g.save();

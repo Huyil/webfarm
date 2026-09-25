@@ -1175,9 +1175,37 @@ function kDishSoupIcon(g){
     g.quadraticCurveTo(sx + 2.4, -12, sx, -16); g.stroke();
   }
 }
+/* 面包片：一片带壳边、切面有气孔的面包 */
+function kDishSliceIcon(g){
+  g.beginPath();
+  g.moveTo(-10, 10); g.lineTo(-10, -4);
+  g.quadraticCurveTo(-10, -11, -2, -11);
+  g.quadraticCurveTo(8, -11, 10, -2);
+  g.lineTo(10, 10); g.closePath();
+  const sg = g.createLinearGradient(0, -11, 0, 10);
+  sg.addColorStop(0, '#f6dfae'); sg.addColorStop(1, '#d8ac63');
+  g.fillStyle = sg; g.fill();
+  g.lineWidth = 1.2; g.strokeStyle = '#a8763a'; g.stroke();
+  /* 上边那条深色壳 */
+  g.beginPath();
+  g.moveTo(-10, -4);
+  g.quadraticCurveTo(-10, -11, -2, -11);
+  g.quadraticCurveTo(8, -11, 10, -2);
+  g.quadraticCurveTo(4, -6, -10, -4);
+  g.closePath();
+  g.fillStyle = '#b57f3c'; g.fill();
+  /* 气孔 */
+  g.fillStyle = 'rgba(255,246,222,.85)';
+  for(const p of [[-4, 3, 1.1], [1, 5, .9], [5, 1, 1.0], [-1, -1, .8], [6, 6, .8], [-6, 7, .7]]){
+    g.beginPath(); g.arc(p[0], p[1], p[2], 0, Math.PI * 2); g.fill();
+  }
+  g.strokeStyle = 'rgba(160,110,50,.5)'; g.lineWidth = .8;
+  g.beginPath(); g.moveTo(-6, 8); g.lineTo(6, 8); g.stroke();
+}
 function kDishEntry(g, dishKey){
   const info = kDishInfo(dishKey);
   if(info.id === 'bread') kDishBreadIcon(g);
+  else if(info.id === 'slice') kDishSliceIcon(g);
   else if(info.id === 'roast' && info.pieces && info.pieces.length) kPieceIcon(g, info.pieces[0]);  /* 烤菜：就用被烤的那块的形状 */
   else if(info.id === 'curry') kDishCurryIcon(g);                       /* 咖喱饭 */
   else if(info.id === 'fried_rice') kDishFriedRiceIcon(g);              /* 什锦炒饭 */

@@ -67,6 +67,7 @@ function newState(){
     autoAcc: { donkey: 0, chopper: 0 },
     autoSlot: { donkey: [], chopper: [] },   /* 各机器**独立**的进料槽（内容物已从仓库扣掉） */
     autoPause: { donkey: 0, chopper: 0 },      /* 0 = 在跑；非 0 = 暂停时刻（暂停时租期冻结） */
+    autoCrop: { chopper: '' },                 /* 切块机指定切哪种作物（'' = 自动挑库存最多的） */
     kExpand: { prep: false, cook: false },   /* 厨房两行工位的展开状态（缩略行 ↔ 大界面） */
     longPressBox: true,                        /* 长按 = 框选（关掉则长按只当普通点击，不会跟移动打架） */
     afPicking: false,                          /* 正在划自动农活的区域（下一次框选用来定区域） */

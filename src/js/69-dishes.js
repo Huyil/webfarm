@@ -158,7 +158,7 @@ const AUTO_DEVICES = {
   donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, rate:1.6, durMs:5*60*1000, per:MILL_MS,
              desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份小麦，空了自动从仓库补）：进度条走完一次，每头驴产 1 份面粉' },
   chopper: { id:'chopper', name:'切块机', icon:'🔪', price:900, rate:1.6, durMs:5*60*1000, per:1500,
-             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份，空了自动补）：进度条走完一次，每台切 1 份' },
+             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份，空了自动补）：进度条走完一次，每台切 1 份。可指定只切某一种作物' },
 };
 const AUTO_IDS = Object.keys(AUTO_DEVICES);
 const AUTO_MAX = 5;                                   /* 每种最多同时养几台 */
@@ -166,6 +166,13 @@ const AUTO_MAX = 5;                                   /* 每种最多同时养�
  * 槽里的东西已经从仓库扣掉，所以它会跟着存档走（state.autoSlot）。 */
 /* 切块机挑料：优先继续切料斗里已有的那种（成品一致），否则挑仓库里最多的 */
 function autoPickCrop(slot){
+  /* v9.30：用户可以在菜单里指定"只切这一种"。指定了就**只认它**：
+     没货就停（缺原料），不会顺手抓别的作物顶上。'' = 自动挑库存最多的。 */
+  const want = (state.autoCrop && state.autoCrop.chopper) || '';
+  if(want){
+    if(CROPS[want] && !CROPS[want].noChop && (state.bag[want] || 0) > 0) return want;
+    return null;
+  }
   let pick = null, best = 0;
   if(slot && slot.length){
     const c0 = slot[slot.length - 1];
@@ -411,6 +418,31 @@ function potTake(auto){
   return { ok:true, quality:q, dish:item, msg:`${QUALITY[q].tag}${item.name}（${QUALITY[q].name}）` };
 }
 
+/* ---------- 面包切片（v9.30）：1 面包 → 2 片，每片比"对半分"多 2 金 ---------- */
+const BREAD_SLICES = 2, BREAD_SLICE_BONUS = 2;
+function boardSliceBread(dishKey){
+  const d = state.dishes[dishKey];
+  if(!d) return { ok:false, msg:'仓库里没有这份菜' };
+  if(d.id !== 'bread') return { ok:false, msg:'只有面包能切片' };
+  const each = Math.max(1, Math.round(d.value / BREAD_SLICES) + BREAD_SLICE_BONUS);
+  const key = 'slice|' + d.quality + '|bread';
+  const cur = state.dishes[key];
+  if(cur) cur.n += BREAD_SLICES;
+  else state.dishes[key] = { n:BREAD_SLICES, name:'面包片', emoji:'🍞', value:each,
+    quality:d.quality, qname:d.qname, qtag:d.qtag, pieces:['bread'], id:'slice', counts:{ bread:1 } };
+  d.n -= 1;
+  if(d.n <= 0) delete state.dishes[dishKey];
+  KITCHEN.board.busy = false; KITCHEN.board.t = 0;
+  trackAction('chop', BREAD_SLICES);
+  save();
+  return { ok:true, n:BREAD_SLICES, each, msg:`🍞 面包切片 ×${BREAD_SLICES}（每片 ${each} 金）` };
+}
+/* 能切片的菜（目前只有面包） */
+function canSliceDish(dishKey){
+  const d = state.dishes[dishKey];
+  return !!(d && d.id === 'bread');
+}
+
 /* ---------- 卖菜 ---------- */
 function sellDish(key, n){
   const d = state.dishes[key];
@@ -441,6 +473,12 @@ function kitchenShelf(){
   }
   const fl = state.prep.flour || 0;
   if(fl > 0) list.push({ key:'prep:flour', kind:'prep', id:'flour', name:'面粉', emoji:'🥣', n:fl, color:'#f0e6d2' });
+  /* 能切片的菜（面包）也进货架 —— 拖到菜板就切片 */
+  for(const key in state.dishes){
+    const d = state.dishes[key];
+    if(!d || d.id !== 'bread') continue;
+    list.push({ key:'dish:' + key, kind:'dish', id:key, name:d.name + '（可切片）', emoji:'🍞', n:d.n, color:'#e8c07a' });
+  }
   const fav = state.fav || {};
   list.sort((a, b) => {
     const fa = fav[a.key] ? 1 : 0, fb = fav[b.key] ? 1 : 0;

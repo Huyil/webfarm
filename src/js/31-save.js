@@ -25,7 +25,7 @@ function serialize(st){
     kitchenAuto: { oven: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.auto),
                    pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto) },
     autoUntil: st.autoUntil, autoAcc: st.autoAcc, autoCount: st.autoCount, ovenSlots: st.ovenSlots,
-    autoSlot: st.autoSlot, autoPause: st.autoPause,
+    autoSlot: st.autoSlot, autoPause: st.autoPause, autoCrop: st.autoCrop,
     kExpand: st.kExpand,
     longPressBox: st.longPressBox !== false,
     autoFarm: st.autoFarm,
@@ -135,6 +135,7 @@ function unpackState(d){
   st.autoAcc = Object.assign({ donkey:0, chopper:0 }, d.autoAcc || {});
   st.autoSlot = { donkey: (d.autoSlot && d.autoSlot.donkey) || [], chopper: (d.autoSlot && d.autoSlot.chopper) || [] };
   st.autoPause = Object.assign({ donkey:0, chopper:0 }, d.autoPause || {});
+  st.autoCrop = { chopper: (d.autoCrop && CROPS[d.autoCrop.chopper]) ? d.autoCrop.chopper : '' };
   st.kExpand = { prep: !!(d.kExpand && d.kExpand.prep), cook: !!(d.kExpand && d.kExpand.cook) };
   st.longPressBox = d.longPressBox !== false;
   {

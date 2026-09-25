@@ -2502,6 +2502,87 @@ const frames = n => new Promise(res => {
     api.applyPayload(backup);
   }
 
+  section('v9.30：切块机指定作物 · 面包切片（每片 +2 金）· 区域无上限 · 虚线只在交互时显示');
+  {
+    const bk = JSON.parse(JSON.stringify(api.serialize(st())));
+    /* ① 切块机：可以指定只切某一种作物 */
+    st().coins = 99999;
+    st().bag.carrot = 10; st().bag.potato = 3;
+    st().autoCount.chopper = 1; st().autoUntil.chopper = Date.now() + 5 * 60 * 1000;
+    st().autoAcc.chopper = 0; api.autoSlotOf('chopper').length = 0;
+    st().autoCrop = { chopper: '' };
+    api.autoSlotRefill('chopper');
+    ok(api.autoSlotOf('chopper').every(c => c === 'carrot'), '默认自动：装库存最多的（胡萝卜）');
+    st().autoCrop = { chopper: 'potato' };
+    api.autoSlotOf('chopper').length = 0;
+    api.autoSlotRefill('chopper');
+    eq(api.autoSlotOf('chopper').length, 3, '指定土豆后只装土豆（仓库就 3 个）');
+    ok(api.autoSlotOf('chopper').every(c => c === 'potato'), '料斗里全是指定的那种');
+    st().bag.potato = 0;
+    st().autoCrop = { chopper: 'eggplant' };          /* 指定一种仓库里没有的 */
+    eq(api.autoSlotRefill('chopper'), 0, '指定的作物没货 → 不补料（不会顺手抓别的）');
+    st().autoCrop = { chopper: 'potato' };
+    ok(api.autoSlotOf('chopper').length === 0 || api.autoSlotOf('chopper').every(c => c === 'potato'),
+      '指定没货时也不会混进别的作物');
+    /* 面板/展开区里有选择条 */
+    api.openSheet('kitchen'); api.renderKitchen && api.renderKitchen();
+    const picks = $('kitchenBody').querySelectorAll('[data-act="pick-crop"]');
+    ok(picks.length >= 2, '切块机有"指定作物"的选择条（含"自动"）', String(picks.length));
+    const autoChip = [...picks].find(b => b.dataset.crop === '');
+    ok(!!autoChip, '有「自动」这一项');
+    click(autoChip);
+    eq(st().autoCrop.chopper, '', '点「自动」= 回到自动挑最多的');
+    const potatoChip = [...$('kitchenBody').querySelectorAll('[data-act="pick-crop"]')].find(b => b.dataset.crop === 'potato');
+    if (potatoChip) {
+      click(potatoChip);
+      eq(st().autoCrop.chopper, 'potato', '点某个作物 = 只切它');
+      ok($('kitchenBody').textContent.includes('只切'), '缩略卡上写明"只切 XX"');
+    }
+    api.closeSheet();
+
+    /* ② 面包切片：1 面包 → 2 片，每片比对半分多 2 金 */
+    st().dishes = {};
+    const bread = api.cook.addDish({ id:'bread', name:'面包', emoji:'🍞', base:60, pieces:['flour'], counts:{ flour:1 } }, 'normal');
+    const bkey = Object.keys(st().dishes).find(k => /^bread\|/.test(k));
+    ok(!!bkey, '面包进了菜品仓库', String(bkey));
+    eq(bread.value, 60, '面包 60 金');
+    if(st().dishes[bkey]) st().dishes[bkey].n = 3;    /* 多备几份，免得切光后记录被删掉 */
+    const before = st().dishes[bkey] ? st().dishes[bkey].n : 0;
+    const r = api.cook.boardSliceBread(bkey);
+    ok(r.ok, '菜板能把面包切片', r.msg);
+    eq(r.n, 2, '一个面包切 2 片');
+    eq(r.each, Math.round(60 / 2) + 2, '每片 = 对半分 + 2 金（32 金）');
+    const skey = Object.keys(st().dishes).find(k => /^slice\|/.test(k));
+    ok(!!skey, '切出来的"面包片"进了菜品仓库', skey);
+    eq(st().dishes[skey].n, 2, '一共 2 片');
+    eq(st().dishes[skey].value, 32, '每片 32 金');
+    eq(st().dishes[bkey].n, before - 1, '面包少了一个');
+    eq(st().dishes[skey].value * 2, 64, '两片合计 64 金（比整个面包多 4 金）');
+    /* 精品面包 → 精品面包片（品质跟着走） */
+    const pb = api.cook.addDish({ id:'bread', name:'面包', emoji:'🍞', base:60, pieces:['flour'], counts:{ flour:1 } }, 'perfect');
+    const pbkey = Object.keys(st().dishes).find(k => st().dishes[k] === pb);
+    api.cook.boardSliceBread(pbkey);
+    const pskey = Object.keys(st().dishes).find(k => /^slice\|perfect\|/.test(k));
+    ok(!!pskey, '精品面包切出精品面包片');
+    ok(st().dishes[pskey].value > 32, '精品面包片更贵', String(st().dishes[pskey].value));
+    /* 别的菜不能切片 */
+    const stew = api.cook.addDish({ id:'stew', name:'红烩土豆', emoji:'🍲', base:50, pieces:['potato'], counts:{ potato:2 } }, 'normal');
+    const stkey = Object.keys(st().dishes).find(k => st().dishes[k] === stew);
+    ok(!api.cook.boardSliceBread(stkey).ok, '别的菜不能切片（只有面包）');
+    /* 货架上能看到面包（能拖到菜板） */
+    const shelf = api.cook.kitchenShelf();
+    ok(shelf.some(it => it.kind === 'dish' && it.key.indexOf('dish:') === 0), '面包出现在食材货架上（可拖到菜板）');
+    {
+      const KD4 = W.KitchenDebug;
+      const bKeyNow = Object.keys(st().dishes).find(k => st().dishes[k] && st().dishes[k].id === 'bread');
+      if (bKeyNow) {
+        const chk = KD4.drop('dish:' + bKeyNow, 'board');
+        ok(chk && chk.ok !== false, '把面包拖到菜板能切片', chk && chk.msg);
+      }
+    }
+    api.applyPayload(bk);
+  }
+
   section('v9.28：自动农活（框区域 · 轮作 · 每次操作扣 1 点饱食度 · 预备口粮）');
   {
     const bk = JSON.parse(JSON.stringify(api.serialize(st())));
@@ -2513,7 +2594,7 @@ const frames = n => new Promise(res => {
     AF.setArea({ x0: 0, y0: 0, x1: 3, y1: 3 });
     eq(AF.state.box.x1, 3, '框选区域生效');
     AF.setArea({ x0: 0, y0: 0, x1: 99, y1: 99 });
-    eq(AF.state.box.x1 - AF.state.box.x0 + 1, AF.AF_AREA_MAX, '区域边长按上限截断', String(AF.AF_AREA_MAX));
+    eq(AF.state.box.x1 - AF.state.box.x0 + 1, 100, '区域不再有边长上限（框多大就多大）');
     AF.setArea({ x0: 0, y0: 0, x1: 2, y1: 2 });
     AF.state.seeds = ['wheat', 'carrot'];
     const sv = api.serialize(st());

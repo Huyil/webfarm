@@ -6,6 +6,8 @@ const MILL_OUT = 'flour';
 
 const DISHES = {
   bread: { id:'bread', name:'面包', emoji:'🍞', station:'oven', input:'flour', price:60, factor:1 },
+  /* 面包片（菜板上切出来，见 boardSliceBread）：名字/图标要能被 kDishInfo 认出来 */
+  slice: { id:'slice', name:'面包片', emoji:'🍞', station:'board', input:'bread', price:0, factor:1 },
 };
 
 /* 锅里认得出的家常菜：need = 菜块数量的精确多重集

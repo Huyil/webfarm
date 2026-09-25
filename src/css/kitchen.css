@@ -551,3 +551,17 @@
 .af-sat b{color:#ffd76e;font-size:max(15px,calc(16px*var(--ui-scale)));font-variant-numeric:tabular-nums}
 .af-sat i{font-style:normal;font-size:calc(10.5px*var(--ui-scale));color:#8b9a8d}
 .af-sat.on{border-color:rgba(127,224,138,.5);background:rgba(127,224,138,.08)}
+
+/* ---------- v9.30：切块机指定作物 ---------- */
+.k-crop-pick{display:flex;align-items:center;gap:calc(3px*var(--ui-scale));flex-wrap:wrap}
+.k-crop-chip{
+  position:relative;min-width:max(26px,calc(28px*var(--ui-scale)));height:max(24px,calc(26px*var(--ui-scale)));
+  padding:0 calc(5px*var(--ui-scale));border:1px solid #2f3a30;border-radius:calc(7px*var(--ui-scale));
+  background:rgba(255,255,255,.04);color:#c8d6c9;font-size:max(11px,calc(12px*var(--ui-scale)));
+  font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.k-crop-chip.on{border-color:#7fd0ff;box-shadow:inset 0 0 0 1px rgba(127,208,255,.35);background:rgba(127,208,255,.1)}
+.k-crop-chip.poor{opacity:.45}
+.k-crop-chip i{position:absolute;right:calc(-2px*var(--ui-scale));bottom:calc(-3px*var(--ui-scale));font-style:normal;
+  font-size:max(8px,calc(8.5px*var(--ui-scale)));color:#ffd76e;background:rgba(20,26,20,.9);
+  border-radius:999px;padding:0 calc(2.5px*var(--ui-scale));line-height:1.3}

@@ -11,6 +11,34 @@ const SH_CULL_H = (TILE_H + THICKNESS) * SCALE;
 
 /* 格坐标 → 屏幕坐标（写入模块级暂存，返回是否在视口内，避免每格 new 对象） */
 let shSX = 0, shSY = 0;
+/* 可见格范围（带 pad 格余量）：把视口四角反投影回网格。
+ * 下面这几个"全表遍历"的函数本来就逐格做屏幕剔除，但大地图上光是遍历 + 算坐标
+ * 就要好几千次（而且每次还带一次函数调用）；直接按可见矩形遍历，只碰真可能画出来的格子。
+ * 注意：render() 里 W/H 已被换成"未缩放坐标系下的视口大小"，cx/cy 也是同一套坐标。 */
+function visibleGridRect(cx, cy, pad){
+  const p = (pad == null) ? 3 : pad;
+  const xs = [cx - W / 2, cx + W / 2], ys = [cy - H / 2, cy + H / 2];
+  let ax = Infinity, bx = -Infinity, ay = Infinity, by = -Infinity;
+  for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++){
+    const q = unIso((xs[i] - cx) / SCALE, (ys[j] - cy) / SCALE);
+    if(q.wx < ax) ax = q.wx; if(q.wx > bx) bx = q.wx;
+    if(q.wy < ay) ay = q.wy; if(q.wy > by) by = q.wy;
+  }
+  return { x0:Math.floor(ax) - p, x1:Math.ceil(bx) + p, y0:Math.floor(ay) - p, y1:Math.ceil(by) + p };
+}
+/* 可见地块清单（复用模块级数组，不每帧分配）。
+ * 下面几个函数原本都遍历全部地块、再逐格做屏幕剔除 —— 大地图上"遍历 + 算坐标 + 函数调用"
+ * 本身就要几千次；换成只收可见矩形内的格子，通道里的逻辑一行都不用改。 */
+const shVisBuf = [];
+function shVisibleTiles(cx, cy, pad){
+  const vr = visibleGridRect(cx, cy, pad == null ? 3 : pad);
+  shVisBuf.length = 0;
+  for(let gy = vr.y0; gy <= vr.y1; gy++) for(let gx = vr.x0; gx <= vr.x1; gx++){
+    const t = getTile(gx, gy);
+    if(t) shVisBuf.push(t);
+  }
+  return shVisBuf;
+}
 function shTilePos(t, cx, cy){
   shSX = cx + (t.gx - t.gy) * HALF_W * SCALE;
   shSY = cy + (t.gx + t.gy) * HALF_H * SCALE;
@@ -33,7 +61,7 @@ function shAddEllipse(g, cx, cy, rx, ry){
  * 地面细节：五道批处理通道
  * ============================================================ */
 function shDrawTileDetails(g, cx, cy){
-  const tiles = state.tiles, n = tiles.length;
+  const tiles = shVisibleTiles(cx, cy, 3), n = tiles.length;
   const w = TILE_W * SCALE, h = TILE_H * SCALE, hw = w / 2, hh = h / 2;
   let i, t, k, x, y, u, v, r1, r2, hb, any;
   /* 点缀跟着世界一起缩放（不做反向补偿，否则高倍率下小草会小得离谱） */
@@ -124,8 +152,8 @@ function shDrawTileDetails(g, cx, cy){
 
 /* 已开垦区域外沿一圈柔和的土色高亮 */
 function shDrawTilledRing(g, cx, cy){
-  const tiles = state.tiles, n = tiles.length;
   const w = TILE_W * SCALE, h = TILE_H * SCALE, hw = w / 2, hh = h / 2;
+  const tiles = shVisibleTiles(cx, cy, 3), n = tiles.length;
   let i, t, any = false;
   g.beginPath();
   for(i = 0; i < n; i++){
@@ -225,8 +253,10 @@ function drawShadows(g, cx, cy){
   const ccy = (cy == null) ? H / 2 + state.camera.y : cy;
   shUpdateSun();
   if(shAlpha <= 0.008) return;
-  /* 作物：影子落在根部 */
-  for(const t of state.tiles){
+  /* 作物：影子落在根部（只遍历可见范围） */
+  const visList = shVisibleTiles(ccx, ccy, 2);
+  for(let vi = 0; vi < visList.length; vi++){
+    const t = visList[vi];
     if(!t.crop || t.state === 'wild') continue;
     if(!shTilePos(t, ccx, ccy)) continue;
     const ratio = tileProgress(t);

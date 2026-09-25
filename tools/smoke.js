@@ -2521,14 +2521,31 @@ const frames = n => new Promise(res => {
     const job = opsFor(() => { st().box = null; st().jobBox = { x0: 1, y0: 1, x1: 26, y1: 26 }; });
     ok(job <= big, '作业中的覆盖层只描边（比拖动时更省）', 'job=' + job + ' ≤ drag=' + big);
     st().jobBox = null;
-    /* ③ 地块细节分级：小格子不该再画砂粒（大地图最贵的那部分） */
-    const t0 = api.getTile(st().farm.x0, st().farm.y0);
-    const wide = opsFor(() => { st().zoomMode = 1.6; });
-    const narrow = opsFor(() => { st().zoomMode = 0.35; });
-    ok(narrow < wide, '缩小/大地图时每帧绘制次数明显更少（细节分级生效）',
-      '1.6x=' + wide + ' 次 → 0.35x=' + narrow + ' 次，省 ' + Math.round((1 - narrow / wide) * 100) + '%');
-    ok(!!t0 && api.tileLOD() >= 0, 'tileLOD() 可读');
-    st().zoomMode = 'auto';
+    ok(api.tileLOD() >= 0, 'tileLOD() 可读');
+    /* ③ 地表层缓存：整层只在相机/缩放/地块外观变化时重画，静止帧只 blit 一次 */
+    st().zoomMode = 'auto'; st().cameraAuto = false;
+    api.centerOnFarm();
+    D.render();                                                  /* 预热 */
+    const hit = (W.__ctxOps = 0, D.render(), W.__ctxOps);         /* 命中缓存的一帧 */
+    const miss = (W.__ctxOps = 0, st().camera.x += 3, D.render(), W.__ctxOps);   /* 强制未命中 */
+    st().camera.x -= 3;
+    ok(hit < miss * 0.7, '地表层命中缓存后，静态帧的绘制量明显下降',
+      '重画一帧 ' + miss + ' 次 → 命中缓存 ' + hit + ' 次（省 ' + Math.round((1 - hit / miss) * 100) + '%）');
+    /* ④ 缓存必须"该失效就失效"：挪相机 / 改地块外观都要重画 */
+    ok(miss > hit * 1.4, '相机一动就重画地表（缓存正确失效）', '挪动后 ' + miss + ' 次 vs 静止 ' + hit + ' 次');
+    const t1 = api.getTile(st().farm.x0, st().farm.y0);
+    const oldState = t1.state;
+    const tileOps = (W.__ctxOps = 0, t1.state = (oldState === 'tilled' ? 'wild' : 'tilled'), D.render(), W.__ctxOps);
+    ok(tileOps > hit * 1.4, '地块外观一变就重画地表（刚开垦完不会还显示草地）', '改一块地后 ' + tileOps + ' 次 vs 静止 ' + hit + ' 次');
+    t1.state = oldState;
+    D.render();
+    /* ⑤ 重画一帧时，缩小/大地图的绘制量应该明显更少（细节分级生效） */
+    const redraw = zoom => { st().zoomMode = zoom; st().camera.x += 0.37; W.__ctxOps = 0; D.render(); st().camera.x -= 0.37; return W.__ctxOps; };
+    const wide = redraw(1.6);
+    const narrow = redraw(0.24);
+    ok(narrow < wide * 0.9, '重画一帧时，缩小/大地图的绘制量明显更少（细节分级生效）',
+      '1.6x=' + wide + ' 次 → 0.24x=' + narrow + ' 次，省 ' + Math.round((1 - narrow / wide) * 100) + '%');
+    st().zoomMode = 'auto'; st().cameraAuto = true;
     api.applyPayload(bk);
   }
 

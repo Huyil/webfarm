@@ -83,11 +83,38 @@ const frames = n => new Promise(r => { let i = 0; const t = () => (++i >= n ? r(
       String(ms.toFixed(2)).padStart(7), 'ms/帧   ', top);
   };
   console.log('农场', N + '×' + N, '=', st().tiles.length, '块地，画布 1200×900，', FRAMES, '帧平均');
-  console.log('  zoom=' + Number(api.viewZoom()).toFixed(3) + ' → 屏幕格子宽 ' + (76.8 * Number(api.viewZoom())).toFixed(1) + 'px, LOD=' + (api.tileLOD ? api.tileLOD() : '?') + '\n');
+  console.log('  zoom=' + Number(api.viewZoom()).toFixed(3) + ' → 屏幕格子宽 ' + (76.8 * Number(api.viewZoom())).toFixed(1) + 'px' +
+    '（LOD 阈值：≥34px 全细节 / ≥30px 减半 / 更小只留底色）\n');
   run('① 耕地 + 作物（基准）');
-  run('② 耕地无作物', () => { for (const t of st().tiles) t.crop = null; });
-  run('③ 框选拖动中 8×8', () => { st().box = { x0: 2, y0: 2, x1: 9, y1: 9 }; });
-  run('④ 作业中 24×24（只描边）', () => { st().box = null; st().jobBox = { x0: 2, y0: 2, x1: 25, y1: 25 }; });
-  run('⑤ 雨天', () => { st().jobBox = null; api.ATMOS.weather = 'rain'; });
+  const restore = () => { for (const t of st().tiles) { t.state = 'growing'; t.crop = 'carrot'; t.growth = 8000 + ((t.gx * 13 + t.gy * 7) % 20000); } st().showCropBars = true; st().showGrid = false; };
+  run('② 关掉作物进度条', () => { st().showCropBars = false; });
+  run('③ 进度条恢复', () => { st().showCropBars = true; });
+  run('④ 耕地无作物', () => { for (const t of st().tiles) t.crop = null; restore(); api.closeSheet && null; });
+  run('⑤ 框选拖动中 8×8', () => { st().box = { x0: 2, y0: 2, x1: 9, y1: 9 }; });
+  run('⑥ 作业中 24×24（只描边）', () => { st().box = null; st().jobBox = { x0: 2, y0: 2, x1: 25, y1: 25 }; });
+  run('⑦ 雨天', () => { st().jobBox = null; api.ATMOS.weather = 'rain'; });
+  /* 静态帧：相机/地块都不动 → 地表层命中缓存（这是"盯着看作物长/小人干活"时的真实开销） */
+  st().showCropBars = true; api.ATMOS.weather = 'clear';
+  const runStatic = (label, setup, jiggle) => {
+    if (setup) setup();
+    ops = 0; for (const k in byName) delete byName[k];
+    D.render();                                   /* 预热，把缓存烧好 */
+    ops = 0; for (const k in byName) delete byName[k];
+    const t0 = Date.now();
+    for (let i = 0; i < FRAMES; i++){
+      if (jiggle) st().camera.x += 0.001;         /* 强制缓存未命中 */
+      D.render();
+    }
+    const ms = (Date.now() - t0) / FRAMES;
+    const top = Object.entries(byName).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([k, v]) => k + ':' + Math.round(v / FRAMES)).join(' ');
+    console.log(label.padEnd(26), String(Math.round(ops / FRAMES)).padStart(7), 'ops/帧',
+      String(ms.toFixed(2)).padStart(7), 'ms/帧   ', top);
+  };
+  runStatic('⑧ 静态帧（命中缓存）');
+  runStatic('⑨ 静态帧·强制重画', null, true);
+  runStatic('⑩ 静态·进度条关+命中', () => { st().showCropBars = false; });
+  runStatic('⑪ 静态·无作物', () => { for (const t of st().tiles) { t.state = 'wild'; t.crop = null; } });
+  runStatic('⑫ 静态·全草地命中', null, false);
   W.close();
 })();

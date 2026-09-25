@@ -177,6 +177,49 @@ function drawGenericSprout(g, x, y, ratio, color){
     g.fillStyle = color || '#5cbf3a'; g.fill();
   }
 }
+/* 植株本体（不含水滴/肥料/进度条这些覆盖物）：抽出来是为了能烧进精灵图 */
+function drawCropBody(g, crop, x, y, ratio){
+  if(crop === 'carrot') drawCarrot(g, x, y, ratio);
+  else if(crop === 'potato') drawPotato(g, x, y, ratio);
+  else if(crop === 'rice') drawRice(g, x, y, ratio);
+  else if(typeof drawVeggieField === 'function') drawVeggieField(g, crop, x, y, ratio);
+  else drawGenericSprout(g, x, y, ratio, (CROPS[crop] && CROPS[crop].color) || '#5cbf3a');
+}
+/* ============ 作物精灵缓存（v9.25） ============
+ * 一株作物的矢量画法是"曲线 + 多层描边 + 渐变"，40×40 农场实测每帧 **7.3 万次** 绘制调用
+ * （占整帧 87%，是现在最大的一块）。
+ * 缩得比较小时（`tileLOD() < 2`，一株在屏幕上只有 15~25px）把它按 (作物, 生长档)
+ * 预渲染成一张小图，每株只 drawImage 一次；**放大看时仍旧走矢量**，所以绝不会糊。
+ * 生长进度量化成 CROP_SPR_STEPS 档（每档 ~8% 大小差，那个尺寸下看不出来）。 */
+const cropSpriteCache = Object.create(null);
+const cropSpriteStats = { baked: 0, drawn: 0 };
+const CROP_SPR_STEPS = 12;
+const CROP_SPR_PAD = 6;
+/* 植株本体在"艺术像素"里的包围盒（要盖住所有作物：番茄/茄子最高，萝卜的土堆最靠下） */
+const CROP_SPR_BOX = { x0: -22, y0: -40, x1: 22, y1: 18 };
+function cropSpriteFor(crop, ratio){
+  const step = Math.max(0, Math.min(CROP_SPR_STEPS - 1, Math.floor(ratio * CROP_SPR_STEPS)));
+  const key = crop + '#' + step;
+  const hit = cropSpriteCache[key];
+  if(hit !== undefined) return hit;
+  const q = (step + 0.5) / CROP_SPR_STEPS;
+  const w = CROP_SPR_BOX.x1 - CROP_SPR_BOX.x0 + CROP_SPR_PAD * 2;
+  const h = CROP_SPR_BOX.y1 - CROP_SPR_BOX.y0 + CROP_SPR_PAD * 2;
+  let sp = null;
+  try{
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const g = cv.getContext('2d');
+    if(g){
+      g.translate(-CROP_SPR_BOX.x0 + CROP_SPR_PAD, -CROP_SPR_BOX.y0 + CROP_SPR_PAD);
+      drawCropBody(g, crop, 0, 0, q);                       /* 以 (0,0) 为原点烧制 */
+      sp = { canvas:cv, w, h, ox:CROP_SPR_BOX.x0 - CROP_SPR_PAD, oy:CROP_SPR_BOX.y0 - CROP_SPR_PAD };
+      cropSpriteStats.baked++;
+    }
+  }catch(e){ sp = null; }
+  cropSpriteCache[key] = sp;
+  return sp;
+}
 function drawCrop(px, py, t){
   const def = CROPS[t.crop]; if(!def) return;
   const ratio = Math.min(1, t.growth / (def.stageMs * 3));
@@ -185,11 +228,13 @@ function drawCrop(px, py, t){
   const lift = (t.state === 'ready') ? 7 : 0;
   const baseX = px, baseY = py + anchorOffset - lift;
   ctx.save();
-  if(t.crop === 'carrot') drawCarrot(ctx, baseX, baseY, ratio);
-  else if(t.crop === 'potato') drawPotato(ctx, baseX, baseY, ratio);
-  else if(t.crop === 'rice') drawRice(ctx, baseX, baseY, ratio);
-  else if(typeof drawVeggieField === 'function') drawVeggieField(ctx, t.crop, baseX, baseY, ratio);
-  else drawGenericSprout(ctx, baseX, baseY, ratio, def.color);
+  const sp = (typeof tileLOD === 'function' && tileLOD() < 2 && !window.FARM_NO_SPRITES) ? cropSpriteFor(t.crop, ratio) : null;
+  if(sp){
+    ctx.drawImage(sp.canvas, baseX + sp.ox, baseY + sp.oy, sp.w, sp.h);
+    cropSpriteStats.drawn++;
+  } else {
+    drawCropBody(ctx, t.crop, baseX, baseY, ratio);
+  }
   ctx.restore();
 
   if(t.watered && t.state === 'growing'){
@@ -217,7 +262,7 @@ function drawCrop(px, py, t){
    * 圆角是靠 arcTo 画的，一条进度条 = 2 次 roundRect = 8 次 arcTo + 8 次 moveTo/lineTo + 2 次 fill；
    * 40×40 农场一拍就是 1600 条，光这一项每帧就 2.5 万次调用。缩小时圆角根本看不出来，
    * 所以按 tileLOD() 分级：贴近看用圆角，缩小/大地图直接用 fillRect。 */
-  if(t.state === 'growing' && ratio > 0.03){
+  if(t.state === 'growing' && ratio > 0.03 && state.showCropBars !== false){
     ctx.save();
     const w = 30, h = 3.4, x0 = px - w / 2, y0 = py - 42;
     const round = (typeof tileLOD === 'function') && tileLOD() >= 2;

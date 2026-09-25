@@ -1,9 +1,16 @@
 /* ============ 画布 ============ */
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-let W = 0, H = 0, UI_SCALE = 1;
+let ctx = canvas.getContext('2d');          /* let：地表缓存要把同一套绘制临时画进离屏 canvas */
+let W = 0, H = 0, UI_SCALE = 1, DPR = 1;
+/* 把全局 ctx 临时换成别的（只为地表缓存服务；里面只画地块，不会碰到别的层） */
+function withCtx(tmp, fn){
+  const old = ctx;
+  ctx = tmp;
+  try { fn(); } finally { ctx = old; }
+}
 function resize(){
   const dpr = window.devicePixelRatio || 1;
+  DPR = dpr;
   W = window.innerWidth; H = window.innerHeight;
   canvas.width = W * dpr; canvas.height = H * dpr;
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';

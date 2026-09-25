@@ -303,6 +303,52 @@ const ATM_PUFFS = [
   { dx: -32, dy: 5,   rx: 29, ry: 11 },
   { dx: 6,   dy: -10, rx: 27, ry: 14 },
 ];
+/* 云朵精灵：每帧现算 20 个径向渐变（4 个 puff × 3~5 团云），径向渐变的**光栅化**在手机上
+ * 是实打实的开销。这里把每团云烧成一张小图，每帧只 drawImage；颜色/夜色变化时重烧
+ * （rgb 量化到 8 一档，所以黄昏那会儿也只重烧几次）。 */
+const ATM_CLOUD_SPR = [];
+function atmCloudSprite(i, c, rgb, a){
+  const rq = rgb.split(',').map(v => Math.round(v / 8) * 8).join(',');
+  const key = rq + '|' + a.toFixed(3) + '|' + c.s.toFixed(2);
+  let sp = ATM_CLOUD_SPR[i];
+  if(sp && sp.key === key) return sp;
+  const s = c.s;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for(const p of ATM_PUFFS){
+    const px = p.dx * s, py = p.dy * s, rx = p.rx * s, ry = p.ry * s;
+    if(px - rx < x0) x0 = px - rx; if(px + rx > x1) x1 = px + rx;
+    if(py - ry < y0) y0 = py - ry; if(py + ry > y1) y1 = py + ry;
+  }
+  const pad = 2, sc = DPR || 1;
+  const w = Math.ceil(x1 - x0 + pad * 2), h = Math.ceil(y1 - y0 + pad * 2);
+  try{
+    const cv = (sp && sp.canvas) || document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(w * sc));
+    cv.height = Math.max(1, Math.round(h * sc));
+    const cg = cv.getContext('2d');
+    if(!cg) return null;
+    cg.setTransform(sc, 0, 0, sc, 0, 0);
+    cg.clearRect(0, 0, w, h);
+    cg.translate(-x0 + pad, -y0 + pad);
+    for(const p of ATM_PUFFS){
+      const px = p.dx * s, py = p.dy * s, rx = p.rx * s, ry = p.ry * s;
+      cg.save();
+      cg.translate(px, py);
+      cg.scale(1, ry / rx);
+      const grd = cg.createRadialGradient(0, 0, 0, 0, 0, rx);
+      grd.addColorStop(0, 'rgba(' + rgb + ',' + a.toFixed(3) + ')');
+      grd.addColorStop(0.45, 'rgba(' + rgb + ',' + (a * 0.62).toFixed(3) + ')');
+      grd.addColorStop(0.78, 'rgba(' + rgb + ',' + (a * 0.18).toFixed(3) + ')');
+      grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+      cg.fillStyle = grd;
+      cg.beginPath(); cg.arc(0, 0, rx, 0, Math.PI * 2); cg.fill();
+      cg.restore();
+    }
+    sp = { canvas:cv, w, h, ox:x0 - pad, oy:y0 - pad, key };
+    ATM_CLOUD_SPR[i] = sp;
+    return sp;
+  }catch(e){ return null; }
+}
 function atmDrawClouds(g, nl){
   const cnt = ATMOS.weather === 'clear' ? 3 : 5;
   const amul = ATMOS.weather === 'rain' ? 0.95 : ATMOS.weather === 'cloudy' ? 0.82 : 0.55;
@@ -316,6 +362,8 @@ function atmDrawClouds(g, nl){
     const y = (c.ny * 0.8 + 0.06) * H;
     const s = c.s;
     const a = 0.24 * amul * c.a;
+    const spr = atmCloudSprite(i, c, rgb, a);
+    if(spr){ g.drawImage(spr.canvas, x + spr.ox, y + spr.oy, spr.w, spr.h); continue; }
     for(const p of ATM_PUFFS){
       const px = x + p.dx * s, py = y + p.dy * s;
       const rx = p.rx * s, ry = p.ry * s;

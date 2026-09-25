@@ -5,6 +5,7 @@ const SETTING_TOGGLES = [
   { id:'toggleEffects',   field:'effectsEnabled',  label:'全屏特效' },
   { id:'toggleWarehouse', field:'warehouseEnabled',label:'仓储模式' },
   { id:'toggleMiniGame',  field:'miniGameEnabled', label:'厨房火候小游戏' },
+  { id:'toggleCropBars',  field:'showCropBars',    label:'作物进度条', hint:'关掉后地里不再画生长进度条，大地图更顺' },
 ];
 function renderSettings(){
   for(const t of SETTING_TOGGLES){

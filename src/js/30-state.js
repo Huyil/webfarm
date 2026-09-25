@@ -69,6 +69,7 @@ function newState(){
     autoPause: { donkey: 0, chopper: 0 },      /* 0 = 在跑；非 0 = 暂停时刻（暂停时租期冻结） */
     kExpand: { prep: false, cook: false },   /* 厨房两行工位的展开状态（缩略行 ↔ 大界面） */
     longPressBox: true,                        /* 长按 = 框选（关掉则长按只当普通点击，不会跟移动打架） */
+    showCropBars: true,                        /* 作物头顶的生长进度条（大地图关掉能省不少绘制） */
     recentSeeds: [],                           /* 最近用过的种子（工具栏「种子」的小凸起） */
     hover: null, box: null, jobBox: null, expandPreview: null,
     lastSave: Date.now(),

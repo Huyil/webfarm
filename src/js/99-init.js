@@ -199,7 +199,7 @@ window.FarmDebug = {
     /* 视角 */
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
     isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX,
-    tileLOD, TILE_W, TILE_H, SCALE, HALF_W, HALF_H,
+    tileLOD, TILE_W, TILE_H, SCALE, HALF_W, HALF_H, cropSpriteStats, CROP_SPR_STEPS, cropSpriteFor,
     tfEncodeData, tfDecodeData, tfSanitize, tfReadText, tfWriteSlot, tfExportSlot, tfLinkFor, tfParamPayload, tfStorageRisk,
     tfBoot, openTransfer, renderTransfer, TF_ITER, TF_TAG, TF_TAG2, TF_MAX_TILES, tfQrFit, TF_QR_MAX, TF_QR_COMFY,
     atmSunTrack, atmMoonTrack, atmOrbit, ATM_CLOUDS, ATM_ORBIT,

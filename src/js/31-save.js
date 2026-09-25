@@ -28,6 +28,7 @@ function serialize(st){
     autoSlot: st.autoSlot, autoPause: st.autoPause,
     kExpand: st.kExpand,
     longPressBox: st.longPressBox !== false,
+    showCropBars: st.showCropBars !== false,
     recentSeeds: (st.recentSeeds || []).slice(0, 6),
     tiles: st.tiles.map(t=>({
       gx: t.gx, gy: t.gy, terrain: t.terrain, state: t.state, crop: t.crop,
@@ -135,6 +136,7 @@ function unpackState(d){
   st.autoPause = Object.assign({ donkey:0, chopper:0 }, d.autoPause || {});
   st.kExpand = { prep: !!(d.kExpand && d.kExpand.prep), cook: !!(d.kExpand && d.kExpand.cook) };
   st.longPressBox = d.longPressBox !== false;
+  st.showCropBars = d.showCropBars !== false;
   st.recentSeeds = Array.isArray(d.recentSeeds) ? d.recentSeeds.filter(id => !!CROPS[id]).slice(0, 6) : [];
   st.tiles = d.tiles.map(t=>{
     const tt = newTile(t.gx, t.gy, t.terrain, t.stone);

@@ -21,7 +21,9 @@ const IDLE_BASE_PER_MIN=0.3, IDLE_PER_ACH=0.06, IDLE_OFFLINE_CAP=2*3600*1000;
 const DAY_MS=22*60*1000;
 
 /* 视角缩放：auto=自动适配农场；1/2 为固定倍率；滚轮可微调 */
-const ZOOM_MIN=0.35, ZOOM_MAX=12, ZOOM_AUTO_PAD=0.78;
+/* 0.35 太小了：40×40 以上农场怎么都铺不满一屏（自动倍率被下限卡住），
+ * 既要左右拖、又多画一堆屏外地块。0.22 让大地图能整块看全，也更省。 */
+const ZOOM_MIN=0.22, ZOOM_MAX=12, ZOOM_AUTO_PAD=0.78;
 const ZOOM_AUTO_MAX=1.6;   // 宽屏自动倍率上限：不要把小农场吹得太大
 const ZOOM_FILL_MAX=2.6;   // 窄屏「铺满宽度」时的上限（超了就卷轴式拖动查看）
 const ZOOM_STEPS=[1, 2, 5, 10];   // 按钮循环的固定倍率

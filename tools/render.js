@@ -59,11 +59,17 @@ const dom = new JSDOM(fs.readFileSync(FILE, 'utf8'), {
         if (h.c.width !== w || h.c.height !== hh) h.c = napi.createCanvas(w, hh);
       };
       const real = () => h.c.getContext('2d');
+      /* 把 DOM canvas 参数换成它背后的 Skia canvas：
+         游戏里地表层缓存 / 精灵缓存会 drawImage(离屏 canvas)，浏览器接受 DOM 元素，
+         但 Skia 只认自己的 Canvas —— 少了这层转换，缓存那一层就整块画不出来。 */
+      const fixArg = v => (v && v.nodeName === 'CANVAS' && holders.has(v)) ? holders.get(v).c : v;
       return new Proxy({}, {
         get(_, k) {
           if (k === '__napi') return h.c;
           if (k === 'canvas') return { width: el.width || W0, height: el.height || H0 };
           if (k === 'setTransform') return (...a) => { sync(); return real().setTransform(...a); };
+          if (k === 'drawImage') return (...a) => { const b = a.slice(); b[0] = fixArg(b[0]); const t2 = real(); return t2.drawImage.apply(t2, b); };
+          if (k === 'createPattern') return (img, rep) => real().createPattern(fixArg(img), rep);
           const t = real();
           const v = t[k];
           return typeof v === 'function' ? (...a) => v.apply(t, a) : v;

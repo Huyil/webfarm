@@ -133,7 +133,7 @@ function renderChangelog(){
     const box = document.createElement('div');
     box.className = 'log-box';
     box.innerHTML = `
-      <div class="log-head"><span class="log-ver">${log.version}</span><span class="log-title">${log.title}</span><span class="log-date">${log.date}</span></div>
+      <div class="log-head"><span class="log-ver">${log.version}</span>${log.by ? `<span class="tag log-by" title="提交作者">👤 ${log.by}</span>` : ''}<span class="log-title">${log.title}</span><span class="log-date">${log.date}</span></div>
       <ul class="log-items">${log.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
     el.appendChild(box);
   }

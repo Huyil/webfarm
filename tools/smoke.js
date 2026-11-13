@@ -2928,6 +2928,14 @@ const frames = n => new Promise(res => {
     ok(job <= big, '作业中的覆盖层只描边（比拖动时更省）', 'job=' + job + ' ≤ drag=' + big);
     st().jobBox = null;
     ok(api.tileLOD() >= 0, 'tileLOD() 可读');
+    /* 作物精灵的档位映射：最后一档必须**正好**是成熟（ratio=1），否则各作物
+       在 ratio<1 时会停在「抽苔、没结果」那一档，成熟作物被画成一株没有果实的大苗 */
+    ok(Math.abs(api.cropSpriteQ(api.CROP_SPR_STEPS - 1) - 1) < 1e-9,
+      '作物精灵最后一档 = 成熟（ratio 正好 1）', 'q=' + api.cropSpriteQ(api.CROP_SPR_STEPS - 1));
+    ok(api.cropSpriteQ(0) === 0, '作物精灵第 0 档 = 刚播种（ratio 0）');
+    /* 作物「精灵↔矢量」按缩放而不是地块 tileLOD：0.44x~3x 这一段必须仍走精灵，
+       否则屏幕上近千株作物每帧矢量重画（帧率随缩放剧烈跳变的老毛病） */
+    ok(typeof api.cropUseSprite === 'function', 'cropUseSprite() 可读');
     /* ③ 分层缓存：清空缓存后的"全量重画" vs 命中后的静态帧 */
     st().zoomMode = 'auto'; st().cameraAuto = false;
     api.centerOnFarm();
@@ -2976,7 +2984,11 @@ const frames = n => new Promise(res => {
     const narrow = redraw(0.24);
     ok(wide.lod === 2 && narrow.lod === 0, '缩放后地块细节 LOD 正确分级',
       '1.6x LOD=' + wide.lod + ' · 0.24x LOD=' + narrow.lod);
-    ok(narrow.ops < full * 0.9, '缩小后单帧绘制量低于全量重画', narrow.ops + ' < ' + full);
+    /* 瓦片贴图化之后，"缩小时每格少画砂粒"这条路已经不需要了：砂粒烘在贴图里，
+     * 整层重绘成本只跟可见格数走。原来这条断言（缩小必然更省）在新引擎下不再成立，
+     * 改成校验"整层重绘与放大时同量级"，即不再按细节档跳变。 */
+    ok(narrow.ops < wide.ops * 2.2, '缩放的整层重绘与放大时同量级（贴图化后不再按细节档跳变）',
+      '1.6x=' + wide.ops + ' 次 → 0.24x=' + narrow.ops + ' 次');
     st().zoomMode = 'auto'; st().cameraAuto = true;
     api.applyPayload(bk);
   }

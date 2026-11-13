@@ -203,6 +203,7 @@ window.FarmDebug = {
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
     isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX, ZOOM_MIN, ZOOM_MAX, ZOOM_STEPS,
     tileLOD, TILE_W, TILE_H, SCALE, HALF_W, HALF_H, cropSpriteStats, CROP_SPR_STEPS, cropSpriteFor,
+    cropSpriteQ, cropUseSprite, CROP_SPR_MAX_SCALE,
     renderStats, RENDER_CONFIG, invalidateRenderCaches, setRenderQuality, cropBarQueue, drawCropBarsBatched,
     cropSpriteCache, decorSpriteCache, glowSpriteCache,
     perf: { enable: () => perfSetEnabled(true), disable: () => perfSetEnabled(false), toggle: perfToggle, snapshot: perfSnapshot },

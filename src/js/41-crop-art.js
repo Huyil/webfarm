@@ -198,6 +198,27 @@ const CROP_SPR_PAD = 6;
 /* 植株本体在"艺术像素"里的包围盒（要盖住所有作物：番茄/茄子最高，萝卜的土堆最靠下） */
 /* 草莓最多 10 次收获：10 个圆点横排约 ±31px，所以 x 方向要留到 ±36 */
 const CROP_SPR_BOX = { x0: -36, y0: -60, x1: 36, y1: 18 };
+/* 作物「精灵 ↔ 矢量」只看**缩放倍率**，不跟地块的 tileLOD 走。
+ * tileLOD 的 34px 阈值是为地块砂粒定的：它会在 0.44x 就把作物切成矢量，而那时屏幕上还有
+ * 近千株作物 —— 每帧都要把上千株矢量重画一遍，帧率骤降。
+ * 精灵按实际放大率烘（cropSpriteScale：1~3 倍设备像素），1x~3x 也是清晰的；
+ * 只有放到更大（可见作物已经很少）才退回矢量。 */
+const CROP_SPR_MAX_SCALE = 3;
+function cropUseSprite(){
+  if(window.FARM_NO_SPRITES) return false;
+  return renderZoom * DPR <= CROP_SPR_MAX_SCALE;
+}
+/* 精灵烘焙倍率：让「贴图像素 : 设备像素」≥ 1，放大看也不糊。 */
+function cropSpriteScale(){
+  return Math.max(1, Math.min(CROP_SPR_MAX_SCALE, Math.ceil(renderZoom * DPR)));
+}
+/* 档位 → 烘焙用的连续比率：**必须**是 step/(STEPS-1)，让最后一档正好等于 1。
+ * 若是 (step+0.5)/STEPS，最后一档只有 0.958 < 1，而各作物的画法在 ratio<1 时
+ * 停在"抽苔、还没结果"那一档 —— 成熟作物会被画成一株没有果实的大苗。
+ * 成长中间档差 ~1% 看不出来，但"最后一档 = 成熟"必须精确。 */
+function cropSpriteQ(step){
+  return step / (CROP_SPR_STEPS - 1);
+}
 let cropSpriteDpr = 0;
 function cropSpriteFlagsKey(opt){
   return (opt && opt.watered ? 'w' : '') + (opt && opt.fertile ? 'f' : '') +
@@ -236,7 +257,7 @@ function drawCropSpriteOverlay(g, x, y, opt, anchor, lift, barW){
 }
 function cropSpriteFor(crop, ratio, opt){
   const step = Math.max(0, Math.min(CROP_SPR_STEPS - 1, Math.floor(ratio * CROP_SPR_STEPS)));
-  const scale = Math.min(RENDER_CONFIG.spriteDPR, DPR || 1);
+  const scale = cropSpriteScale();
   if(cropSpriteDpr !== DPR){
     for(const k in cropSpriteCache) delete cropSpriteCache[k];
     cropSpriteDpr = DPR;
@@ -244,7 +265,7 @@ function cropSpriteFor(crop, ratio, opt){
   const key = crop + '#' + step + '#' + cropSpriteFlagsKey(opt) + '@' + scale;
   const hit = cropSpriteCache[key];
   if(hit !== undefined) return hit;
-  const q = (step + 0.5) / CROP_SPR_STEPS;
+  const q = cropSpriteQ(step);
   const w = CROP_SPR_BOX.x1 - CROP_SPR_BOX.x0 + CROP_SPR_PAD * 2;
   const h = CROP_SPR_BOX.y1 - CROP_SPR_BOX.y0 + CROP_SPR_PAD * 2;
   let sp = null;
@@ -338,8 +359,7 @@ function drawCrop(px, py, t){
   /* 成熟后整体上移一点，果实不再贴着瓦片前沿 */
   const lift = (t.state === 'ready') ? 7 : 0;
   const baseX = px, baseY = py + anchorOffset - lift;
-  const useSprite = RENDER_CONFIG.cropSprites && typeof tileLOD === 'function' &&
-    tileLOD() < 2 && !window.FARM_NO_SPRITES;
+  const useSprite = RENDER_CONFIG.cropSprites && cropUseSprite();
   const wantBar = t.state === 'growing' && ratio > 0.03 && state.showCropBars !== false && state.showCropBars !== 0;
   const opt = useSprite ? {
     watered: !!(t.watered && t.state === 'growing'),

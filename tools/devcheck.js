@@ -1,18 +1,15 @@
 #!/usr/bin/env node
-/* 源码版自检：不构建，直接以浏览器方式加载 src/index.html（外链 11 个 css + 45 个 js），
- * 确认「源码也能直接跑」。jsdom 用 resources:'usable' 真的去读这些相对路径。
+/* 源码版自检：不构建，直接以浏览器方式加载 src/index.html 的拼接产物，
+ * 确认「源码也能直接跑」。为了不依赖本地服务器，测试时把 dev-bundle.* 内联进 HTML。
  *   node tools/devcheck.js
  */
 'use strict';
 const fs = require('fs');
 const path = require('path');
-function loadJsdom() {
-  const tries = [() => require('jsdom'), () => require(path.join('/home/loli/deepseek-harness/node_modules', 'jsdom'))];
-  for (const t of tries) { try { return t(); } catch (e) {} }
-  console.error('✗ 找不到 jsdom'); process.exit(2);
-}
-const { JSDOM, VirtualConsole } = loadJsdom();
-const FILE = path.join(__dirname, '..', 'src', 'index.html');
+const { requireDep } = require('./config');
+const { JSDOM, VirtualConsole } = requireDep('jsdom');
+const SRC = path.join(__dirname, '..', 'src');
+const FILE = path.join(SRC, 'index.html');
 
 function ctxStub() {
   const grad = { addColorStop() {} };
@@ -29,8 +26,14 @@ const vc = new VirtualConsole();
 vc.on('jsdomError', e => { const m = String((e && e.message) || e); if (!/Not implemented/.test(m)) bad.push('jsdomError: ' + m); });
 vc.on('error', (...a) => bad.push('console.error: ' + a.join(' ')));
 
-const dom = new JSDOM(fs.readFileSync(FILE, 'utf8'), {
-  runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
+const cssBundle = fs.readFileSync(path.join(SRC, 'dev-bundle.css'), 'utf8');
+const jsBundle = fs.readFileSync(path.join(SRC, 'dev-bundle.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
+const rawHtml = fs.readFileSync(FILE, 'utf8');
+const html = rawHtml
+  .replace(/<link[^>]+dev-bundle\.css[^>]*>/i, '<style>' + cssBundle + '</style>')
+  .replace(/<script[^>]+dev-bundle\.js[^>]*>\s*<\/script>/i, '<script>' + jsBundle + '</script>');
+const dom = new JSDOM(html, {
+  runScripts: 'dangerously', pretendToBeVisual: true,
   url: 'http://127.0.0.1:8123/src/index.html', virtualConsole: vc,
   beforeParse(w) { w.HTMLCanvasElement.prototype.getContext = () => ctxStub(); },
 });
@@ -40,10 +43,10 @@ function ok(c, label, extra) { if (c) { pass++; console.log('  \x1b[32m✓\x1b[0
 setTimeout(() => {
   const D = W.FarmDebug;
   ok(!!D, '源码版启动了（window.FarmDebug 存在）');
-  const links = [...W.document.querySelectorAll('link[rel=stylesheet]')].map(l => l.getAttribute('href'));
-  ok(links.length === 1 && links[0] === 'dev-bundle.css', '样式走 src/dev-bundle.css（拼接产物）', links.join(','));
-  const srcs = [...W.document.scripts].filter(s => s.src).map(s => s.getAttribute('src'));
-  ok(srcs.length === 1 && srcs[0] === 'dev-bundle.js', '脚本走 src/dev-bundle.js（单个 IIFE，不是 45 个 script）', srcs.join(','));
+  ok(/dev-bundle\.css/.test(rawHtml) && !/href=["'][^"']*\/(?:base|hud|toolbar|v9)\.css/.test(rawHtml),
+    '样式走 src/dev-bundle.css（拼接产物）');
+  ok(/dev-bundle\.js/.test(rawHtml) && (rawHtml.match(/<script[^>]+src=/g) || []).length === 1,
+    '脚本走 src/dev-bundle.js（单个 IIFE，不是 45 个 script）');
   /* 拼接产物必须真的含清单里的每个文件（顺序也对） */
   {
     const fs2 = require('fs'), path2 = require('path');

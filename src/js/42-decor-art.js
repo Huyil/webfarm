@@ -2,12 +2,19 @@
  * 全部矢量绘制：任何缩放倍率下都不重采样（清晰、不抖）。
  * 每种装饰都用 seed 做确定性变化；被敲击时按 hp 显示剩余次数小点 + 抖动。
  */
+/* 装饰精灵烘焙时把"现在"固定成 0，避免每一份缓存带着不同的风吹相位；
+ * 运行时整体摇摆仍由 drawDecoration 的 translate 做，所以看上去还在动。 */
+let decorTimeOverride = null;
+function decorNow(){
+  return decorTimeOverride != null ? decorTimeOverride
+    : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+}
 function decoT(g, px, py, s){ g.save(); g.translate(px, py); g.scale(s, s); }
 
 /* ---------- 树 ---------- */
 function drawTree(g, px, py, seed){
   const s = 0.85 + (seed % 3) * 0.1;
-  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const now = decorNow();
   const sway = Math.sin(now / 1400 + seed) * 1.2 * s;
   /* 影子 */
   g.beginPath(); g.ellipse(px, py + 2, 17 * s, 6.5 * s, 0, 0, Math.PI * 2);
@@ -424,7 +431,7 @@ function drawFullPave(g, px, py, seed, type){
   g.restore();
 }
 function drawPond(g, px, py, seed){
-  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const now = decorNow();
   /* 湿边 */
   g.beginPath(); g.ellipse(px, py + 1, 30, 15.5, 0, 0, Math.PI * 2);
   g.fillStyle = 'rgba(40,60,40,.35)'; g.fill();
@@ -500,7 +507,7 @@ function drawMushroom(g, px, py, seed){
 /* ---------- 向日葵 ---------- */
 function drawSunflower(g, px, py, seed){
   const s = 0.92 + (seed % 3) * 0.06;
-  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const now = decorNow();
   const sway = Math.sin(now / 1500 + seed) * 1.6 * s;
   g.beginPath(); g.ellipse(px, py + 1.5, 9 * s, 3.6 * s, 0, 0, Math.PI * 2);
   g.fillStyle = 'rgba(0,0,0,.26)'; g.fill();
@@ -577,7 +584,7 @@ function drawFence(g, px, py, seed, mask){
 }
 /* ---------- 竹子 ---------- */
 function drawBamboo(g, px, py, seed){
-  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const now = decorNow();
   const sway = Math.sin(now / 1600 + seed) * 2.2;
   g.beginPath(); g.ellipse(px, py + 1.5, 10, 4, 0, 0, Math.PI * 2);
   g.fillStyle = 'rgba(0,0,0,.26)'; g.fill();
@@ -819,7 +826,7 @@ function drawPlant(g, px, py, seed){
   g.fillStyle = '#a95c33';
   g.beginPath(); g.moveTo(px - 9, py - 9); g.lineTo(px + 9, py - 9); g.lineTo(px + 8, py - 11.6); g.lineTo(px - 8, py - 11.6); g.closePath(); g.fill();
   /* 叶子：一丛 */
-  const sway = Math.sin((typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1700 + seed) * 0.9;
+  const sway = Math.sin(decorNow() / 1700 + seed) * 0.9;
   g.save(); g.translate(px, py - 11.5);
   for(const lf of [[-6, -7, -0.7], [6, -7, 0.7], [0, -12, 0.05], [-2.5, -5, -0.3], [3, -5, 0.35]]){
     g.save(); g.translate(lf[0] + sway * 0.5, lf[1] * 0.5); g.rotate(lf[2] + sway * 0.02);
@@ -852,17 +859,8 @@ function drawDecorHp(g, px, py, d){
   }
   g.restore();
 }
-function drawDecoration(g, px, py, d){
-  /* 自动生成的装饰带随机偏移，不落在格子正中 */
-  px += (typeof d.ox === 'number') ? d.ox : 0;
-  py += (typeof d.oy === 'number') ? d.oy : 0;
-  const windy = (d.type === 'tree' || d.type === 'bush' || d.type === 'flower' ||
-                 d.type === 'sunflower' || d.type === 'bamboo' || d.type === 'pine');
-  const sway = windy ? (ATMOS.windSway - 0.5) * 3.2 : 0;
-  /* 刚被敲过 → 抖一下 */
-  const shaking = d.shakeUntil && Date.now() < d.shakeUntil;
-  g.save();
-  g.translate((sway || 0) + (shaking ? (Math.random() - 0.5) * 3.2 : 0), shaking ? (Math.random() - 0.5) * 1.6 : 0);
+/* 只画装饰本体（不含外层的风摆/抖动/血条）：精灵烘焙和直画共用同一套画法 */
+function decorDrawBody(g, px, py, d){
   if(d.type === 'tree') drawTree(g, px, py, d.seed);
   else if(d.type === 'rock') drawRock(g, px, py, d.seed);
   else if(d.type === 'bush') drawBush(g, px, py, d.seed);
@@ -883,6 +881,29 @@ function drawDecoration(g, px, py, d){
   else if(d.type === 'table') drawTable(g, px, py, d.seed);
   else if(d.type === 'bench') drawBench(g, px, py, d.seed);
   else if(d.type === 'plant') drawPlant(g, px, py, d.seed);
+}
+function drawDecoration(g, px, py, d){
+  /* 自动生成的装饰带随机偏移，不落在格子正中 */
+  px += (typeof d.ox === 'number') ? d.ox : 0;
+  py += (typeof d.oy === 'number') ? d.oy : 0;
+  const windy = (d.type === 'tree' || d.type === 'bush' || d.type === 'flower' ||
+                 d.type === 'sunflower' || d.type === 'bamboo' || d.type === 'pine');
+  const sway = windy ? (ATMOS.windSway - 0.5) * 3.2 : 0;
+  /* 刚被敲过 → 抖一下 */
+  const shaking = d.shakeUntil && Date.now() < d.shakeUntil;
+  const dx = (sway || 0) + (shaking ? (Math.random() - 0.5) * 3.2 : 0);
+  const dy = shaking ? (Math.random() - 0.5) * 1.6 : 0;
+  g.save();
+  g.translate(dx, dy);
+  /* 缩小时把整件装饰贴成预渲染精灵：一棵树 ~100 次 canvas 调用 → 1 次 drawImage。
+     放大到 1x 以上仍走矢量，所以贴近看不会糊。 */
+  const sp = (typeof decorSpriteFor === 'function') ? decorSpriteFor(d) : null;
+  if(sp){
+    g.drawImage(sp.canvas, px + sp.ox, py + sp.oy, sp.w, sp.h);
+    if(typeof renderStats !== 'undefined') renderStats.decorDraw++;
+  } else {
+    decorDrawBody(g, px, py, d);
+  }
   g.restore();
   drawDecorHp(g, px, py, d);
 }

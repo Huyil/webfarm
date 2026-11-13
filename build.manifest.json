@@ -1,5 +1,5 @@
 {
-  "version": "9.31.0",
+  "version": "9.32.0",
   "css": [
     "base.css",
     "hud.css",
@@ -40,6 +40,8 @@
     "44-food-art.js",
     "45-effects.js",
     "46-shadow.js",
+    "47-render-cache.js",
+    "48-perf.js",
     "50-render.js",
     "51-tools.js",
     "52-pointer.js",

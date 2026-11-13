@@ -5,17 +5,18 @@
 #   ./deploy/push-github.sh --force      # 远端有 README 等无关提交时：强制以本地为准覆盖
 #   GH_REPO=别的账号/仓库名 ./deploy/push-github.sh
 #
-# 认证：GitHub 的 key 在 Windows 侧（/mnt/c/Users/huyil/.ssh/id_rsa，账号 Huyil）。
-# 脚本会把它拷到 /tmp 并 chmod 600（/mnt/c 权限是 0777，OpenSSH 会拒绝直接用），用完删掉。
+# 认证：用 KEY_SRC 指定私钥（默认 $HOME/.ssh/id_ed25519）。
+# 从 Windows 挂载盘读取时先确认权限：脚本会拷到 /tmp 并 chmod 600，用完删掉。
 set -euo pipefail
 
 GH_REPO="${GH_REPO:-Huyil/webfarm}"
-KEY_SRC="${KEY_SRC:-/mnt/c/Users/huyil/.ssh/id_rsa}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CONFIG_KEY="$(cd "$ROOT" && node tools/config.js deployKey 2>/dev/null || true)"
+KEY_SRC="${KEY_SRC:-${DEPLOY_KEY:-${CONFIG_KEY:-$HOME/.ssh/id_ed25519}}}"
 KEY_TMP="$(mktemp -t ghkey.XXXXXX)"
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 cleanup() { rm -f "$KEY_TMP"; }
@@ -23,7 +24,7 @@ trap cleanup EXIT
 
 if [ ! -f "$KEY_SRC" ]; then
   echo "✗ 找不到私钥 $KEY_SRC" >&2
-  echo "  在 Windows 里跑的话，先确认 WSL 能读到它：ls /mnt/c/Users/huyil/.ssh/" >&2
+  echo "  从 Windows 挂载盘读取的话，先确认 WSL 能读到它：ls \"$KEY_SRC\"" >&2
   exit 1
 fi
 if [ ! -d .git ]; then

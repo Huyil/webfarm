@@ -8,7 +8,7 @@
 | 80 / 443 | 开放，`server: openresty`、HTTP/2 |
 | 22 | **Connection refused**（不是 SSH 端口） |
 | **2233** | **开放**，SSH 握手成功：`Permission denied (publickey,gssapi-keyex,gssapi-with-mic)` |
-| 本环境私钥 | **没有**：无 `~/.ssh` 目录；`/mnt/c/Users/` 下只有 `huyil`（含 `.aws/.azure/.docker`，**无 `.ssh`**）；所有挂载盘都搜不到 `huyilwindow` 目录；深度 6 内唯一匹配的是 `/home/loli/.ollama/id_ed25519`（Ollama 自己的，不是你的） |
+| 本环境私钥 | **没有**：无 `~/.ssh` 目录；Windows 挂载盘下只有用户目录里的 `.aws/.azure/.docker`（**无 `.ssh`**）；深度 6 内唯一匹配到的是 Ollama 自己的密钥，不是部署密钥 |
 | 站点现状 | `mcu.huyil.cn` 是 openresty 静态站，`/` 返回 3896B 的「MCU 工具集」index.html |
 
 **所以：网络路径没问题，只差一把能登录 `root@www.huyil.cn:2233` 的私钥。** 有了钥匙就是一条命令的事。
@@ -17,20 +17,22 @@
 
 ```bash
 # 你把私钥放到工作区（二选一）
-#   1) 复制文件： cp /path/to/id_ed25519 /home/loli/web/deploy/id_deploy
-#   2) 直接粘贴内容到 /home/loli/web/deploy/id_deploy
-chmod 600 /home/loli/web/deploy/id_deploy
+#   1) 复制文件： cp /path/to/id_ed25519 "$PWD/deploy/id_deploy"
+#   2) 直接粘贴内容到 "$PWD/deploy/id_deploy"
+chmod 600 "$PWD/deploy/id_deploy"
 ```
 
 然后我执行：
 
 ```bash
-GIT_SSH_COMMAND= SSH_OPTS="-i /home/loli/web/deploy/id_deploy -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new" \
+GIT_SSH_COMMAND= SSH_OPTS="-i $PWD/deploy/id_deploy -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new" \
   ./deploy/deploy.sh push auto
 ```
 
 脚本会：自动从 nginx 配置里定位 `mcu.huyil.cn` 的 docroot → `mkdir -p <docroot>/farm` → 上传 `farm.html` 为 `farm/index.html` → `chmod 644` + 属主对齐 → `curl -I https://mcu.huyil.cn/farm/` 验证 200 与 `content-type`。
 
+> 部署脚本会先读 `farm.config.json` 里的 `deployKey`（支持 `${HOME}` 等宏），也可以用 `KEY_SRC` / `DEPLOY_KEY` 环境变量覆盖。
+>
 > 安全提醒：私钥落在会话文件系统里就等同于交给这个会话，建议**用一把专用的部署密钥**（可以只给它这台机器的权限），部署完成后删掉 `deploy/id_deploy`，必要时在服务器 `~/.ssh/authorized_keys` 里移除对应公钥。
 
 ## 方案 B：你自己跑（不给密钥，最安全）★ 你选了这个
@@ -56,11 +58,13 @@ curl.exe -I https://mcu.huyil.cn/farm/
 
 ### 从 WSL 跑
 
-密钥在 Windows 侧时，**不要直接 `ssh -i /mnt/c/Users/...`**：`/mnt/c` 权限是 0777，OpenSSH 会以 `UNPROTECTED PRIVATE KEY FILE` 拒绝加载。先复制进 WSL 并收权限：
+密钥在 Windows 侧时，**不要直接把 Windows 挂载盘上的密钥交给 ssh**：挂载盘权限通常是 0777，OpenSSH 会以 `UNPROTECTED PRIVATE KEY FILE` 拒绝加载。先复制进 WSL 并收权限：
 
 ```bash
-mkdir -p ~/.ssh && cp /mnt/c/Users/<Windows用户名>/.ssh/id_ed25519 ~/.ssh/ && chmod 600 ~/.ssh/id_ed25519
-cd /home/loli/web && ./deploy/deploy.sh push auto
+# WIN_HOME = Windows 用户目录在 WSL 下的挂载路径
+WIN_HOME="<Windows 用户目录>"
+mkdir -p ~/.ssh && cp "$WIN_HOME/.ssh/id_ed25519" ~/.ssh/ && chmod 600 ~/.ssh/id_ed25519
+cd /path/to/webfarm && ./deploy/deploy.sh push auto
 ```
 
 ### 如果 `push auto` 没自动找到 docroot
@@ -117,7 +121,7 @@ curl -sS https://mcu.huyil.cn/farm/ -o /tmp/live.html && md5sum /tmp/live.html f
 > 密钥别放在 drvfs 上直接给 ssh 用（`/mnt/c` 权限固定 0777，OpenSSH 会拒绝）；先 `cp` 进 Linux 家目录再 `chmod 600`。
 > 部署用的临时钥匙（`deploy/keys/*`）发布完即删，要用再拷：
 > ```bash
-> cp /mnt/c/Users/huyil/.ssh/id_rsa deploy/keys/ && chmod 600 deploy/keys/id_rsa
+> cp "$WIN_HOME/.ssh/id_ed25519" deploy/keys/ && chmod 600 deploy/keys/id_ed25519
 > ```
 
 ### 首页入口（已完成）

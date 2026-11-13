@@ -185,21 +185,63 @@ function drawCropBody(g, crop, x, y, ratio){
   else if(typeof drawVeggieField === 'function') drawVeggieField(g, crop, x, y, ratio);
   else drawGenericSprout(g, x, y, ratio, (CROPS[crop] && CROPS[crop].color) || '#5cbf3a');
 }
-/* ============ 作物精灵缓存（v9.25） ============
- * 一株作物的矢量画法是"曲线 + 多层描边 + 渐变"，40×40 农场实测每帧 **7.3 万次** 绘制调用
- * （占整帧 87%，是现在最大的一块）。
- * 缩得比较小时（`tileLOD() < 2`，一株在屏幕上只有 15~25px）把它按 (作物, 生长档)
- * 预渲染成一张小图，每株只 drawImage 一次；**放大看时仍旧走矢量**，所以绝不会糊。
- * 生长进度量化成 CROP_SPR_STEPS 档（每档 ~8% 大小差，那个尺寸下看不出来）。 */
+/* ============ 作物精灵缓存（v9.25，v9.32 扩展覆盖物） ============
+ * 一株作物的矢量画法是"曲线 + 多层描边 + 渐变"，40×40 农场实测每帧 **7.3 万次** 绘制调用。
+ * 缩得比较小时（`tileLOD() < 2`）把它按 (作物, 生长档, 浇水/施肥/多收/成熟) 预渲染成一张小图，
+ * 每株只 drawImage 一次；**放大看时仍旧走矢量**，所以绝不会糊。
+ * 水滴/肥料/多收圆点也一并烘进精灵（它们原本是每株 2~5 次 fillText/arc）。
+ * 生长进度条：低倍率跟精灵一起烘（12 档）；高倍率走实时合批（见 drawCropBarsBatched）。 */
 const cropSpriteCache = Object.create(null);
 const cropSpriteStats = { baked: 0, drawn: 0 };
 const CROP_SPR_STEPS = 12;
 const CROP_SPR_PAD = 6;
 /* 植株本体在"艺术像素"里的包围盒（要盖住所有作物：番茄/茄子最高，萝卜的土堆最靠下） */
-const CROP_SPR_BOX = { x0: -22, y0: -40, x1: 22, y1: 18 };
-function cropSpriteFor(crop, ratio){
+/* 草莓最多 10 次收获：10 个圆点横排约 ±31px，所以 x 方向要留到 ±36 */
+const CROP_SPR_BOX = { x0: -36, y0: -60, x1: 36, y1: 18 };
+let cropSpriteDpr = 0;
+function cropSpriteFlagsKey(opt){
+  return (opt && opt.watered ? 'w' : '') + (opt && opt.fertile ? 'f' : '') +
+    (opt && opt.harvest ? 'h' + opt.harvest : '') + (opt && opt.ready ? 'r' : '') +
+    (opt && opt.bar ? 'b' : '');
+}
+/* 水滴 / 肥料 / 多收圆点：坐标以「植株基点（baseX, baseY）」为原点 */
+function drawCropSpriteOverlay(g, x, y, opt, anchor, lift, barW){
+  if(!opt) return;
+  const relY = -anchor + lift;
+  if(opt.watered){
+    g.save(); g.font = '12px serif'; g.textAlign = 'center';
+    g.fillText('💧', x + 16, y + relY - 8); g.restore();
+  }
+  if(opt.fertile){
+    g.save(); g.font = '12px serif'; g.textAlign = 'center';
+    g.fillText('🧪', x - 16, y + relY - 8); g.restore();
+  }
+  if(opt.harvest > 0 && opt.harvestN > 0){
+    const n = opt.harvestN, r = 2.1, w = n * (r * 2 + 2);
+    for(let i = 0; i < n; i++){
+      g.beginPath();
+      g.arc(x - w / 2 + r + i * (r * 2 + 2), y + relY + 14, r, 0, Math.PI * 2);
+      g.fillStyle = i < opt.harvest ? '#ff8f5a' : 'rgba(0,0,0,.28)';
+      g.fill();
+    }
+  }
+  /* 生长进度条：低倍率下跟精灵一起烘（12 档，每档 2.5px；放大看时走实时合批） */
+  if(barW > 0){
+    const w = 30, h = 3.4, x0 = x - w / 2, y0 = y + relY - 42;
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    g.fillRect(x0, y0, w, h);
+    g.fillStyle = opt.watered ? '#6fd0ff' : '#9fe07a';
+    g.fillRect(x0, y0, w * barW, h);
+  }
+}
+function cropSpriteFor(crop, ratio, opt){
   const step = Math.max(0, Math.min(CROP_SPR_STEPS - 1, Math.floor(ratio * CROP_SPR_STEPS)));
-  const key = crop + '#' + step;
+  const scale = Math.min(RENDER_CONFIG.spriteDPR, DPR || 1);
+  if(cropSpriteDpr !== DPR){
+    for(const k in cropSpriteCache) delete cropSpriteCache[k];
+    cropSpriteDpr = DPR;
+  }
+  const key = crop + '#' + step + '#' + cropSpriteFlagsKey(opt) + '@' + scale;
   const hit = cropSpriteCache[key];
   if(hit !== undefined) return hit;
   const q = (step + 0.5) / CROP_SPR_STEPS;
@@ -208,11 +250,14 @@ function cropSpriteFor(crop, ratio){
   let sp = null;
   try{
     const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
+    cv.width = Math.max(1, Math.round(w * scale));
+    cv.height = Math.max(1, Math.round(h * scale));
     const g = cv.getContext('2d');
     if(g){
+      g.setTransform(scale, 0, 0, scale, 0, 0);
       g.translate(-CROP_SPR_BOX.x0 + CROP_SPR_PAD, -CROP_SPR_BOX.y0 + CROP_SPR_PAD);
       drawCropBody(g, crop, 0, 0, q);                       /* 以 (0,0) 为原点烧制 */
+      drawCropSpriteOverlay(g, 0, 0, opt, getAnchorOffset(crop, q), opt && opt.ready ? 7 : 0, opt && opt.bar ? q : 0);
       sp = { canvas:cv, w, h, ox:CROP_SPR_BOX.x0 - CROP_SPR_PAD, oy:CROP_SPR_BOX.y0 - CROP_SPR_PAD };
       cropSpriteStats.baked++;
     }
@@ -220,23 +265,8 @@ function cropSpriteFor(crop, ratio){
   cropSpriteCache[key] = sp;
   return sp;
 }
-function drawCrop(px, py, t){
-  const def = CROPS[t.crop]; if(!def) return;
-  const ratio = Math.min(1, t.growth / (def.stageMs * 3));
-  const anchorOffset = getAnchorOffset(t.crop, ratio);
-  /* 成熟后整体上移一点，果实不再贴着瓦片前沿 */
-  const lift = (t.state === 'ready') ? 7 : 0;
-  const baseX = px, baseY = py + anchorOffset - lift;
-  ctx.save();
-  const sp = (typeof tileLOD === 'function' && tileLOD() < 2 && !window.FARM_NO_SPRITES) ? cropSpriteFor(t.crop, ratio) : null;
-  if(sp){
-    ctx.drawImage(sp.canvas, baseX + sp.ox, baseY + sp.oy, sp.w, sp.h);
-    cropSpriteStats.drawn++;
-  } else {
-    drawCropBody(ctx, t.crop, baseX, baseY, ratio);
-  }
-  ctx.restore();
-
+/* 高倍率下（不烘精灵）实时画覆盖物，行为与旧版一致 */
+function drawCropLiveOverlays(px, py, t, def){
   if(t.watered && t.state === 'growing'){
     ctx.save(); ctx.font = '12px serif'; ctx.textAlign = 'center';
     ctx.fillText('💧', px + 16, py - 8); ctx.restore();
@@ -258,22 +288,80 @@ function drawCrop(px, py, t){
     }
     ctx.restore();
   }
-  /* 生长进度条。
-   * 圆角是靠 arcTo 画的，一条进度条 = 2 次 roundRect = 8 次 arcTo + 8 次 moveTo/lineTo + 2 次 fill；
-   * 40×40 农场一拍就是 1600 条，光这一项每帧就 2.5 万次调用。缩小时圆角根本看不出来，
-   * 所以按 tileLOD() 分级：贴近看用圆角，缩小/大地图直接用 fillRect。 */
-  if(t.state === 'growing' && ratio > 0.03 && state.showCropBars !== false){
+}
+/* ============ 进度条合批 ============
+ * 一条进度条 = 底 + 填充；2000 株就是 4000 次 fillRect。
+ * 这里收集到队列，按颜色分 2 组、每组一条路径一次填充。 */
+const cropBarQueue = [];
+function cropRoundRectSub(g, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function drawCropBarsBatched(){
+  const q = cropBarQueue;
+  const n = q.length;
+  if(!n) return;
+  const w = 30, h = 3.4;
+  const round = (typeof tileLOD === 'function') && tileLOD() >= 2;
+  ctx.beginPath();
+  for(let i = 0; i < n; i += 4){
+    const x0 = q[i] - w / 2, y0 = q[i + 1] - 42;
+    if(round) cropRoundRectSub(ctx, x0, y0, w, h, h / 2);
+    else ctx.rect(x0, y0, w, h);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fill();
+  for(let grp = 0; grp < 2; grp++){
+    let any = false;
+    ctx.beginPath();
+    for(let i = 0; i < n; i += 4){
+      if((q[i + 3] ? 1 : 0) !== grp) continue;
+      const x0 = q[i] - w / 2, y0 = q[i + 1] - 42, fw = w * q[i + 2];
+      if(fw <= 0.05) continue;
+      if(round) cropRoundRectSub(ctx, x0, y0, fw, h, h / 2);
+      else ctx.rect(x0, y0, fw, h);
+      any = true;
+    }
+    if(any){ ctx.fillStyle = grp ? '#6fd0ff' : '#9fe07a'; ctx.fill(); }
+  }
+  q.length = 0;
+}
+function drawCrop(px, py, t){
+  const def = CROPS[t.crop]; if(!def) return;
+  const ratio = Math.min(1, t.growth / (def.stageMs * 3));
+  const anchorOffset = getAnchorOffset(t.crop, ratio);
+  /* 成熟后整体上移一点，果实不再贴着瓦片前沿 */
+  const lift = (t.state === 'ready') ? 7 : 0;
+  const baseX = px, baseY = py + anchorOffset - lift;
+  const useSprite = RENDER_CONFIG.cropSprites && typeof tileLOD === 'function' &&
+    tileLOD() < 2 && !window.FARM_NO_SPRITES;
+  const wantBar = t.state === 'growing' && ratio > 0.03 && state.showCropBars !== false && state.showCropBars !== 0;
+  const opt = useSprite ? {
+    watered: !!(t.watered && t.state === 'growing'),
+    fertile: !!(t.fertile && t.state === 'growing'),
+    harvest: (cropIsMulti(def) && t.harvestsLeft > 0 && t.state !== 'wild') ? Math.min(def.harvests || 0, t.harvestsLeft) : 0,
+    harvestN: def.harvests || 0,
+    ready: t.state === 'ready',
+    bar: !!(wantBar && RENDER_CONFIG.cropBarSprites),
+  } : null;
+  const sp = useSprite ? cropSpriteFor(t.crop, ratio, opt) : null;
+  if(sp){
+    /* drawImage 不改绘图状态，省掉 save/restore */
+    ctx.drawImage(sp.canvas, baseX + sp.ox, baseY + sp.oy, sp.w, sp.h);
+    cropSpriteStats.drawn++;
+  } else {
     ctx.save();
-    const w = 30, h = 3.4, x0 = px - w / 2, y0 = py - 42;
-    const round = (typeof tileLOD === 'function') && tileLOD() >= 2;
-    ctx.fillStyle = 'rgba(0,0,0,.35)';
-    if(round){ roundRect(ctx, x0, y0, w, h, h / 2); ctx.fill(); }
-    else ctx.fillRect(x0, y0, w, h);
-    ctx.fillStyle = t.watered ? '#6fd0ff' : '#9fe07a';
-    const fw = w * ratio;
-    if(round){ roundRect(ctx, x0, y0, fw, h, h / 2); ctx.fill(); }
-    else ctx.fillRect(x0, y0, fw, h);
+    drawCropBody(ctx, t.crop, baseX, baseY, ratio);
     ctx.restore();
+    drawCropLiveOverlays(px, py, t, def);
+  }
+  /* 没走精灵时进度条入队，作物画完后统一填充（见 drawCropBarsBatched） */
+  if(!sp && wantBar){
+    cropBarQueue.push(px, py, ratio, t.watered ? 1 : 0);
   }
 }
-

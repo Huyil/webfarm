@@ -145,6 +145,7 @@ function init(){
 
   requestAnimationFrame(placeSidePanel);
   lastTick = performance.now(); saveTimer = lastTick;
+  if(typeof perfAutoEnable === 'function') perfAutoEnable();
   requestAnimationFrame(loop);
   if(typeof tfBoot === 'function') tfBoot();       /* 申请持久化存储 + 认 #s= 迁移链接 */
 }
@@ -202,6 +203,9 @@ window.FarmDebug = {
     viewZoom, autoZoom, cycleZoom, setZoom, renderZoomBtn, centerOnFarm,
     isNarrowView, viewOverflows, clampCamera, ZOOM_FILL_MAX, ZOOM_AUTO_MAX, ZOOM_MIN, ZOOM_MAX, ZOOM_STEPS,
     tileLOD, TILE_W, TILE_H, SCALE, HALF_W, HALF_H, cropSpriteStats, CROP_SPR_STEPS, cropSpriteFor,
+    renderStats, RENDER_CONFIG, invalidateRenderCaches, setRenderQuality, cropBarQueue, drawCropBarsBatched,
+    cropSpriteCache, decorSpriteCache, glowSpriteCache,
+    perf: { enable: () => perfSetEnabled(true), disable: () => perfSetEnabled(false), toggle: perfToggle, snapshot: perfSnapshot },
     tfEncodeData, tfDecodeData, tfSanitize, tfReadText, tfWriteSlot, tfExportSlot, tfLinkFor, tfParamPayload, tfStorageRisk,
     tfBoot, openTransfer, renderTransfer, TF_ITER, TF_TAG, TF_TAG2, TF_MAX_TILES, tfQrFit, TF_QR_MAX, TF_QR_COMFY,
     atmSunTrack, atmMoonTrack, atmOrbit, ATM_CLOUDS, ATM_ORBIT,

@@ -228,49 +228,71 @@ const atmStarPh = new Float32Array(ATM_STAR_N);
     atmStarPh[i] = hash2(i, 41) * 6.2832;
   }
 })();
+/* 星星：按透明度分 4 桶，每桶一条路径一次填充（140 颗星 → 4 次 fill，而不是 140 次 fillRect）。 */
+const atmStarBucket = [[], [], [], []];
 function atmDrawStars(g, nl){
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
-  g.fillStyle = '#ffffff';
+  for(let b = 0; b < 4; b++) atmStarBucket[b].length = 0;
   for(let i = 0; i < ATM_STAR_N; i++){
     const tw = 0.62 + 0.38 * Math.sin(now * (0.8 + atmStarMag[i]) + atmStarPh[i]);
     const a = nl * atmStarMag[i] * tw;
     if(a < 0.04) continue;
-    const x = atmStarX[i] * W, y = atmStarY[i] * H;
-    g.globalAlpha = a;
-    if(atmStarMag[i] > 0.78){
-      g.fillRect(x, y, 2, 2);
-      g.globalAlpha = a * 0.32;
-      g.fillRect(x - 2, y, 1, 1); g.fillRect(x + 3, y, 1, 1);
-      g.fillRect(x, y - 2, 1, 1); g.fillRect(x, y + 3, 1, 1);
-    } else {
-      g.fillRect(x, y, 1, 1);
+    const b = Math.max(0, Math.min(3, (a * 4) | 0));
+    atmStarBucket[b].push(atmStarX[i] * W, atmStarY[i] * H, atmStarMag[i] > 0.78 ? 1 : 0);
+  }
+  g.fillStyle = '#ffffff';
+  for(let b = 0; b < 4; b++){
+    const list = atmStarBucket[b];
+    if(!list.length) continue;
+    g.globalAlpha = (b + 0.5) / 4;
+    g.beginPath();
+    for(let i = 0; i < list.length; i += 3){
+      const x = list[i], y = list[i + 1];
+      if(list[i + 2]){
+        g.rect(x, y, 2, 2);
+        g.rect(x - 2, y, 1, 1); g.rect(x + 3, y, 1, 1);
+        g.rect(x, y - 2, 1, 1); g.rect(x, y + 3, 1, 1);
+      } else {
+        g.rect(x, y, 1, 1);
+      }
     }
+    g.fill();
   }
   g.globalAlpha = 1;
 }
 function atmDrawSun(g, x, y, t){
-  const low = 1 - Math.sin(Math.PI * t);           /* 靠近地平线时更大更暖 */
-  /* 阴雨天太阳被云挡掉大半 */
+  const low = 1 - Math.sin(Math.PI * t);
   const vis = ATMOS.weather === 'rain' ? 0.22 : ATMOS.weather === 'cloudy' ? 0.62 : 1;
-  const glow = g.createRadialGradient(x, y, 4, x, y, 150);
-  glow.addColorStop(0, 'rgba(255,246,214,' + (0.95 * vis).toFixed(3) + ')');
-  glow.addColorStop(0.24, 'rgba(255,214,140,' + (0.52 * vis).toFixed(3) + ')');
-  glow.addColorStop(0.6, 'rgba(255,178,96,' + (0.16 * vis).toFixed(3) + ')');
-  glow.addColorStop(1, 'rgba(255,160,80,0)');
-  g.fillStyle = glow;
-  g.beginPath(); g.arc(x, y, 150, 0, Math.PI * 2); g.fill();
+  const ok = drawGlow(g, 'sun-glow', [
+    [0, '255,246,214', 0.95], [0.24, '255,214,140', 0.52],
+    [0.6, '255,178,96', 0.16], [1, '255,160,80', 0],
+  ], x, y, 150, 150, vis);
+  if(!ok){
+    const glow = g.createRadialGradient(x, y, 4, x, y, 150);
+    glow.addColorStop(0, 'rgba(255,246,214,' + (0.95 * vis).toFixed(3) + ')');
+    glow.addColorStop(0.24, 'rgba(255,214,140,' + (0.52 * vis).toFixed(3) + ')');
+    glow.addColorStop(0.6, 'rgba(255,178,96,' + (0.16 * vis).toFixed(3) + ')');
+    glow.addColorStop(1, 'rgba(255,160,80,0)');
+    g.fillStyle = glow;
+    g.beginPath(); g.arc(x, y, 150, 0, Math.PI * 2); g.fill();
+  }
   if(vis < 0.4) return;
   g.fillStyle = 'rgba(255,250,232,' + (0.96 * vis).toFixed(3) + ')';
   g.beginPath(); g.arc(x, y, 24 + low * 9, 0, Math.PI * 2); g.fill();
 }
 function atmDrawMoon(g, x, y, nl){
   const a = 0.22 + nl * 0.78;
-  const glow = g.createRadialGradient(x, y, 3, x, y, 100);
-  glow.addColorStop(0, 'rgba(226,236,255,' + (0.30 * a).toFixed(3) + ')');
-  glow.addColorStop(0.55, 'rgba(196,214,255,' + (0.10 * a).toFixed(3) + ')');
-  glow.addColorStop(1, 'rgba(180,200,255,0)');
-  g.fillStyle = glow;
-  g.beginPath(); g.arc(x, y, 100, 0, Math.PI * 2); g.fill();
+  const ok = drawGlow(g, 'moon-glow', [
+    [0, '226,236,255', 0.30], [0.55, '196,214,255', 0.10], [1, '180,200,255', 0],
+  ], x, y, 100, 100, a);
+  if(!ok){
+    const glow = g.createRadialGradient(x, y, 3, x, y, 100);
+    glow.addColorStop(0, 'rgba(226,236,255,' + (0.30 * a).toFixed(3) + ')');
+    glow.addColorStop(0.55, 'rgba(196,214,255,' + (0.10 * a).toFixed(3) + ')');
+    glow.addColorStop(1, 'rgba(180,200,255,0)');
+    g.fillStyle = glow;
+    g.beginPath(); g.arc(x, y, 100, 0, Math.PI * 2); g.fill();
+  }
   g.fillStyle = 'rgba(242,247,255,' + (0.94 * a).toFixed(3) + ')';
   g.beginPath(); g.arc(x, y, 21, 0, Math.PI * 2); g.fill();
   g.fillStyle = 'rgba(198,212,240,' + (0.70 * a).toFixed(3) + ')';
@@ -278,7 +300,6 @@ function atmDrawMoon(g, x, y, nl){
   g.beginPath(); g.arc(x + 6, y + 5, 5.4, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.arc(x + 2, y - 10, 3, 0, Math.PI * 2); g.fill();
 }
-
 /* ============================================================
  * 云：天上飘的云 + 地面缓慢移动的云影（相位用 ATMOS.cloud）
  * ============================================================ */
@@ -394,17 +415,21 @@ function atmDrawCloudShadows(g, cx, cy){
     const c = ATM_CLOUDS[i];
     const x = (atmCloudX(c) - W / 2) * 0.9 + cx;
     const y = cy + (c.ny - 0.2) * H * 0.62;
-    const rx = 130 * c.s, ry = 62 * c.s, k = ry / rx;
-    g.save();
-    g.translate(x, y);
-    g.scale(1, k);
-    const grd = g.createRadialGradient(0, 0, 0, 0, 0, rx);
-    grd.addColorStop(0, 'rgba(24,30,48,' + (base * c.a).toFixed(3) + ')');
-    grd.addColorStop(0.6, 'rgba(24,30,48,' + (base * c.a * 0.55).toFixed(3) + ')');
-    grd.addColorStop(1, 'rgba(24,30,48,0)');
-    g.fillStyle = grd;
-    g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
-    g.restore();
+    const rx = 130 * c.s, ry = 62 * c.s;
+    if(!drawGlow(g, 'cloud-shadow', [
+      [0, '24,30,48', 1], [0.6, '24,30,48', 0.55], [1, '24,30,48', 0],
+    ], x, y, rx, ry, base * c.a)){
+      g.save();
+      g.translate(x, y);
+      g.scale(1, ry / rx);
+      const grd = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+      grd.addColorStop(0, 'rgba(24,30,48,' + (base * c.a).toFixed(3) + ')');
+      grd.addColorStop(0.6, 'rgba(24,30,48,' + (base * c.a * 0.55).toFixed(3) + ')');
+      grd.addColorStop(1, 'rgba(24,30,48,0)');
+      g.fillStyle = grd;
+      g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
   }
 }
 
@@ -513,15 +538,33 @@ function atmDrawBolt(g){
 /* ============================================================
  * 两个渲染钩子（50-render.js 只传 ctx，cx/cy 缺省时自己算）
  * ============================================================ */
-function drawAtmosphereBack(g, cx, cy){
+/* 天空渐变单独抽出来：缓存层和直画模式共用 */
+function atmDrawSky(g){
   atmSkySample();
-  const nl = atmNightFactor();
-  /* 整屏渐变天空 */
   const sky = g.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, atmRgb(atmSkyTop));
   sky.addColorStop(1, atmRgb(atmSkyBot));
   g.fillStyle = sky;
   g.fillRect(0, 0, W, H);
+}
+/* 悬浮岛周围一圈柔光：烧成小图，按 alpha 贴（不再每帧光栅化一个全屏径向渐变） */
+const ATM_HALO_STOPS = [[0, '255,246,220', 1], [1, '255,246,220', 0]];
+function atmDrawHalo(g, cx, cy, nl){
+  const a = 0.05 * (1 - nl) + 0.015;
+  if(a <= 0.002) return;
+  const R = Math.max(W, H) * 0.6;
+  if(drawGlow(g, 'island-halo', ATM_HALO_STOPS, cx, cy, R, R, a)) return;
+  const halo = g.createRadialGradient(cx, cy, 30, cx, cy, R);
+  halo.addColorStop(0, 'rgba(255,246,220,' + a.toFixed(3) + ')');
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = halo;
+  g.fillRect(0, 0, W, H);
+}
+function drawAtmosphereBack(g, cx, cy){
+  atmSkySample();
+  const nl = atmNightFactor();
+  /* ① 天空渐变：缓存命中时只 drawImage 一次 */
+  if(!(typeof drawSkyCached === 'function' && drawSkyCached(g))) atmDrawSky(g);
   /* 星星 → 月亮 → 太阳 → 云 → 闪电 */
   if(nl > 0.02) atmDrawStars(g, nl);
   const moon = atmMoonTrack();
@@ -533,11 +576,7 @@ function drawAtmosphereBack(g, cx, cy){
   /* 悬浮岛周围一圈柔光，让地图从背景里浮起来 */
   const ccx = (cx == null) ? W / 2 + state.camera.x : cx;
   const ccy = (cy == null) ? H / 2 + state.camera.y : cy;
-  const halo = g.createRadialGradient(ccx, ccy, 30, ccx, ccy, Math.max(W, H) * 0.6);
-  halo.addColorStop(0, 'rgba(255,246,220,' + (0.05 * (1 - nl) + 0.015).toFixed(3) + ')');
-  halo.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = halo;
-  g.fillRect(0, 0, W, H);
+  atmDrawHalo(g, ccx, ccy, nl);
 }
 function drawAtmosphereFront(g){
   const l = atmosLight();

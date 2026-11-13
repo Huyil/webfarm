@@ -1,6 +1,6 @@
 {
   "name": "xiao-tianyuan",
-  "version": "9.31.0",
+  "version": "9.32.0",
   "private": true,
   "description": "小田园 v9 —— 单文件种田小游戏（多文件源码 + 构建组装，零运行时依赖）",
   "scripts": {
@@ -18,7 +18,9 @@
     "dev:check": "node tools/devcheck.js",
     "serve": "node tools/serve.js 8123",
     "package:src": "node tools/package.js --src",
-    "package:all": "node tools/package.js --all"
+    "package:all": "node tools/package.js --all",
+    "perf": "node tools/perf.js 48 30 500",
+    "perf:small": "node tools/perf.js 40 20 200"
   },
   "engines": {
     "node": ">=18"

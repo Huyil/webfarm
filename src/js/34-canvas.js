@@ -15,6 +15,7 @@ function resize(){
   canvas.width = W * dpr; canvas.height = H * dpr;
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if(typeof invalidateRenderCaches === 'function') invalidateRenderCaches();
 }
 function applyUIScale(){
   const s = Math.min(1, Math.min(window.innerWidth / 900, window.innerHeight / 700));

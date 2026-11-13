@@ -7,7 +7,8 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { JSDOM, VirtualConsole } = require('/home/loli/deepseek-harness/node_modules/jsdom');
+const { requireDep } = require('./config');
+const { JSDOM, VirtualConsole } = requireDep('jsdom', { hint: 'perf.js 需要 jsdom 来跑无头渲染。' });
 const html = fs.readFileSync(path.join(__dirname, '..', 'farm.html'), 'utf8');
 const N = parseInt(process.argv[2] || '48', 10);
 const FRAMES = parseInt(process.argv[3] || '30', 10);
@@ -66,6 +67,15 @@ const frames = n => new Promise(r => { let i = 0; const t = () => (++i >= n ? r(
   st().map = { x0: 0, y0: 0, w: N, h: N };
   st().farm = { x0: 0, y0: 0, w: N, h: N };
   D.buildDrawOrder();          /* 关键：不重建的话只画原来那 9 块地，量出来是假的 */
+  /* 后期场景通常有 300~500 件装饰：单独造出来，避免"只量空地"的假数据 */
+  const DECOR_N = parseInt(process.argv[4] || '500', 10);
+  const decoTypes = ['tree','rock','bush','flower','mushroom','sunflower','bamboo','pine','lantern','well','statue','chair','table','bench','plant','fence','path','brick'];
+  st().decorations = [];
+  for(let i = 0; i < DECOR_N; i++){
+    const gx = (i * 7 + 3) % N, gy = (i * 13 + 5) % N;
+    st().decorations.push({ type: decoTypes[i % decoTypes.length], gx, gy, seed: 1000 + i * 17,
+      ox: (i % 3 - 1) * 2, oy: (i % 2) * 1.5 });
+  }
   st().cameraAuto = false; st().zoomMode = 'auto';
   st().camera.x = 0; st().camera.y = 0;
   api.centerOnFarm();
@@ -82,7 +92,7 @@ const frames = n => new Promise(r => { let i = 0; const t = () => (++i >= n ? r(
     console.log(label.padEnd(26), String(Math.round(ops / FRAMES)).padStart(7), 'ops/帧',
       String(ms.toFixed(2)).padStart(7), 'ms/帧   ', top);
   };
-  console.log('农场', N + '×' + N, '=', st().tiles.length, '块地，画布 1200×900，', FRAMES, '帧平均');
+  console.log('农场', N + '×' + N, '=', st().tiles.length, '块地 +', DECOR_N, '件装饰，画布 1200×900，', FRAMES, '帧平均');
   console.log('  zoom=' + Number(api.viewZoom()).toFixed(3) + ' → 屏幕格子宽 ' + (76.8 * Number(api.viewZoom())).toFixed(1) + 'px' +
     '（LOD 阈值：≥34px 全细节 / ≥30px 减半 / 更小只留底色）\n');
   run('① 耕地 + 作物（基准）');
@@ -116,5 +126,27 @@ const frames = n => new Promise(r => { let i = 0; const t = () => (++i >= n ? r(
   runStatic('⑩ 静态·进度条关+命中', () => { st().showCropBars = false; });
   runStatic('⑪ 静态·无作物', () => { for (const t of st().tiles) { t.state = 'wild'; t.crop = null; } });
   runStatic('⑫ 静态·全草地命中', null, false);
+
+  /* 装饰专项：500 件装饰，矢量 vs 精灵缓存（前后各预热一帧，不把烘焙算进稳态） */
+  const runWarm = (label, setup) => {
+    if (setup) setup();
+    D.render();                                   /* 预热：让精灵/地表先烧好 */
+    ops = 0; for (const k in byName) delete byName[k];
+    const t0 = Date.now();
+    for (let i = 0; i < FRAMES; i++) D.render();
+    const ms = (Date.now() - t0) / FRAMES;
+    const top = Object.entries(byName).sort((a, b) => b[1] - a[1]).slice(0, 6)
+      .map(([k, v]) => k + ':' + Math.round(v / FRAMES)).join(' ');
+    console.log(label.padEnd(26), String(Math.round(ops / FRAMES)).padStart(7), 'ops/帧',
+      String(ms.toFixed(2)).padStart(7), 'ms/帧   ', top);
+  };
+  st().showCropBars = true;
+  runWarm('⑬ 装饰 ×' + DECOR_N + '·矢量', () => { api.RENDER_CONFIG.decorSprites = false; api.invalidateRenderCaches(); });
+  runWarm('⑭ 装饰 ×' + DECOR_N + '·精灵', () => { api.RENDER_CONFIG.decorSprites = true; api.invalidateRenderCaches(); });
+  console.log('\n场景：' + st().tiles.length + ' 块地 / ' + st().decorations.length + ' 件装饰 / ' +
+    '作物精灵累计画 ' + api.cropSpriteStats.drawn + ' 次、烘 ' + api.cropSpriteStats.baked + ' 张');
+  console.log('图层：地表命中 ' + api.renderStats.terrainHit + ' / 烘焙 ' + api.renderStats.terrainBake +
+    ' · 天空命中 ' + api.renderStats.skyHit + ' / 烘焙 ' + api.renderStats.skyBake +
+    ' · 装饰烘焙 ' + api.renderStats.decorBake + ' 张');
   W.close();
 })();

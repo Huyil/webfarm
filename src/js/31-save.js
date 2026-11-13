@@ -30,6 +30,7 @@ function serialize(st){
     longPressBox: st.longPressBox !== false,
     autoFarm: st.autoFarm,
     showCropBars: st.showCropBars !== false,
+    perfHud: st.perfHud === true,
     recentSeeds: (st.recentSeeds || []).slice(0, 6),
     tiles: st.tiles.map(t=>({
       gx: t.gx, gy: t.gy, terrain: t.terrain, state: t.state, crop: t.crop,
@@ -155,6 +156,7 @@ function unpackState(d){
     if(!st.autoFarm.seeds.length) st.autoFarm.seeds = ['wheat'];
   }
   st.showCropBars = d.showCropBars !== false;
+  st.perfHud = d.perfHud === true;
   st.recentSeeds = Array.isArray(d.recentSeeds) ? d.recentSeeds.filter(id => !!CROPS[id]).slice(0, 6) : [];
   st.tiles = d.tiles.map(t=>{
     const tt = newTile(t.gx, t.gy, t.terrain, t.stone);

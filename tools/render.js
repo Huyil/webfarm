@@ -18,22 +18,9 @@ const HOUR = opt('hour', '');
 const WEATHER = opt('weather', '');
 const SETUP = opt('setup', '');
 
-function req(name) {
-  const cands = [name, path.join('/home/loli/deepseek-harness/node_modules', name)];
-  /* pnpm 仓库里的包：node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg> */
-  const pnpm = '/home/loli/deepseek-harness/node_modules/.pnpm';
-  try {
-    const flat = name.replace('/', '+');
-    for (const d of fs.readdirSync(pnpm)) {
-      if (d.startsWith(flat + '@')) cands.push(path.join(pnpm, d, 'node_modules', name));
-    }
-  } catch (e) {}
-  for (const t of cands) { try { return require(t); } catch (e) {} }
-  console.error('✗ 缺少依赖 ' + name + '（试过 ' + cands.length + ' 个路径）');
-  process.exit(2);
-}
-const { JSDOM, VirtualConsole } = req('jsdom');
-const napi = req('@napi-rs/canvas');
+const { requireDep } = require('./config');
+const { JSDOM, VirtualConsole } = requireDep('jsdom', { hint: 'render.js 需要 jsdom。' });
+const napi = requireDep('@napi-rs/canvas', { hint: 'render.js 需要 @napi-rs/canvas（Skia 真实渲染）。' });
 
 const errors = [];
 const vc = new VirtualConsole();

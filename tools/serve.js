@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* 极简静态服务器：只为把构建产物按正确的 Content-Type 交给浏览器（0 依赖）。
  *   node tools/serve.js [port] [root]
- * 默认端口 8123，根目录 /home/loli/web，绑定 127.0.0.1。
+ * 默认端口 8123，根目录 = 仓库根（可用 farm.config.json 的 serveRoot 覆盖），绑定 127.0.0.1。
  */
 'use strict';
 const http = require('http');
@@ -9,7 +9,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = parseInt(process.argv[2] || '8123', 10);
-const ROOT = path.resolve(process.argv[3] || path.join(__dirname, '..'));
+const { loadConfig } = require('./config');
+const CFG = loadConfig();
+const ROOT = path.resolve(process.argv[3] || CFG.serveRoot || path.join(__dirname, '..'));
 
 /* /dev 用到的拼接产物按需重新生成：改完源码直接刷新，不用跑构建 */
 let lastBundleAt = 0;

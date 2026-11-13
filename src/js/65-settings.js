@@ -6,6 +6,7 @@ const SETTING_TOGGLES = [
   { id:'toggleWarehouse', field:'warehouseEnabled',label:'仓储模式' },
   { id:'toggleMiniGame',  field:'miniGameEnabled', label:'厨房火候小游戏' },
   { id:'toggleCropBars',  field:'showCropBars',    label:'作物进度条', hint:'关掉后地里不再画生长进度条，大地图更顺' },
+  { id:'togglePerf',      field:'perfHud',         label:'性能面板', hint:'FPS / 每帧调用 / 缓存命中（也可以按 Shift+P）' },
 ];
 function renderSettings(){
   for(const t of SETTING_TOGGLES){
@@ -25,6 +26,7 @@ function bindSettings(){
       SFX.play('click');
       renderSettings();
       if(t.field === 'particlesEnabled' && !state.particlesEnabled) particles.length = 0;
+      if(t.field === 'perfHud' && typeof perfSetEnabled === 'function') perfSetEnabled(state.perfHud);
       save();
       toast(`${t.label}：${state[t.field] ? '开' : '关'}`);
     };

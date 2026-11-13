@@ -197,7 +197,7 @@ function bindAll(){
     const k = e.key;
     if(keyMap[k]){ state.tool = keyMap[k]; renderToolbar(); SFX.play('click'); closeToolPops(); if(state.tool === 'seed') toggleToolPop('seed'); return; }
     if(k === 'g' || k === 'G'){ state.showGrid = !state.showGrid; renderGridBtn(); return; }
-    if(k === 'p' || k === 'P'){ state.tool = state.tool === 'pan' ? 'hoe' : 'pan'; renderToolbar(); return; }
+    if(k === 'p' || k === 'P'){ if(e.shiftKey) return; state.tool = state.tool === 'pan' ? 'hoe' : 'pan'; renderToolbar(); return; }
     if(k === 'k' || k === 'K'){ openSheet('kitchen'); return; }
     if(k === 'b' || k === 'B'){ openSheet('store'); return; }
     if(k === 'e' || k === 'E'){ toggleExpandMode(); return; }

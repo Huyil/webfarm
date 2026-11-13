@@ -173,42 +173,66 @@ function shDrawTilledRing(g, cx, cy){
   g.strokeStyle = 'rgba(42,26,12,.20)'; g.lineWidth = 2.6; g.stroke();
 }
 
-/* 水塘附近：湿润的暗色光晕 + 缓缓升起的水汽 */
-function shDrawPond(g, cx, cy){
+/* 水塘附近：湿润的暗色光晕（静态，进地表缓存） */
+function shDrawPondGlow(g, cx, cy){
+  for(const d of state.decorations){
+    if(d.type !== 'pond') continue;
+    if(!shGridPos(d.gx, d.gy, cx, cy)) continue;
+    const px = shSX, py = shSY;
+    if(!drawGlow(g, 'pond-glow', [[0, '30,52,64', 1], [0.7, '30,52,64', 0.41], [1, '30,52,64', 0]],
+      px, py + 1, 46, 23, 0.22)) {
+      const grd = g.createRadialGradient(px, py, 4, px, py, 46);
+      grd.addColorStop(0, 'rgba(30,52,64,.22)');
+      grd.addColorStop(0.7, 'rgba(30,52,64,.09)');
+      grd.addColorStop(1, 'rgba(30,52,64,0)');
+      g.fillStyle = grd;
+      g.beginPath(); g.ellipse(px, py + 1, 46, 23, 0, 0, Math.PI * 2); g.fill();
+    }
+  }
+}
+const shPondVaporStops = [[0, '220,242,255', 1], [1, '220,242,255', 0]];
+/* 水汽：会动，留在动态层 */
+function shDrawPondVapor(g, cx, cy){
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
   const l = atmosLight();
   for(const d of state.decorations){
     if(d.type !== 'pond') continue;
     if(!shGridPos(d.gx, d.gy, cx, cy)) continue;
     const px = shSX, py = shSY;
-    /* 湿润光晕（在塘体之下） */
-    const grd = g.createRadialGradient(px, py, 4, px, py, 46);
-    grd.addColorStop(0, 'rgba(30,52,64,.22)');
-    grd.addColorStop(0.7, 'rgba(30,52,64,.09)');
-    grd.addColorStop(1, 'rgba(30,52,64,0)');
-    g.fillStyle = grd;
-    g.beginPath(); g.ellipse(px, py + 1, 46, 23, 0, 0, Math.PI * 2); g.fill();
-    /* 水汽 */
     for(let i = 0; i < 3; i++){
       const ph = (now * 0.3 + i * 0.33 + d.seed * 0.07) % 1;
       const a = (1 - ph) * (0.05 + 0.08 * l);
       if(a < 0.02) continue;
       const rx = 8 + ph * 13;
-      g.beginPath();
-      g.ellipse(px + Math.sin(ph * 6.2832 + i) * 5, py - 3 - ph * 24, rx, rx * 0.55, 0, 0, Math.PI * 2);
-      g.fillStyle = 'rgba(220,242,255,' + a.toFixed(3) + ')';
-      g.fill();
+      const vx = px + Math.sin(ph * 6.2832 + i) * 5, vy = py - 3 - ph * 24;
+      if(!drawGlow(g, 'pond-vapor', shPondVaporStops, vx, vy, rx, rx * 0.55, a)){
+        g.beginPath();
+        g.ellipse(vx, vy, rx, rx * 0.55, 0, 0, Math.PI * 2);
+        g.fillStyle = 'rgba(220,242,255,' + a.toFixed(3) + ')';
+        g.fill();
+      }
     }
   }
 }
 
+/* v9.32：地面层按「静态 / 动态」拆开，静态部分进地表缓存。
+ * 这个入口保留给外部调用（等价于两层都画），渲染主循环走下面两个。 */
 function drawGroundLayer(g, cx, cy){
+  drawGroundStatic(g, cx, cy);
+  drawGroundDynamic(g, cx, cy);
+}
+function drawGroundStatic(g, cx, cy){
   const ccx = (cx == null) ? W / 2 + state.camera.x : cx;
   const ccy = (cy == null) ? H / 2 + state.camera.y : cy;
-  shDrawPond(g, ccx, ccy);                       /* 塘边湿润感（在细节之下） */
+  shDrawPondGlow(g, ccx, ccy);                   /* 塘边湿润感（在细节之下） */
   shDrawTileDetails(g, ccx, ccy);
   shDrawTilledRing(g, ccx, ccy);
-  if(SH_CLOUD_SHADOWS) atmDrawCloudShadows(g, ccx, ccy);   /* 云影：默认关闭（见文件头开关） */
+}
+function drawGroundDynamic(g, cx, cy){
+  const ccx = (cx == null) ? W / 2 + state.camera.x : cx;
+  const ccy = (cy == null) ? H / 2 + state.camera.y : cy;
+  shDrawPondVapor(g, ccx, ccy);                  /* 水汽 */
+  if(SH_CLOUD_SHADOWS) atmDrawCloudShadows(g, ccx, ccy);
   atmDrawGroundRain(g);                          /* 雨点涟漪 */
 }
 
@@ -253,20 +277,34 @@ function drawShadows(g, cx, cy){
   const ccy = (cy == null) ? H / 2 + state.camera.y : cy;
   shUpdateSun();
   if(shAlpha <= 0.008) return;
-  /* 作物：影子落在根部（只遍历可见范围） */
   const visList = shVisibleTiles(ccx, ccy, 2);
+  const sl = Math.sqrt(shOffX * shOffX + shOffY * shOffY);
+  const rot = Math.atan2(shOffY, shOffX) * 0.45;
+  const ox = shOffX * 0.45, oy = shOffY * 0.45;
+  /* 所有作物影子共享同一个太阳方向/颜色：合成一条路径，一次填充。
+     以前每株 beginPath+fill 一次，2300 株就是 2300 次填充。 */
+  g.beginPath();
+  let any = false;
   for(let vi = 0; vi < visList.length; vi++){
     const t = visList[vi];
     if(!t.crop || t.state === 'wild') continue;
     if(!shTilePos(t, ccx, ccy)) continue;
     const ratio = tileProgress(t);
     const r = 6 + ratio * 7;
-    shEllipse(g, shSX, shSY + getAnchorOffset(t.crop, ratio), r, shStyleFull);
+    const rx = r + sl * 0.55, ry = r * 0.5 + sl * 0.16;
+    const x = shSX + ox, y = shSY + oy + getAnchorOffset(t.crop, ratio);
+    /* moveTo 到椭圆起点，避免子路径之间连出跨格的大三角 */
+    g.moveTo(x + rx * Math.cos(rot), y + rx * Math.sin(rot));
+    g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+    any = true;
   }
-  /* 小人（贴地那层影子由 43-player.js 自己画，这里补一层随太阳拉长的投影） */
+  if(any){ g.fillStyle = shStyleFull; g.fill(); }
+  /* 小人贴地那层影子由 43-player.js 自己画，这里补一层随太阳拉长的投影 */
   const p = state.player;
   if(p){
     const { x, y } = playerScreen(ccx, ccy);
-    if(x > -80 && x < W + 80 && y > -140 && y < H + 120) shEllipse(g, x, y + 1, 12, shStyleSoft);
+    if(x > -80 && x < W + 80 && y > -140 && y < H + 120){
+      shEllipse(g, x, y + 1, 12, shStyleSoft);
+    }
   }
 }

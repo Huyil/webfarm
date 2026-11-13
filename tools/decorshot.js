@@ -4,9 +4,9 @@
  */
 'use strict';
 const fs = require('fs'), path = require('path');
-function req(n){const c=[n,path.join('/home/loli/deepseek-harness/node_modules',n)];const pn='/home/loli/deepseek-harness/node_modules/.pnpm';try{const f=n.replace('/','+');for(const d of fs.readdirSync(pn))if(d.startsWith(f+'@'))c.push(path.join(pn,d,'node_modules',n));}catch(e){}for(const t of c){try{return require(t);}catch(e){}}console.error('缺少 '+n);process.exit(2);}
-const { JSDOM, VirtualConsole } = req('jsdom');
-const napi = req('@napi-rs/canvas');
+const { requireDep } = require('./config');
+const { JSDOM, VirtualConsole } = requireDep('jsdom');
+const napi = requireDep('@napi-rs/canvas');
 const FILE = process.argv[2] || 'farm.html';
 const OUT = process.argv[3] || '/tmp/decors.png';
 function ctxStub(){const grad={addColorStop(){}};const base={canvas:{width:800,height:600},createLinearGradient:()=>grad,createRadialGradient:()=>grad,createPattern:()=>({}),measureText:()=>({width:10}),getImageData:()=>({data:new Uint8ClampedArray(4)}),getLineDash:()=>[]};

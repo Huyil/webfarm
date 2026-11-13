@@ -1,0 +1,8 @@
+{
+  "dshCheckout": "${DSH_CHECKOUT:-}",
+  "extraModulePaths": [],
+  "pnpmDir": "${DSH_CHECKOUT}/node_modules/.pnpm",
+  "esbuild": "${ESBUILD_BIN:-}",
+  "serveRoot": "${PROJECT_ROOT}",
+  "deployKey": "${DEPLOY_KEY:-${HOME}/.ssh/id_ed25519}"
+}

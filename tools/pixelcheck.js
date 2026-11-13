@@ -14,17 +14,8 @@ const { spawnSync } = require('child_process');
 
 const FILE = process.argv[2] || path.join(__dirname, '..', 'farm.html');
 
-function req(name) {
-  const cands = [name, path.join('/home/loli/deepseek-harness/node_modules', name)];
-  const pnpm = '/home/loli/deepseek-harness/node_modules/.pnpm';
-  try {
-    const flat = name.replace('/', '+');
-    for (const d of fs.readdirSync(pnpm)) if (d.startsWith(flat + '@')) cands.push(path.join(pnpm, d, 'node_modules', name));
-  } catch (e) {}
-  for (const t of cands) { try { return require(t); } catch (e) {} }
-  console.error('✗ 缺少依赖 ' + name); process.exit(2);
-}
-const napi = req('@napi-rs/canvas');
+const { requireDep } = require('./config');
+const napi = requireDep('@napi-rs/canvas', { hint: 'pixelcheck.js 需要 @napi-rs/canvas。' });
 
 let pass = 0, fail = 0;
 const fails = [];

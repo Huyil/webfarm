@@ -20,7 +20,10 @@ function loop(now){
   updateEffects(dt);
   /* 没动过镜头就始终把农场摆在正中（平移或缩放后不再自动跟随） */
   if(state.cameraAuto) centerOnFarm();
+  const __rt0 = performance.now();
   render();
+  if(typeof perfFrame === 'function') perfFrame(__rt0, performance.now());
+  if(typeof perfTick === 'function') perfTick(now);
   idleTick();
   updateHudAnim(dt);
   const absNow = performance.timeOrigin + now;

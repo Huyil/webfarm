@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawnSync } = require('child_process');
+const { findEsbuild } = require('./tools/config');
 
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
@@ -49,26 +50,7 @@ const read = (dir, f) => fs.readFileSync(path.join(SRC, dir, f), 'utf8');
 /* ============================================================
  * 2. 压缩器
  * ============================================================ */
-function findEsbuild() {
-  if (FORCE_FALLBACK) return null;
-  const cands = [];
-  if (process.env.ESBUILD_BIN) cands.push(process.env.ESBUILD_BIN);
-  const pnpm = '/home/loli/deepseek-harness/node_modules/.pnpm';
-  try {
-    for (const d of fs.readdirSync(pnpm)) {
-      if (/^@esbuild\+linux-x64@/.test(d)) cands.push(path.join(pnpm, d, 'node_modules/@esbuild/linux-x64/bin/esbuild'));
-    }
-  } catch (e) {}
-  cands.push('esbuild');
-  for (const bin of cands) {
-    try {
-      const r = spawnSync(bin, ['--version'], { encoding: 'utf8', timeout: 15000 });
-      if (r.status === 0) return bin;
-    } catch (e) {}
-  }
-  return null;
-}
-const ESBUILD = findEsbuild();
+const ESBUILD = FORCE_FALLBACK ? null : findEsbuild();
 
 function esbuildMinify(code, loader, bin) {
   const r = spawnSync(bin, ['--minify', `--loader=${loader}`, '--charset=utf8'], {

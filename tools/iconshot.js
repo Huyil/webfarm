@@ -2,14 +2,14 @@
 /* 把 drawItemIcon 画成一张图标表，方便人眼/图像核对（食材、菜块、烤菜三档品质） */
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os');
-function req(n){const c=[n,path.join('/home/loli/deepseek-harness/node_modules',n)];const p='/home/loli/deepseek-harness/node_modules/.pnpm';try{const f=n.replace('/','+');for(const d of fs.readdirSync(p))if(d.startsWith(f+'@'))c.push(path.join(p,d,'node_modules',n));}catch(e){}for(const t of c){try{return require(t);}catch(e){}}console.error('缺少 '+n);process.exit(2);}
-const { JSDOM } = req('jsdom');
-const napi = req('@napi-rs/canvas');
+const { requireDep } = require('./config');
+const { JSDOM, VirtualConsole } = requireDep('jsdom');
+const napi = requireDep('@napi-rs/canvas');
 const FILE = process.argv[2] || 'farm.html';
 const OUT = process.argv[3] || '/tmp/icons.png';
 
 const dom = new JSDOM(fs.readFileSync(FILE,'utf8'), { runScripts:'dangerously', pretendToBeVisual:true, url:'http://localhost/',
-  virtualConsole:new (req('jsdom').VirtualConsole)(),
+  virtualConsole:new VirtualConsole(),
   beforeParse(w){ w.HTMLCanvasElement.prototype.getContext = () => null; },
 });
 const W = dom.window;

@@ -73,6 +73,7 @@ function newState(){
     afPicking: false,                          /* 正在划自动农活的区域（下一次框选用来定区域） */
     autoFarm: afDefaults(),                    /* 自动农活：区域/轮作/口粮/饱食度（见 56-autofarm.js） */
     showCropBars: true,                        /* 作物头顶的生长进度条（大地图关掉能省不少绘制） */
+    perfHud: false,                            /* Shift+P / 设置里的性能面板（只在打开时套计数代理） */
     recentSeeds: [],                           /* 最近用过的种子（工具栏「种子」的小凸起） */
     hover: null, box: null, jobBox: null, expandPreview: null,
     lastSave: Date.now(),

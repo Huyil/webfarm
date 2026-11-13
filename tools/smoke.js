@@ -10,13 +10,8 @@ const path = require('path');
 const FILE = process.argv[2] || path.join(__dirname, '..', 'farm.html');
 const NAME = path.basename(FILE);
 
-function loadJsdom() {
-  const tries = [() => require('jsdom'), () => require(path.join('/home/loli/deepseek-harness/node_modules', 'jsdom'))];
-  for (const t of tries) { try { return t(); } catch (e) {} }
-  console.error('✗ 找不到 jsdom');
-  process.exit(2);
-}
-const { JSDOM, VirtualConsole } = loadJsdom();
+const { requireDep } = require('./config');
+const { JSDOM, VirtualConsole } = requireDep('jsdom', { hint: 'smoke.js 需要 jsdom 来跑无头测试。' });
 
 function ctxStub(onCall) {
   const grad = { addColorStop() {} };
@@ -2913,12 +2908,12 @@ const frames = n => new Promise(res => {
     api.applyPayload(bk);
   }
 
-  section('v9.24：渲染性能（框选覆盖层一次成图 · 地块细节分级）');
+  section('v9.24/v9.32：渲染性能（合批 + 分层缓存）');
   {
     const bk = JSON.parse(JSON.stringify(api.serialize(st())));
     ok(typeof W.__ctxOps === 'number', '测试桩能数每帧 canvas 调用次数');
     const opsFor = (setup) => {
-      setup();
+      if(setup) setup();
       W.__ctxOps = 0;
       D.render();
       return W.__ctxOps;
@@ -2933,31 +2928,93 @@ const frames = n => new Promise(res => {
     ok(job <= big, '作业中的覆盖层只描边（比拖动时更省）', 'job=' + job + ' ≤ drag=' + big);
     st().jobBox = null;
     ok(api.tileLOD() >= 0, 'tileLOD() 可读');
-    /* ③ 地表层缓存：整层只在相机/缩放/地块外观变化时重画，静止帧只 blit 一次 */
+    /* ③ 分层缓存：清空缓存后的"全量重画" vs 命中后的静态帧 */
     st().zoomMode = 'auto'; st().cameraAuto = false;
     api.centerOnFarm();
-    D.render();                                                  /* 预热 */
-    const hit = (W.__ctxOps = 0, D.render(), W.__ctxOps);         /* 命中缓存的一帧 */
-    const miss = (W.__ctxOps = 0, st().camera.x += 3, D.render(), W.__ctxOps);   /* 强制未命中 */
+    api.invalidateRenderCaches();
+    const full = opsFor();
+    D.render();                                                   /* 预热：把地表/天空/精灵都烧好 */
+    const hit = opsFor();
+    const hit2 = opsFor();
+    ok(hit < full * 0.5, '静态帧命中分层缓存，绘制量明显下降',
+      '全量重画 ' + full + ' 次 → 静态帧 ' + hit + ' 次（省 ' + Math.round((1 - hit / full) * 100) + '%）');
+    ok(Math.abs(hit2 - hit) <= 8, '连续静态帧绘制量稳定（没有偷偷重烘）', hit + ' vs ' + hit2);
+    ok(api.renderStats.terrainHit > 0 && api.renderStats.terrainBake > 0, '地表层缓存有命中也有烘焙');
+    /* ④ 相机小范围平移：margin 内直接平移缓存，不重画 */
+    const bake0 = api.renderStats.terrainBake;
+    const panOps = opsFor(() => { st().camera.x += 3; });
     st().camera.x -= 3;
-    ok(hit < miss * 0.7, '地表层命中缓存后，静态帧的绘制量明显下降',
-      '重画一帧 ' + miss + ' 次 → 命中缓存 ' + hit + ' 次（省 ' + Math.round((1 - hit / miss) * 100) + '%）');
-    /* ④ 缓存必须"该失效就失效"：挪相机 / 改地块外观都要重画 */
-    ok(miss > hit * 1.4, '相机一动就重画地表（缓存正确失效）', '挪动后 ' + miss + ' 次 vs 静止 ' + hit + ' 次');
+    ok(api.renderStats.terrainBake === bake0, '相机小范围平移命中缓存（不重画地表）',
+      'bake ' + bake0 + ' → ' + api.renderStats.terrainBake);
+    ok(Math.abs(panOps - hit) <= 8, 'margin 内平移的绘制量与静态帧一致', panOps + ' vs ' + hit);
+    /* ⑤ 超过 margin / 改地块外观：必须重画 */
+    const far = api.RENDER_CONFIG.groundMargin / api.viewZoom() + 80;
+    const bake1 = api.renderStats.terrainBake;
+    st().camera.x += far;
+    D.render();
+    ok(api.renderStats.terrainBake > bake1, '相机移出 margin 后重画地表', 'bake ' + bake1 + ' → ' + api.renderStats.terrainBake);
+    st().camera.x -= far;
+    D.render();
     const t1 = api.getTile(st().farm.x0, st().farm.y0);
     const oldState = t1.state;
-    const tileOps = (W.__ctxOps = 0, t1.state = (oldState === 'tilled' ? 'wild' : 'tilled'), D.render(), W.__ctxOps);
-    ok(tileOps > hit * 1.4, '地块外观一变就重画地表（刚开垦完不会还显示草地）', '改一块地后 ' + tileOps + ' 次 vs 静止 ' + hit + ' 次');
+    const bake2 = api.renderStats.terrainBake;
+    t1.state = (oldState === 'tilled' ? 'wild' : 'tilled');
+    D.render();
+    ok(api.renderStats.terrainBake > bake2, '地块外观一变就重画地表（刚开垦完不会还显示草地）');
     t1.state = oldState;
     D.render();
-    /* ⑤ 重画一帧时，缩小/大地图的绘制量应该明显更少（细节分级生效） */
-    const redraw = zoom => { st().zoomMode = zoom; st().camera.x += 0.37; W.__ctxOps = 0; D.render(); st().camera.x -= 0.37; return W.__ctxOps; };
+    /* 水塘的湿润光晕烘在地表缓存里，加/删水塘也必须让它失效 */
+    const bakePond = api.renderStats.terrainBake;
+    st().decorations.push({ type: 'pond', gx: st().farm.x0 + 1, gy: st().farm.y0 + 1, seed: 7 });
+    D.render();
+    ok(api.renderStats.terrainBake > bakePond, '水塘落成后地表缓存失效（光晕不会留在旧位置）');
+    st().decorations.pop();
+    D.render();
+    /* ⑥ 缩放：缓存按倍率失效，LOD 分级仍然生效 */
+    const redraw = zoom => { st().zoomMode = zoom; api.invalidateRenderCaches(); W.__ctxOps = 0; D.render(); const lod = api.tileLOD(); return { ops: W.__ctxOps, lod }; };
     const wide = redraw(1.6);
     const narrow = redraw(0.24);
-    ok(narrow < wide * 0.9, '重画一帧时，缩小/大地图的绘制量明显更少（细节分级生效）',
-      '1.6x=' + wide + ' 次 → 0.24x=' + narrow + ' 次，省 ' + Math.round((1 - narrow / wide) * 100) + '%');
+    ok(wide.lod === 2 && narrow.lod === 0, '缩放后地块细节 LOD 正确分级',
+      '1.6x LOD=' + wide.lod + ' · 0.24x LOD=' + narrow.lod);
+    ok(narrow.ops < full * 0.9, '缩小后单帧绘制量低于全量重画', narrow.ops + ' < ' + full);
     st().zoomMode = 'auto'; st().cameraAuto = true;
     api.applyPayload(bk);
+  }
+
+  section('v9.32：性能面板（可选计数探针）');
+  {
+    ok(!api.perf.snapshot().enabled, '性能面板默认关闭（零计数开销）');
+    api.perf.enable();
+    ok(api.perf.snapshot().enabled, '性能面板可开启');
+    const hud = W.document.getElementById('perfHud');
+    ok(!!hud, '面板 DOM 已挂载');
+    await frames(4);
+    const snap = api.perf.snapshot();
+    ok(snap.frameCalls > 0, '计数探针能数到主画布调用', 'frameCalls=' + snap.frameCalls);
+    ok((hud.textContent || '').includes('FPS'), '面板里有 FPS', (hud.textContent || '').split('\n')[0]);
+    ok((hud.textContent || '').includes('地块'), '面板里有场景规模');
+    api.perf.disable();
+    ok(!api.perf.snapshot().enabled, '性能面板可关闭（ctx 恢复原对象）');
+    /* Shift+P 打开面板，不能顺手把「平移工具」也切了（P 是平移） */
+    st().tool = 'hoe';
+    W.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'P', shiftKey: true }));
+    ok(api.perf.snapshot().enabled && st().tool === 'hoe', 'Shift+P 只开性能面板，不误触平移');
+    W.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'P', shiftKey: true }));
+    ok(!api.perf.snapshot().enabled, '再按一次 Shift+P 关闭面板');
+    W.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'p' }));
+    ok(st().tool === 'pan', '普通 P 仍然是平移工具');
+    st().tool = 'hoe';
+    /* 设置面板里的开关也接上了 */
+    api.openSheet('settings');
+    const tp = W.document.getElementById('togglePerf');
+    ok(!!tp, '设置里有「性能面板」开关');
+    st().perfHud = false;
+    if(tp){ tp.click(); }
+    ok(api.perf.snapshot().enabled, '设置开关能打开性能面板');
+    if(tp){ tp.click(); }
+    ok(!api.perf.snapshot().enabled, '设置开关能关闭性能面板');
+    api.closeSheet();
+    st().perfHud = false;
   }
 
   section('v9.23：缩略卡开关 · 长按持续添加 · 机器开停 · 后台补算');

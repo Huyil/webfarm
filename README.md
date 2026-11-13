@@ -7,6 +7,7 @@ farm.html         ← 普通拼接产物（可读、带分节注释）★ 直接
 farm.min.html     ← 压缩产物（esbuild minify，体积约 40%）
 build.js          ← 组装脚本（两份产物 + 语法校验）
 build.manifest.json ← 拼接清单（顺序即声明顺序）
+farm.config.json  ← 本机路径宏（依赖/部署密钥等，不写死在源码里）
 src/              ← 源码：index.html 模板 + css/ + js/
 tools/            ← 构建期的校验工具（冒烟测试 / 真实渲染 / 像素校验）
 legacy/           ← v8.0 原始单文件备份
@@ -16,11 +17,13 @@ legacy/           ← v8.0 原始单文件备份
 
 ```bash
 npm run build                     # 产出 farm.html + farm.min.html
-npm run test                      # 构建到临时目录 + 377 项无头冒烟断言（开发时用这个，不覆盖产物）
+npm run test                      # 构建到临时目录 + 1431 项无头冒烟断言（开发时用这个，不覆盖产物）
 npm run test:min                  # 用内置兜底压缩器（无 esbuild 环境）再验一遍
 npm run pixel                     # 真渲染 + 画面统计断言（非空白 / 昼夜 / 雨天 / 特效）
 npm run render                    # 导出白天画面到 /tmp/farm-shot.png
 npm run render:night              # 导出「夜晚 + 雨」画面
+npm run perf                      # 48×48 + 500 装饰的每帧绘制量（矢量 vs 精灵）
+npm run perf:small                # 小一号的快速性能探针
 
 # 等价的手写命令
 node build.js --dry --smoke
@@ -34,16 +37,35 @@ node tools/split-v8.js            # 从 legacy 重新切分 v8 源码（仅迁�
 | 工具 | 手段 | 覆盖 |
 |---|---|---|
 | 构建 | `node --check` + 内置压缩器 | 语法、压缩不破坏代码 |
-| `tools/smoke.js` | jsdom + canvas 桩 | 1406 项断言：启动、DOM 交互、数据表、田间链路、多次收获、两种肥料、装饰回收、小人与动作、厨房产线、挂机、天气联动、任务奖励、三槽位存档、v8 旧档迁移、离线结算、**扩建（买排/涨价/封顶/石头地面）**、**悬停与长按框选（真实指针序列）**、**到位后才生效**、**做菜经济上界**、**新作物表（11 种都能种能收/图标不重复/小麦不可切/售价与深加工价）**、**每日任务（37 个池子、2 简单+1 难、开局不派做菜任务、作物专属任务按种过与否解锁）**、**装饰随机偏移**、**框选智能筛选与缺钱自动停手**、昼夜分段时长 |
-| `tools/perf.js` | jsdom + **计数桩** | 每帧 canvas 调用次数 + JS 耗时：`node tools/perf.js 40 20`。v9.24 靠它定位到「地块砂粒 17.8 万次/帧」「框选覆盖层 3200 次路径/帧」 |
+| `tools/smoke.js` | jsdom + canvas 桩 | 1431 项断言：启动、DOM 交互、数据表、田间链路、多次收获、两种肥料、装饰回收、小人与动作、厨房产线、挂机、天气联动、任务奖励、三槽位存档、v8 旧档迁移、离线结算、**扩建（买排/涨价/封顶/石头地面）**、**悬停与长按框选（真实指针序列）**、**到位后才生效**、**做菜经济上界**、**新作物表（11 种都能种能收/图标不重复/小麦不可切/售价与深加工价）**、**每日任务（37 个池子、2 简单+1 难、开局不派做菜任务、作物专属任务按种过与否解锁）**、**装饰随机偏移**、**框选智能筛选与缺钱自动停手**、昼夜分段时长 |
+| `tools/perf.js` | jsdom + **计数桩** | 每帧 canvas 调用次数 + JS 耗时：`node tools/perf.js 48 30 500`（边长 / 帧数 / 装饰数）。除了常规场景，还会对比「500 装饰矢量 vs 精灵」并打印地表/天空/装饰的烘焙与命中 |
 | `tools/iconshot.js` | jsdom + Skia | 把食材/菜块/菜品的图标画成一张表，人工核对品质叠色 |
 | `tools/pixelcheck.js` | jsdom + `@napi-rs/canvas`(Skia) | 22 项：真渲染（画面非空白、草地/耕地/成熟三主色、昼夜亮度差、雨天差异、特效生效、**2x/5x/10x 缩放下地块不被裁剪**）+ 源码守卫（曾出过的白/黑折线叠加层、批量 ellipse 不 moveTo、位图 pattern、反缩放补偿）。**压缩产物上按标识符文本的 2 项守卫会自动跳过**（标识符已重命名，语义由 smoke 覆盖，仍报 20 项通过） |
 
-> 依赖说明：`jsdom` 与 `@napi-rs/canvas` 从本机 `deepseek-harness` 的 pnpm 仓库解析，缺失时冒烟测试会跳过、像素校验会报错，但**游戏本体与构建不依赖任何 npm 包**。
+> 依赖说明：`jsdom`、`@napi-rs/canvas`、`esbuild` 由 `tools/config.js` 自动解析（本地 `node_modules` → `farm.config.json` 的 `extraModulePaths` → `DSH_CHECKOUT` → pnpm store）。缺失时会给出可操作的解决提示；**游戏本体与构建产物不依赖任何 npm 包**。
+
+## 路径与配置（farm.config.json）
+
+源码、构建脚本、测试工具、部署脚本里都不写死机器路径。所有路径统一从 `farm.config.json` 的宏展开：
+
+```json
+{
+  "dshCheckout": "${DSH_CHECKOUT:-}",
+  "extraModulePaths": [],
+  "pnpmDir": "${DSH_CHECKOUT}/node_modules/.pnpm",
+  "esbuild": "${ESBUILD_BIN:-}",
+  "serveRoot": "${PROJECT_ROOT}",
+  "deployKey": "${DEPLOY_KEY:-${HOME}/.ssh/id_ed25519}"
+}
+```
+
+支持 `${VAR}`、`${VAR:-默认值}`、`${PROJECT_ROOT}`、`${HOME}`。`tools/config.js` 会自动找 DSH 检出目录（环境变量 → `$HOME` → 仓库的兄弟目录），依赖查找顺序是：本地 `node_modules` → `extraModulePaths` → `DSH_CHECKOUT/node_modules` → `NODE_PATH` → pnpm store。换机器时通常不用改文件；要指定本机路径就改 `farm.config.json`，或在环境里设 `DSH_CHECKOUT` / `ESBUILD_BIN` / `DEPLOY_KEY`。
+
+部署脚本同样只认环境变量：`KEY_SRC`（默认 `${DEPLOY_KEY:-$HOME/.ssh/id_ed25519}`）。从 Windows 挂载盘读密钥时先 `cp` 进 Linux 家目录并 `chmod 600`。
 
 ## 仓库里有什么 / 没有什么
 
-**入库**：`src/`（源码）、`build.js` + `build.manifest.json`（构建）、`tools/`（测试与工具）、`deploy/`（部署脚本 + 排行榜服务）、`legacy/`、`README.md`。
+**入库**：`src/`（源码）、`build.js` + `build.manifest.json`（构建）、`farm.config.json` + `tools/config.js`（路径宏）、`tools/`（测试与工具）、`deploy/`（部署脚本 + 排行榜服务）、`legacy/`、`README.md`。
 
 **不入库**（跑命令生成，已写进 `.gitignore`）：
 - `farm.html` / `farm.min.html` —— `node build.js`
@@ -104,7 +126,8 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 | `31-save` | 3 槽位序列化、旧档迁移（v81 → v90） |
 | `32-iso` `33-growth` `34-canvas` | 等距投影、生长与田间操作、画布与相机 |
 | `35-atmosphere` `36-idle` | 昼夜/天气、挂机收益（墙钟结算） |
-| `40-tiles` `41-crop-art` `42-decor-art` `43-player` `44-food-art` `45-effects` `46-shadow` | 绘制层 |
+| `40-tiles` `41-crop-art` `42-decor-art` `43-player` `44-food-art` `45-effects` `46-shadow` | 绘制层（作物/装饰精灵、合批阴影） |
+| `47-render-cache` `48-perf` | **v9.32 渲染引擎**：天空/地表/装饰精灵缓存、质量档；性能面板 + 可选计数探针 |
 | `50-render` `51-tools` `52-pointer` `53-decor-bag` `55-expand` | 渲染主循环、工具应用（到位后生效）、指针交互（悬停/拖拽/长按框选）、装饰仓库、扩建系统 |
 | `60-hud` … `69-dishes` | HUD、弹层、商店、仓库、设置、侧栏、存档界面、厨房 UI、做菜逻辑 |
 | `70-toast` `71-loop` `72-progress` `73-panels` `74-bindings` `99-init` | 提示与动画、主循环、统计/成就/任务、面板渲染、按钮绑定、初始化 + `FarmDebug` |
@@ -205,7 +228,7 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 | 网格按钮 | 按钮上直接显示「开/关」，不再靠高亮颜色猜状态 |
 | HUD | 一行只放关键信息（金币/两种肥料/成就/公告）；点 **⋯** 展开挂机速率、当前时刻、农场尺寸 |
 | 存档 | 入口在 **⚙️ 设置 → 管理存档**（侧栏原位置改成了缩放） |
-| 快捷键 | `1`~`6` 切工具 · `G` 网格 · `P` 平移 · `K` 厨房 · `B` 仓库 · `E` 扩建 · `Esc` 退出 |
+| 快捷键 | `1`~`6` 切工具 · `G` 网格 · `P` 平移 · `K` 厨房 · `B` 仓库 · `E` 扩建 · **`Shift+P` 性能面板** · `Esc` 退出 |
 | 手势 | **双指张开/合拢 = 放大/缩小**（锚在两指中点，可顺带两指拖动地图；`ptrs` 表在失焦/切后台/第三指时清空） |
 
 ### 厨房（拖拽 + 点选）
@@ -290,14 +313,15 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 - **天空（v9.20）**：`atmOrbit(t, dir)` 是唯一的日月轨道（圆心在地平线下，`x=cx+rx·cos(πt)`、`y=cy-ry·sin(πt)`）；太阳 `dir=-1`（东升西落）、月亮 `dir=+1`（反向交替）。云朵参数在 `ATM_CLOUDS`（更大更低）。
 - **弹层（v9.20）**：`ensureModalX()` 给每个 `.modal-box` 插一个右上角 ✕（复用 `data-close`）；`.modal{align-items:flex-start}` 顶部对齐。
 - **烤箱（v9.19）**：输入队列**不限量**（先来先烤），「一轮」加工 `ovenCap()` 份，升级提高的是每轮出炉份数；加料不重置进度（旧版每放一份 `t=0`，多份同烤会闪）。
-- **渲染性能（v9.24 / v9.25）**：
-  - `tileLOD()` 按「屏幕格子宽」分三级（≥34px 全细节 / ≥30px 减半 / 更小只留底色），`renderZoom` 由 `render()` 每帧写入
-  - 框选覆盖层用**一条平行四边形**（`iso(ax-0.5, ay-0.5)` 取外轮廓）代替逐格菱形，`jobBox` 期间只描边
-  - **地表层缓存**：`groundSig()` 哈希（相机+缩放+视口+逐格外观码，外观字段见 `tileColors`）命中就 `blitGround()`，否则用 `withCtx(cacheCtx, drawTilePass)` 重画
-  - **作物精灵**：`cropSpriteFor(crop, ratio)` 按 12 档生长量化烧图，只在 `tileLOD()<2` 时启用（放大走矢量）
-  - **云朵精灵**：`atmCloudSprite(i, c, rgb, a)`（rgb 量化到 8 一档，夜色变化才重烧）
-  - **可见范围遍历**：`visibleGridRect(cx,cy,pad)` + `shVisibleTiles()`，阴影/地面细节/外沿不再全表遍历
-  - 设置项 `showCropBars`（作物进度条开关）：`tileLOD()` 按「屏幕格子宽」分三级（≥34px 全细节 / ≥30px 减半 / 更小只留底色），`renderZoom` 由 `render()` 每帧写入；框选覆盖层用**一条平行四边形**（`iso(ax-0.5, ay-0.5)` 取外轮廓）代替逐格菱形，且 `jobBox` 期间**只描边**。量法见 `tools/perf.js`。
+- **渲染性能（v9.32 重写，v9.24/9.25 的结论保留）**：
+  - **分层缓存**：`47-render-cache.js` 按变化频率分层 —— 天空渐变 / 地表（地块 + 静态地面细节 + 边界/网格） / 作物精灵 / 装饰精灵；小人、粒子、雨、云影、交互 UI 每帧照画
+  - **地表层**：`terrainSignature()` 只哈希「缩放 + 视口 + 网格开关 + 逐格外观码」；相机平移靠 128px margin 直接平移缓存，移出 margin / 缩放 / 地块外观变化才重烘。哈希漏字段会留下错画面，所以宁可多算
+  - **精灵化**：`cropSpriteFor()` 把作物本体 + 水滴/肥料/多收圆点 + 进度条一起烘（12 档生长）；`decorSpriteFor()` 把树/石/铺装等按 (类型, seed 档, 掩码, 夜间点亮) 烘图；两者都在 `renderZoom > 1.05` 时自动回矢量
+  - **合批**：作物阴影一条路径一次 `fill`；星星按亮度 4 桶；太阳/月亮/云影/光晕渐变烧成小图（`glowSpriteFor()`）
+  - **质量档**：默认 `balanced`；`?render=high` 全矢量最清晰、`fast` 更大平移余量；`FarmDebug.api.setRenderQuality("high")` 可运行时切
+  - **性能面板**：设置项 / `Shift+P` / `?perf`。显示 FPS、p50/p95、每帧/每秒调用、分项、场景规模、精灵画/烘、图层命中；只在打开时套计数代理
+  - `tileLOD()` 仍按「屏幕格子宽」分三级（≥34px 全细节 / ≥30px 减半 / 更小只留底色）；框选覆盖层仍是一条平行四边形，`jobBox` 期间只描边
+  - **实测**（`node tools/perf.js 48 30 500`）：48×48 + 500 装饰 + 满作物，静态帧 **89,532 → 9,034 ops/帧（−90%）**，无作物 **58,427 → 2,121（−96%）**。旧版数字是在 v9.31 源码上跑同一套场景得到的；新版数字可直接用 `npm run perf` 复现
 - **锅的聚合显示（v9.27）**：`kPotChipsHTML()` 按种类出一个 chip + `×N` 角标（节点数与块数无关）；`kPotSig()` / `kPotRecipeCached()` 让每帧刷新不再遍历上千元素；`potRecipe()` 的 `pieces` 是**去重种类表** + `counts`（主键与存档不随块数膨胀，价钱不变）；自动补料用 `potAddMany()` **一次写盘**（`potAdd` 逐块 save 是"越加越卡"的真凶）。
 - **机器料斗（v9.19）**：驴 / 切块机各有独立进料槽（`state.autoSlot`，最多 `AUTO_SLOT_MAX`=5，空了自动从仓库补），互不抢料。
 - **机器可停（v9.23）**：`autoPause(id)` / `autoResume(id)`（`state.autoPause`，0 = 在跑）。停着不产出、不吃料，**租期冻结**（恢复时把停的那段时间补回 `autoUntil`）。

@@ -1,23 +1,38 @@
-/* HUD */
+/* HUD —— 单行：左 2/3 是数值（金币 / 田块 / 时间），右 1/3 是按钮（成就 / 排行 / 公告 / 菜单） */
 .hud{
   position:fixed;top:calc(16px*var(--ui-scale));left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:calc(6px*var(--ui-scale));
+  display:flex;align-items:center;flex-wrap:nowrap;gap:calc(6px*var(--ui-scale));
+  width:min(94vw, calc(480px*var(--ui-scale)));
   background:rgba(248,243,228,.85);backdrop-filter:blur(12px);
   border-radius:999px;padding:calc(8px*var(--ui-scale));
   box-shadow:0 8px 28px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.6);
   z-index:10;
 }
+/* flex:2 对 flex:1 → 三分之二 / 三分之一；两组内部都 space-between 撑开
+   右侧不压缩到按钮挤在一起（min-width:max-content） */
+.hud-main{
+  display:flex;align-items:center;justify-content:space-between;gap:calc(6px*var(--ui-scale));
+  flex:2 1 0;min-width:0;
+}
+/* 三块数值平分左侧空间：HUD 变宽它们跟着长，不留大片空隙 */
+.hud-main .hud-item{flex:1 1 auto;justify-content:center}
+.hud-acts{
+  display:flex;align-items:center;justify-content:space-between;gap:calc(6px*var(--ui-scale));
+  flex:1 1 0;min-width:max-content;
+}
 .hud-item{
   display:flex;align-items:center;gap:calc(6px*var(--ui-scale));
-  padding:calc(6px*var(--ui-scale)) calc(16px*var(--ui-scale));
+  flex:0 1 auto;min-width:0;white-space:nowrap;
+  padding:calc(6px*var(--ui-scale)) calc(12px*var(--ui-scale));
   border-radius:999px;background:rgba(255,255,255,.55);
   font-size:calc(14px*var(--ui-scale));font-weight:700;color:#3a3020;
 }
 .hud-ico{font-size:calc(16px*var(--ui-scale))}
 .hud-val{color:#b8720a;font-variant-numeric:tabular-nums;min-width:calc(26px*var(--ui-scale));text-align:right}
 .hud-icon-btn{
-  width:calc(36px*var(--ui-scale));height:calc(36px*var(--ui-scale));
-  border-radius:50%;border:none;
+  flex:1 1 auto;min-width:0;
+  height:calc(36px*var(--ui-scale));
+  border-radius:999px;border:none;
   background:rgba(255,255,255,.55);cursor:pointer;
   display:grid;place-items:center;
   font-size:calc(17px*var(--ui-scale));

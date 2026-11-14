@@ -78,13 +78,6 @@ function bindAll(){
       : '长按框选已关闭：长按只会让小人走过去，不会划范围', 'hand');
     renderHUD(); save();
   };
-  /* 手机顶栏把 🏆 收进「⋯」里了，这里给弹层那一行接上 */
-  const achRowM = document.getElementById('achRowM');
-  if(achRowM) achRowM.onclick = () => {
-    SFX.play('click');
-    const p = document.getElementById('hudMore'); if(p) p.classList.remove('show');
-    openSheet('achievements');
-  };
   const pan = document.getElementById('btnPan');
   if(pan) pan.onclick = () => {
     state.tool = (state.tool === 'pan') ? 'hoe' : 'pan';
@@ -106,21 +99,6 @@ function bindAll(){
   }
   /* 侧栏里不弹层的按钮（扩建 / 网格 / 平移 / 缩放）：点完也收抽屉 */
   /* 这几个不弹层的按钮也一样：点完不收抽屉 */
-  /* ⋯ 展开/收起次要信息（挂机速率、时间、农场尺寸） */
-  const moreBtn = document.getElementById('moreBtn');
-  const morePanel = document.getElementById('hudMore');
-  if(moreBtn && morePanel){
-    moreBtn.onclick = e => {
-      e.stopPropagation();
-      SFX.play('click');
-      morePanel.classList.toggle('show');
-    };
-    document.addEventListener('pointerdown', ev => {
-      if(!morePanel.classList.contains('show')) return;
-      if(ev.target.closest('#hudMore') || ev.target.closest('#moreBtn')) return;
-      morePanel.classList.remove('show');
-    });
-  }
 
   /* 🔍 缩放：自动 → 1x → 2x 循环（存档功能已挪进设置面板） */
   const zoomBtn = document.getElementById('btnZoom');

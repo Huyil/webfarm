@@ -105,7 +105,7 @@ const frames = n => new Promise(res => {
   eq(W.document.querySelectorAll('#sidePanel .si svg').length, 12, '侧栏 12 个图标都已注入 SVG');
   ok(!!W.document.querySelector('#lbBtn svg'), '顶栏奖牌入口已注入 SVG');
   const pict = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF\u2B00-\u2BFF]/u;
-  const uiText = ['.hud', '#sidePanel', '#toolbar', '#hudMore']
+  const uiText = ['.hud', '#sidePanel', '#toolbar']
     .map(sel => W.document.querySelector(sel)).filter(Boolean).map(e => e.textContent).join('');
   ok(!pict.test(uiText), '主界面控件文本里不再有 emoji', uiText.slice(0, 80));
 
@@ -900,7 +900,7 @@ const frames = n => new Promise(res => {
 
   const labels = [...W.document.querySelectorAll('#sidePanel .sl')].map(e => e.textContent.trim());
   ok(labels.includes('厨房') && labels.includes('缩放') && labels.includes('装饰') && labels.includes('平移'), '侧栏按钮都有文字（存档已换到设置里的缩放）', labels.join('/'));
-  ok($('hudIdle') && $('hudPremium') && $('hudClock'), 'HUD 有挂机/高级肥料/时钟');
+  ok($('hudIdleM') && $('hudClockM') && $('hudFarmM'), 'HUD 有挂机速率/时钟/田块尺寸');
 
   // 成就面板：奖励文案 + 领取按钮 + 一键领取
   st().stats.total.harvest = 1;
@@ -919,16 +919,14 @@ const frames = n => new Promise(res => {
   ok(!!card2 && (card2.classList.contains('claimed') || card2.textContent.includes('已领')), '领完变成已领（面板重绘后）');
   click($('btnStore'));   // 关掉面板
 
-  // HUD「⋯」展开次要信息（窄屏只留一行重要信息）
-  const moreBtn = $('moreBtn'), morePanel = $('hudMore');
-  ok(!!moreBtn && !!morePanel, 'HUD 有「⋯」更多信息按钮');
-  click(moreBtn);
-  ok(morePanel.classList.contains('show'), '点 ⋯ 展开次要信息');
-  ok($('hudClock').textContent.length >= 4, '展开面板里有时刻', $('hudClock').textContent);
-  ok($('hudIdle').textContent.length > 0, '展开面板里有挂机速率', $('hudIdle').textContent);
-  ok($('hudFarm').textContent.includes('×'), '展开面板里有农场尺寸', $('hudFarm').textContent);
-  click(moreBtn);
-  ok(!morePanel.classList.contains('show'), '再点 ⋯ 收起');
+  // v9.33：HUD 单行 —— 左 2/3 数值（金币 / 田块 / 时间），右 1/3 按钮（成就 / 排行 / 公告 / 菜单）
+  ok(!$('hudFert') && !$('hudPremium'), 'HUD 不再显示普通/高级肥料');
+  ok(!$('moreBtn') && !$('hudMore'), 'HUD 不再有「⋯」更多按钮与二级面板');
+  const hudMainItems = [...W.document.querySelectorAll('.hud-main .hud-item')].map(e => e.id || e.className);
+  eq(hudMainItems.length, 3, 'HUD 左侧就三项数值（金币 / 田块 / 时间）', hudMainItems.join(' / '));
+  ok(!!$('hudMoney') && !!$('hudFarmM') && !!$('hudClockM'), '三项数值都在（金币 / 田块 / 时间）');
+  const hudActs = [...W.document.querySelectorAll('.hud-acts > button')].map(e => e.id);
+  eq(hudActs.join(','), 'achBtn,lbBtn,noticeBtn,sideToggle', 'HUD 右侧四个按钮（成就/排行/公告/菜单）');
   eq($('hudMoney').parentElement.classList.contains('hud-item'), true, '一行主信息仍保留金币');
 
   // 网格按钮状态一目了然（曾经「高亮 = 开还是关」看不出来）
@@ -1378,20 +1376,23 @@ const frames = n => new Promise(res => {
     ok(css.includes('--m-toolbar-btn:max(46px') && css.includes('min-height:var(--m-toolbar-btn)'),
       '工具栏按钮有 46px 最小点按高度');
     ok(css.includes('.hud{top:') && css.includes('left:var(--m-edge);right:var(--m-edge)'), '顶栏在窄屏下铺满宽度');
-    ok(css.includes('max(34px'), '顶栏图标按钮有最小尺寸兜底（--ui-scale 缩小时也够点）');
-    /* v9.19 手机顶栏：三列两行；🏅 露出来，🏆 收进「⋯」 */
-    ok(css.includes('#achBtn{display:none}'), '手机端把 🏆 收进「⋯」弹层（顶栏第一排 = 🏅 📢 ⋯）');
+    ok(css.includes('max(30px') , '顶栏图标按钮有最小尺寸兜底（--ui-scale 缩小时也够点）');
+    /* v9.33 手机顶栏：单行；🏆🏅📢 + ☰ 菜单都在右侧那组里 */
+    ok(!css.includes('#achBtn{display:none}'), '手机端不再隐藏 🏆 成就（「⋯」弹层已撤掉）');
+    ok(!css.includes('moreBtn'), 'CSS 里不再有「⋯」更多按钮的规则');
     ok(!css.includes('#lbBtn{display:none}'), '手机顶栏露出 🏅 排行榜入口');
     /* 抽屉把手与抽屉的 top 都依赖 --m-hud-top：这个变量以前没定义，整条 calc() 作废 →
        表现为「菜单被挡住 / 点不开」。这里钉住它必须存在且被引用。 */
     ok(css.includes('--m-hud-top:calc('), '定义了 --m-hud-top（抽屉位置链的根）');
     ok(css.includes('top:var(--m-hud-top)'), '手机顶栏用 --m-hud-top 定位');
-    ok(css.includes('.side-toggle{display:flex') && css.includes('position:static'),
-      '菜单把手改回顶栏网格里的普通按钮（position:static，不会被顶栏压住）');
-    ok(/\.hud\{[^}]*grid-template-columns:minmax\(0,1fr\)minmax\(0,1fr\)auto/.test(css),
-      '手机顶栏是三列两行网格（金币+挂机 / 肥料 / 图标；田块尺寸 / 高级肥料 / 时间+菜单）');
-    ok(css.includes('.hud-money{grid-area:1/1/2/2}') && css.includes('.hud-right2{grid-area:2/3/3/4'),
-      '顶栏各项用 grid-area 明确排位（金币左上 / 时间+菜单右下）');
+    ok(css.includes('.side-toggle{display:grid') && css.includes('position:static'),
+      '菜单把手就在顶栏右侧那一组里（position:static，不会被顶栏压住）');
+    /* HUD 单行：左 2/3 数值（金币 / 田块 / 时间），右 1/3 按钮（成就 / 排行 / 公告 / 菜单） */
+    ok(/\.hud-main\{[^}]*flex:2/.test(css) && /\.hud-acts\{[^}]*flex:1/.test(css),
+      '顶栏分两组：左 2/3 数值、右 1/3 按钮（flex:2 对 flex:1）');
+    ok(css.includes('.hud{top:') && css.includes('flex-wrap:nowrap'), '顶栏是单行（不换行）');
+    ok(css.includes('--m-hud-h:calc(var(--m-hud-row)'), '手机端顶栏高度按一行算');
+    ok(!css.includes('grid-area'), '顶栏不再用 grid-area 排位（老的三列两行没了）');
     /* 所有 var(--x) 都必须有定义：--m-hud-top 这种漏定义在无头环境里完全看不出来 */
     {
       const defs = new Set([...css.matchAll(/(--[a-z0-9-]+):/g)].map(m => m[1]));
@@ -1464,7 +1465,7 @@ const frames = n => new Promise(res => {
     ok(!!W.document.getElementById('sideToggle'), '有抽屉把手按钮');
     eq(W.document.getElementById('sideToggle').getAttribute('aria-expanded'), 'false', '默认收起');
     ok(/\.side-toggle\{display:none\}/.test(css), '桌面端把手完全隐藏（电脑页面保持原样）');
-    ok(/\.side-toggle\{[^}]*display:flex/.test(css) && /\.side-panel\{[^}]*display:none/.test(css),
+    ok(/\.side-toggle\{[^}]*display:grid/.test(css) && /\.side-panel\{[^}]*display:none/.test(css),
       '手机端：把手显示、侧栏默认收起');
     ok(/\.side-panel\.open\{display:flex\}/.test(css), '抽屉展开态有样式');
     ok(/\.side-panel\.open[^}]*|overscroll-behavior:contain/.test(css), '抽屉内部滚动、不外溢');

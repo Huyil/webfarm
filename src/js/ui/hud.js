@@ -22,17 +22,13 @@ function updateHudAnim(dt){
   const rate = idleRate();
   if(Math.abs(hudIdleShown - rate) > 0.01){
     hudIdleShown = rate;
-    const i = $('hudIdle');
-    if(i){ i.textContent = rate.toFixed(1); if(i.parentElement) bump(i.parentElement); }
-    /* 手机顶栏把挂机速率并到金币旁边（+x.x/分） */
+    /* 挂机速率并到金币旁边（+x.x/分） */
     const im = $('hudIdleM');
-    if(im) im.textContent = '+' + rate.toFixed(1) + '/分';
+    if(im){ im.textContent = '+' + rate.toFixed(1) + '/分'; bump(im.parentElement); }
   }
 }
 function renderHUD(){
   const $ = id => document.getElementById(id);
-  const f = $('hudFert'); if(f) f.textContent = state.fertilizer;
-  const p = $('hudPremium'); if(p) p.textContent = state.premium;
   const fm = $('hudFarmM'); if(fm) fm.textContent = state.farm.w + '×' + state.farm.h;
   const lp = $('longPressState'); if(lp) lp.textContent = state.longPressBox === false ? '关' : '开';
   const afS = $('autoFarmState');

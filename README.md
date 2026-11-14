@@ -29,7 +29,7 @@ npm run perf:small                # 小一号的快速性能探针
 node build.js --dry --smoke
 node tools/pixelcheck.js farm.html
 node tools/render.js farm.html /tmp/shot.png --hour=22 --weather=rain
-node tools/split-v8.js            # 从 legacy 重新切分 v8 源码（仅迁移时用）
+node legacy/split-v8.js      # 从 legacy 重新切分 v8 源码（Phase 1 存档，需加 --force；会按旧编号覆盖 src/js）
 ```
 
 三层验证：
@@ -85,13 +85,13 @@ src/dev-bundle.js    ← 同上（源码按 build.manifest.json 顺序拼成一�
 node tools/serve.js 8123     # 然后开 http://127.0.0.1:8123/dev
 #   /dev 每次请求都会按需重新拼接 dev-bundle.*，改完源码刷新即可，不用构建
 node tools/devbundle.js      # 不走服务器时手动重新生成（改完源码后跑一次，再刷新浏览器）
-node tools/devcheck.js       # 源码版自检：真的按浏览器方式加载 src/index.html，13 项断言
+node tools/devcheck.js       # 源码版自检：真的按浏览器方式加载 src/index.html，16 项断言
 ```
 
-**为什么不能直接给 `src/index.html` 挂 45 个 `<script src="js/xxx.js">`？** 两个原因，都踩过：
+**为什么不能直接给 `src/index.html` 挂几十个 `<script src="js/xxx.js">`？** 两个原因，都踩过：
 
 1. `src/index.html` 是**模板**：只有 `/*@INJECT_CSS@*/` 与 `/*@INJECT_JS@*/` 两个占位符，构建才往里注入内容。直接打开等于「没有 CSS、没有 JS」→ 白屏。
-2. 就算把文件都挂上也不行：`src/js/*.js` 是**拼进同一个 IIFE** 才有意义的（`00-header.js` 的 `'use strict'`；更早的文件在**加载期**就调用后面文件里定义的函数，靠的是同一作用域里的函数提升）。拆成 45 个 script 单独加载会分别报 `Unexpected end of input`（开括号在 00-header、闭括号在 99-init）和 `hash2 is not defined` 之类。
+2. 就算把文件都挂上也不行：`src/js/**/*.js` 是**拼进同一个 IIFE** 才有意义的（更早的文件在**加载期**就调用后面文件里定义的函数，靠的是同一作用域里的函数提升）。拆成几十个 script 会各自成作用域，直接报 `hash2 is not defined` 之类；`'use strict'` 由构建期注入，源码文件不写。
 
 所以：**IIFE 的括号由 `build.js` / `tools/devbundle.js` 补，源码文件里不要再自己写**；要直接跑就走 `dev-bundle.js`。
 
@@ -105,32 +105,38 @@ node tools/package.js --all # 两个都打（npm run package:all）
 npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需要服务器私钥）
 ```
 
-**源码包**（`--src`，77 个文件 / 约 320 KB）里是 `src/ tools/ deploy/ legacy/ build.js build.manifest.json package.json README.md` 加一份 `SOURCE.md`（怎么构建、怎么跑源码版、怎么再打包）。对方解压后只要 `node build.js`（**零依赖**：有 esbuild 就用，没有自动退回内置压缩器），然后 `node tools/serve.js 8123`。已在临时目录里从零验证过整条链路。
+**源码包**（`--src`）里是 `src/ tools/ deploy/ legacy/ build.js build.manifest.json package.json README.md` 加一份 `SOURCE.md`（怎么构建、怎么跑源码版、怎么再打包）。对方解压后只要 `node build.js`（**零依赖**：有 esbuild 就用，没有自动退回内置压缩器），然后 `node tools/serve.js 8123`。已在临时目录里从零验证过整条链路。
 
 `dist/farm-v<版本>/` 里是**能直接上线的一组文件**：`index.html`（压缩版，丢进站点目录即可）、`farm.html`（未压缩，好读好改）、`farm.min.html`、`README.md`、`DEPLOY.txt`（三种上线方式 + 验证判据）。目标站点 `https://mcu.huyil.cn/farm/`，部署细节见 `deploy/README.md`。
 
 ## 架构约定
 
-所有 `src/js/*.js` 按清单顺序拼进**同一个 IIFE**，因此：
+所有 `src/js/**/*.js` 按清单顺序拼进**同一个 IIFE**，因此：
 
 - 顶层 `function` / `const` **全局共享**，命名必须唯一；跨文件调用靠函数提升，无需 import。
-- 文件顺序 = 依赖顺序（数据 → 核心 → 系统 → 渲染 → UI → 初始化），`init()` 只在最后一个文件调用一次。
+- 加载顺序 = `build.manifest.json` 里 `js` 数组的顺序（数据 → 核心 → 系统 → 渲染 → UI → 初始化）。目录只负责归类，**不参与排序**；新增文件直接插进清单对应位置即可。`init()` 只在最后一个文件调用一次。
 - 不使用 ES module / TS / 任何运行时依赖，保证 `file://` 直接打开可用。
 
-| 文件 | 职责 |
-|---|---|
-| `00-header` | IIFE 开头 + `use strict` |
-| `10-const` `11-decor-data` `12-changelog` `13-achievements` `14-tasks` `15-crops` `16-recipes` | 常量与数据表（纯数据，无副作用） |
-| `20-audio` `21-particles` | WebAudio 合成音效、粒子系统 |
-| `30-state` | `newState()` / `getTile` / 绘制排序 |
-| `31-save` | 3 槽位序列化、旧档迁移（v81 → v90） |
-| `32-iso` `33-growth` `34-canvas` | 等距投影、生长与田间操作、画布与相机 |
-| `35-atmosphere` `36-idle` | 昼夜/天气、挂机收益（墙钟结算） |
-| `40-tiles` `41-crop-art` `42-decor-art` `43-player` `44-food-art` `45-effects` `46-shadow` | 绘制层（作物/装饰精灵、合批阴影） |
-| `47-render-cache` `48-perf` | **v9.32 渲染引擎**：天空/地表/装饰精灵缓存、质量档；性能面板 + 可选计数探针 |
-| `50-render` `51-tools` `52-pointer` `53-decor-bag` `55-expand` | 渲染主循环、工具应用（到位后生效）、指针交互（悬停/拖拽/长按框选）、装饰仓库、扩建系统 |
-| `60-hud` … `69-dishes` | HUD、弹层、商店、仓库、设置、侧栏、存档界面、厨房 UI、做菜逻辑 |
-| `70-toast` `71-loop` `72-progress` `73-panels` `74-bindings` `99-init` | 提示与动画、主循环、统计/成就/任务、面板渲染、按钮绑定、初始化 + `FarmDebug` |
+```text
+src/js/
+├─ data/       纯数据与定义（常量、作物/食谱/装饰/成就/任务/公告、排行榜数据与 API）
+├─ core/       状态、存档与迁移、等距投影、生长、画布/相机、昼夜天气、挂机
+├─ render/     瓦片/作物/装饰/食材绘制、全屏特效、地面阴影、分层缓存、性能面板、渲染主循环
+├─ gameplay/   小人、工具应用、指针交互、装饰回收、扩建、自动农活、做菜逻辑、统计/成就/任务检查
+├─ ui/         HUD、弹层、商店、仓库、设置、侧栏、存档界面、厨房 UI、提示动画、面板与按钮绑定
+├─ fx/         WebAudio 合成音效、粒子系统
+└─ boot/       主循环、初始化 + FarmDebug
+```
+
+| 目录 | 文件 | 职责 |
+|---|---|---|
+| `data/` | `constants` `decor-data` `changelog` `achievements` `tasks` `crops` `recipes` `leaderboard` | 常量与数据表（纯数据，无副作用）；排行榜的数据/API |
+| `core/` | `state` `save` `transfer` `iso` `growth` `canvas` `atmosphere` `idle` | 状态、三槽位存档与迁移、等距投影、生长、画布/相机、昼夜天气、挂机 |
+| `render/` | `tiles` `crop-art` `decor-art` `food-art` `effects` `shadow` `render-cache` `perf` `render` | 绘制层（瓦片/作物/装饰/食材、全屏特效、合批阴影）、分层缓存与质量档、性能面板、渲染主循环 |
+| `gameplay/` | `player` `tool-actions` `pointer` `decor-bag` `expand` `autofarm` `dishes` `progress` | 小人、工具应用、指针交互、装饰回收、扩建、自动农活、做菜逻辑、统计/成就/任务检查 |
+| `ui/` | `hud` `modals` `seedlist` `shop` `warehouse` `settings` `sidepanel` `slots` `kitchen` `toast` `panels` `bindings` `leaderboard-ui` `transfer-ui` | HUD、弹层、商店、仓库、设置、侧栏、存档界面、厨房 UI、提示动画、面板渲染、按钮绑定 |
+| `fx/` | `audio` `particles` | WebAudio 合成音效、粒子系统 |
+| `boot/` | `loop` `init` | 主循环、初始化 + `FarmDebug` |
 
 ### 关键数据流
 
@@ -220,7 +226,7 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 ```
 
 - **工具提示条 / 飘字**：按文字**自适应宽度**（不再横贯整屏），提示条贴住工具栏，飘字在它上方；手机上字号 ≥11px / ≥12px。
-- **右侧按钮栏（侧栏）**：位置由 `66-sidepanel.js` 的 `sidePanelBounds()` 统一算——上界 `max(10px, 顶栏下沿+10)`，下界 `提示条上沿 - 10 - 面板高度`；手机默认落在区间的 **0.62** 处（原来正中央，正好压住农场右半边）；拖动时同样被这两个边界夹住。`max-height` 扣掉顶栏与 `--m-bottom-reserve`，装不下时可内部滚动。
+- **右侧按钮栏（侧栏）**：位置由 `sidepanel.js` 的 `sidePanelBounds()` 统一算——上界 `max(10px, 顶栏下沿+10)`，下界 `提示条上沿 - 10 - 面板高度`；手机默认落在区间的 **0.62** 处（原来正中央，正好压住农场右半边）；拖动时同样被这两个边界夹住。`max-height` 扣掉顶栏与 `--m-bottom-reserve`，装不下时可内部滚动。
 - **老存档**：侧栏位置带 `SIDE_PANEL_VER`（当前 2）。布局改了但存档里的 `sidePanelY` 是旧布局算的，所以版本不匹配时会**重算一次默认位置**，之后用户拖到哪记到哪。
 - **刘海屏**：`viewport-fit=cover` + `env(safe-area-inset-*)`，顶栏避开刘海、工具栏避开 home 指示条。
 - **触屏滚动**：`body` 原来是 `touch-action:none`，会把所有触摸滚动一起禁掉（成就/公告/仓库这些长列表滑不动）；现在 `body{touch-action:manipulation}`，手势交给 `canvas{touch-action:none}` 兜住。
@@ -275,7 +281,7 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 - 每天（游戏内日期切换时）从 **31 个任务**里刷新 **2 个简单 + 1 个困难**，不会再出现「一天全是硬任务」。
 - **解锁门槛** `need`：`mill`（磨过面）/ `cook`（做过菜）/ `expand`（扩建过）/ `premium`（用过高级肥料）——没有相关经历时这类任务**不参与抽取**，所以开局第 1 天只会派种/收/浇水/卖这类活儿。
 - `hard: true` 的任务给更多肥料；奖励只有 🧪 普通肥料 / ✨ 高级肥料（高级肥料可直接催熟一株）。
-- 想少做菜就把 `14-tasks.js` 里带 `need:'cook'` 的项删掉或改门槛；想调整每天难度配比改 `checkTasks()` 里的抽法。
+- 想少做菜就把 `tasks.js` 里带 `need:'cook'` 的项删掉或改门槛；想调整每天难度配比改 `checkTasks()` 里的抽法。
 
 ### 排行榜（服务端）
 
@@ -298,7 +304,7 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
                                                  数据：/var/lib/farm-leaderboard/board.json
 ```
 
-- 客户端：`src/js/17-leaderboard.js`（数据 + API + 排序）+ `src/js/78-leaderboard-ui.js`（弹层界面），样式 `src/css/leaderboard.css`。API 地址可用 `window.FARM_LB_API` 覆盖（测试时指向本地服务很方便）。
+- 客户端：`src/js/data/leaderboard.js`（数据 + API + 排序）+ `src/js/ui/leaderboard-ui.js`（弹层界面），样式 `src/css/leaderboard.css`。API 地址可用 `window.FARM_LB_API` 覆盖（测试时指向本地服务很方便）。
 - 服务端源码随仓库走：`deploy/leaderboard/server.py` + `farm-leaderboard.service`。
 - **离线降级**：`fetch` 不存在、超时（8 秒）、非 200、`{ok:false}` 全部被吞成「离线」状态，界面显示我的本地战绩 —— 本地打开或服务器挂了都能正常玩。
 - 服务端防线：同 IP 1 秒 1 次限流、字段夹紧（金币 ≤1e12、收获 ≤1e7、田 ≤64、成就 ≤200、任务 ≤1e7）、名字清洗、body ≤4KB、同 id 取各项较大值、最多 500 条并按最近活跃淘汰。
@@ -314,7 +320,7 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 - **弹层（v9.20）**：`ensureModalX()` 给每个 `.modal-box` 插一个右上角 ✕（复用 `data-close`）；`.modal{align-items:flex-start}` 顶部对齐。
 - **烤箱（v9.19）**：输入队列**不限量**（先来先烤），「一轮」加工 `ovenCap()` 份，升级提高的是每轮出炉份数；加料不重置进度（旧版每放一份 `t=0`，多份同烤会闪）。
 - **渲染性能（v9.32 重写，v9.24/9.25 的结论保留）**：
-  - **分层缓存**：`47-render-cache.js` 按变化频率分层 —— 天空渐变 / 地表（地块 + 静态地面细节 + 边界/网格） / 作物精灵 / 装饰精灵；小人、粒子、雨、云影、交互 UI 每帧照画
+  - **分层缓存**：`render-cache.js` 按变化频率分层 —— 天空渐变 / 地表（地块 + 静态地面细节 + 边界/网格） / 作物精灵 / 装饰精灵；小人、粒子、雨、云影、交互 UI 每帧照画
   - **地表层**：`terrainSignature()` 只哈希「缩放 + 视口 + 网格开关 + 逐格外观码」；相机平移靠 128px margin 直接平移缓存，移出 margin / 缩放 / 地块外观变化才重烘。哈希漏字段会留下错画面，所以宁可多算
   - **精灵化**：`cropSpriteFor()` 把作物本体 + 水滴/肥料/多收圆点 + 进度条一起烘（12 档生长）；`decorSpriteFor()` 把树/石/铺装等按 (类型, seed 档, 掩码, 夜间点亮) 烘图；两者都在 `renderZoom > 1.05` 时自动回矢量
   - **合批**：作物阴影一条路径一次 `fill`；星星按亮度 4 桶；太阳/月亮/云影/光晕渐变烧成小图（`glowSpriteFor()`）
@@ -384,10 +390,10 @@ npm run release            # 打包后直接 ./deploy/deploy.sh push auto（需�
 
 ## 加东西的姿势
 
-- **加作物**：往 `15-crops.js` 的 `CROPS` 加一项（`harvests` + `regrowMs` 即多次收获），再往 `SEED_ORDER` 加 id；如需专属外观，在 `44-food-art.js` 里加画法（`drawCrop` 会自动派发，缺省走通用幼苗）。
+- **加作物**：往 `crops.js` 的 `CROPS` 加一项（`harvests` + `regrowMs` 即多次收获），再往 `SEED_ORDER` 加 id；如需专属外观，在 `food-art.js` 里加画法（`drawCrop` 会自动派发，缺省走通用幼苗）。
 - **加菜谱**：`POT_COMBOS` 加 `need`（配料多重集）+ `factor`；或在 `DISHES` 里加固定产线。
-- **加成就 / 任务**：`13-achievements.js` 的 `ACHIEVEMENTS`（`cond(state.stats)`）、`14-tasks.js` 的 `TASK_POOL`（`type` 需在 `trackAction` 里已有对应分支，`reward` 用 `{fert:n}` / `{premium:n}`；`hard:true` 标困难，`need:'mill'|'cook'|'expand'|'premium'` 加解锁门槛）。
-- **加装饰**：`11-decor-data.js` 加一项（`price`/`sell`，如果可被锄头敲掉再给 `hp`），画法加到 `42-decor-art.js` 的 `drawDecor`，商店列表来自 `DECOR_IDS`。
+- **加成就 / 任务**：`achievements.js` 的 `ACHIEVEMENTS`（`cond(state.stats)`）、`tasks.js` 的 `TASK_POOL`（`type` 需在 `trackAction` 里已有对应分支，`reward` 用 `{fert:n}` / `{premium:n}`；`hard:true` 标困难，`need:'mill'|'cook'|'expand'|'premium'` 加解锁门槛）。
+- **加装饰**：`decor-data.js` 加一项（`price`/`sell`，如果可被锄头敲掉再给 `hp`），画法加到 `decor-art.js` 的 `drawDecor`，商店列表来自 `DECOR_IDS`。
 - **调试入口**：浏览器控制台里 `FarmDebug.state` / `FarmDebug.api`（含 `applyToolAt`、`step(ms)`、`cook.*`、`kitchenTick`、`idleAdvance`、`saveToSlot/loadSlot`、`setAtmos(hour,weather)`、`fx.*`）。
 
 ## 已知限制

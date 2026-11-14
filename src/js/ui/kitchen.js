@@ -1,4 +1,4 @@
-/* 68-kitchen — 拖拽厨房 UI（做菜逻辑在 69-dishes.js，只读不改）
+/* kitchen — 拖拽厨房 UI（做菜逻辑在 dishes.js，只读不改）
  *
  * 契约：
  *   updateKitchen(dt)  每帧：先 kitchenLogicTick(dt) 推进逻辑，再节流刷新界面

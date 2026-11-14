@@ -1423,11 +1423,18 @@ const frames = n => new Promise(res => {
     ok(!/href="css\//.test(html), '构建产物里没有外链 css/（dev 块已被剥离）');
     ok(!/src="js\//.test(html), '构建产物里没有外链 js/（dev 块已被剥离）');
     ok(!html.includes('dev-bundle'), '构建产物里不引用 dev-bundle');
-    /* 源码里不再自带 IIFE 括号（改由构建期包上），否则 45 个 script 单独加载会语法错误 */
-    ok(!fs.readFileSync(path.join(__dirname, '..', 'src', 'js', '00-header.js'), 'utf8').includes('(function(){'),
-      '00-header.js 不再自带 IIFE 开括号（改由 build.js 包）');
-    ok(html.includes('(function(){\n\'use strict\';') || /\/\(function\(\)\{/.test(html) || html.includes('(function(){'),
-      '构建产物仍是一个 IIFE');
+    /* 源码文件不自带 IIFE 括号，'use strict' 也由构建期注入：
+       文件名不再承担「哪个文件打头/收尾」的顺序职责，顺序只由清单决定 */
+    const jsDir = path.join(__dirname, '..', 'src', 'js');
+    const walkJs = (dir, rel = '') => fs.readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap(ent => {
+      const p = rel ? rel + '/' + ent.name : ent.name;
+      return ent.isDirectory() ? walkJs(dir, p) : [p];
+    });
+    const selfWrapped = walkJs(jsDir).filter(f =>
+      /^\s*\(function\s*\(\s*\)\s*\{/.test(fs.readFileSync(path.join(jsDir, f), 'utf8')));
+    ok(selfWrapped.length === 0, '源码文件不自带 IIFE 开括号（由构建期统一包）', selfWrapped.join(', '));
+    ok(/\(function\(\)\{\s*'use strict';/.test(html), "'use strict' 由构建期注入到 IIFE 开头");
+    ok(html.includes('(function(){'), '构建产物仍是一个 IIFE');
     const devBundle = path.join(__dirname, '..', 'src', 'dev-bundle.js');
     ok(fs.existsSync(devBundle), '存在源码版拼接产物 src/dev-bundle.js');
     const db = fs.readFileSync(devBundle, 'utf8');

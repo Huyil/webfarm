@@ -4,9 +4,9 @@
  *   ATMOS.hour      0..24 浮点
  *   ATMOS.weather   'clear' | 'cloudy' | 'rain'
  *   ATMOS.flash     白闪强度 0..1（自行衰减到 0）
- * 渲染钩子由 50-render.js 调用：drawAtmosphereBack(g) / drawAtmosphereFront(g)
+ * 渲染钩子由 render.js 调用：drawAtmosphereBack(g) / drawAtmosphereFront(g)
  * 主循环钩子：updateAtmosphere(dt)
- * 46-shadow.js 复用本文件的 atmDrawCloudShadows / atmDrawGroundRain。
+ * shadow.js 复用本文件的 atmDrawCloudShadows / atmDrawGroundRain。
  */
 const ATMOS = {
   clockMs: DAY_MS * 0.16,
@@ -73,7 +73,7 @@ function updateAtmosphere(dt){
   /* 云相位：晴天飘得慢，阴雨被风吹得快 */
   const cloudSpd = ATMOS.weather === 'clear' ? 0.9 : ATMOS.weather === 'cloudy' ? 1.35 : 2.0;
   ATMOS.cloud = (ATMOS.cloud + dt * 0.00009 * cloudSpd) % 1;
-  /* 风：阴雨更大；windSway 保持 0..1 供 42-decor-art.js 摇摆 */
+  /* 风：阴雨更大；windSway 保持 0..1 供 decor-art.js 摇摆 */
   const windy = ATMOS.weather === 'rain' ? 0.0026 : ATMOS.weather === 'cloudy' ? 0.0015 : 0.0011;
   ATMOS.windPhase += dt * windy;
   ATMOS.windSway = Math.sin(ATMOS.windPhase) * 0.5 + 0.5;
@@ -405,7 +405,7 @@ function atmDrawClouds(g, nl){
     }
   }
 }
-/* 云影：投在地图上，由 46-shadow.js 在地面细节层调用；用径向渐变，避免地上出现硬边椭圆 */
+/* 云影：投在地图上，由 shadow.js 在地面细节层调用；用径向渐变，避免地上出现硬边椭圆 */
 function atmDrawCloudShadows(g, cx, cy){
   const l = atmosLight();
   const base = (0.045 + 0.055 * l) * (ATMOS.weather === 'rain' ? 0.6 : 1) * (1 - ATMOS.flash * 0.8);
@@ -536,7 +536,7 @@ function atmDrawBolt(g){
 }
 
 /* ============================================================
- * 两个渲染钩子（50-render.js 只传 ctx，cx/cy 缺省时自己算）
+ * 两个渲染钩子（render.js 只传 ctx，cx/cy 缺省时自己算）
  * ============================================================ */
 /* 天空渐变单独抽出来：缓存层和直画模式共用 */
 function atmDrawSky(g){

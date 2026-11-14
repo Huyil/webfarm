@@ -98,11 +98,11 @@ function buildSrcPackage() {
 ======================
 
 目录
-  src/                  源码：index.html 模板 + 11 个 css + 45 个 js（按 build.manifest.json 顺序拼接）
+  src/                  源码：index.html 模板 + src/css + src/js（js 按 data/core/render/gameplay/ui/fx/boot 归类；拼接顺序由 build.manifest.json 决定）
   tools/                工具：smoke(无头冒烟) / pixelcheck(像素回归) / render(真渲染出图) / iconshot /
                         serve(本地服务器) / devbundle(源码版拼接) / package(打包) / ascii
   deploy/               部署到 mcu.huyil.cn 的脚本与说明
-  legacy/               历史版本（v8 单文件）
+  legacy/               历史版本（v8 单文件 + 当时的切分脚本）
   build.js              构建脚本（拼 CSS/JS 进模板 → farm.html + farm.min.html）
   build.manifest.json   文件清单与版本号（加文件就往这里加一行）
   package.json          npm scripts
@@ -131,7 +131,7 @@ function buildSrcPackage() {
 
 注意
 ----
-  src/js/*.js 是被拼进**同一个 IIFE** 才有意义的（00-header.js 的 'use strict'、后面文件里定义的
+  src/js/**/*.js 是被拼进**同一个 IIFE** 才有意义的（构建期注入的 'use strict'、后面文件里定义的
   函数被更早的文件在加载期直接调用，靠的是同一作用域里的函数提升），所以：
     · 不要给 src/index.html 挂一堆 <script src="js/xxx.js">，必须走 dev-bundle.js；
     · IIFE 的括号由 build.js / tools/devbundle.js 补，源码文件里不要自己写。

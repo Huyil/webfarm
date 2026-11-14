@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /* 生成「源码版」用的拼接产物：src/dev-bundle.css + src/dev-bundle.js
  *
- * 为什么需要它：src/js/*.js 是**拼进同一个 IIFE** 才有意义的（00-header 里的 'use strict'、
- * 后面文件里定义的函数被更早的文件在加载期直接调用，靠的是同一个作用域里的函数提升）。
- * 所以不能简单给 src/index.html 挂 45 个 <script src>，必须先把它们拼成一份再交给浏览器。
+ * 为什么需要它：src/js 下的所有 .js 是**拼进同一个 IIFE** 才有意义的（后面文件里定义的函数
+ * 被更早的文件在加载期直接调用，靠的是同一个作用域里的函数提升）。
+ * 所以不能简单给 src/index.html 挂几十个 <script src>，必须先把它们拼成一份再交给浏览器。
  *
  *   node tools/devbundle.js          # 写 src/dev-bundle.{css,js}
  *   node tools/devbundle.js --stdout # 只在标准输出打印（给本地服务器按需生成用）
@@ -29,7 +29,7 @@ function read(kind, f) {
   return fs.readFileSync(path.join(SRC, kind, f), 'utf8').replace(/\s+$/, '');
 }
 
-/* 与 build.js 完全同构：css 直接拼，js 包一个 IIFE（'use strict' 在 00-header.js 里） */
+/* 与 build.js 完全同构：css 直接拼，js 包一个 IIFE（'use strict' 由这里注入） */
 function buildBundles() {
   const M = readManifest();
   const css = M.css.map(f => banner('css', f) + '\n' + read('css', f) + '\n').join('\n');
@@ -37,7 +37,7 @@ function buildBundles() {
   const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
   const js = `/* 小田园 v${M.version} · 源码版拼接产物（自动生成，别手改）\n` +
              `   生成时间 ${stamp} · 改完源码跑 node tools/devbundle.js，或开着 node tools/serve.js 刷新 /dev */\n` +
-             `(function(){\n` + jsBody + `})();\n`;
+             `(function(){\n'use strict';\n` + jsBody + `})();\n`;
   return { css, js, version: M.version, files: M };
 }
 

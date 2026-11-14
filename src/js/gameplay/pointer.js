@@ -210,7 +210,7 @@ window.addEventListener('blur', ptrsClear);
 document.addEventListener('visibilitychange', () => { if(document.hidden) ptrsClear(); });
 canvas.addEventListener('pointerleave', () => { hoverOn = false; setHover(null); state.expandPreview = null; });
 
-/* ---------- 交互指示绘制（由 50-render.js 调用） ---------- */
+/* ---------- 交互指示绘制（由 render.js 调用） ---------- */
 function drawInteractionUI(g, cx, cy){
   const w = TILE_W * SCALE, h = TILE_H * SCALE;
   const diamond = (px, py) => {

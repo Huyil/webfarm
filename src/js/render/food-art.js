@@ -1,4 +1,4 @@
-/* 44-food-art — 食材 / 加工品 / 菜品绘制库（拖拽厨房与田间共用）
+/* food-art — 食材 / 加工品 / 菜品绘制库（拖拽厨房与田间共用）
  *
  * 对外接口（签名固定，其它模块会调用）：
  *   drawVeggieField(g, cropId, x, y, ratio)  田间作物：wheat|chili|eggplant|tomato

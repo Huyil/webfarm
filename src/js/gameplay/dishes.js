@@ -1,4 +1,4 @@
-/* ============ 做菜逻辑（UI 见 68-kitchen.js） ============
+/* ============ 做菜逻辑（UI 见 kitchen.js） ============
  * 石磨：1 小麦 → 1 面粉
  * 烤箱：1 面粉 → 面包（有进度条，取晚了会焦）
  * 切菜板：1 作物 → 3 块菜块
@@ -489,7 +489,7 @@ function kitchenShelf(){
   return list;
 }
 
-/* ---------- 每帧推进（由 68-kitchen.js 的 updateKitchen 调用） ---------- */
+/* ---------- 每帧推进（由 kitchen.js 的 updateKitchen 调用） ---------- */
 function kitchenLogicTick(dt){
   const K = KITCHEN;
   autoTick(dt);            /* 限时自动化设备（驴 / 切块机） */

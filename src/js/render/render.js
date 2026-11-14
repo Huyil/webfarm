@@ -1,5 +1,5 @@
 /* ============ 渲染主循环（v9.32） ============
- * 分层缓存都在 47-render-cache.js（天空 / 地表 / 作物精灵 / 装饰精灵），
+ * 分层缓存都在 render-cache.js（天空 / 地表 / 作物精灵 / 装饰精灵），
  * 这里只按「天空 → 静态地表 → 动态地面 → 影子 → 作物 → 装饰+小人 → 交互 → 特效」组装，
  * 并负责世界层缩放与裁剪。
  *
@@ -35,7 +35,7 @@ function render(){
 
   const W0 = W, H0 = H;
   const zoom = viewZoom();
-  renderZoom = zoom;               /* 地块细节分级用（见 40-tiles.js tileLOD） */
+  renderZoom = zoom;               /* 地块细节分级用（见 tiles.js tileLOD） */
   const w = TILE_W*SCALE, h = TILE_H*SCALE, D = THICKNESS*SCALE;
 
   /* 世界层整体缩放。坐标换算（设备坐标 d ↔ 未缩放坐标 u）：

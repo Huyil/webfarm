@@ -170,7 +170,7 @@ function unpackState(d){
     if(tt.crop && CROPS[tt.crop] && CROPS[tt.crop].harvests && !tt.harvestsLeft) tt.harvestsLeft = CROPS[tt.crop].harvests;
     return tt;
   });
-  /* 老存档一次性归一（详见 55-expand.js）：操作的都是刚读出来的新档对象，不是全局 state */
+  /* 老存档一次性归一（详见 expand.js）：操作的都是刚读出来的新档对象，不是全局 state */
   if((d.v | 0) < SAVE_VER){
     const lower = normalizeOldLowerStone(st);   /* v9.5：下方「旧上限」多出来的石头还原成带杂物的草地 */
     if(lower > 0) console.info(`[迁移] 下方石头地还原为带杂物的草地：${lower} 格`);

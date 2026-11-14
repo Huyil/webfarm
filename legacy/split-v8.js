@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-/* 把 legacy/farm-v8.0.html 机械切片成 src/ 多文件源码（Phase 1，行为等价）。
+/* ===== 已归档（Phase 1 存档），不要重跑 =====
+ * 把 legacy/farm-v8.0.html 机械切片成 src/ 多文件源码（Phase 1，行为等价）。
+ * 当时按数字前缀给文件排序；现在的源码已改成不带编号、顺序由 build.manifest.json 决定，
+ * 重跑本脚本会按旧编号覆盖 src/js，且不会更新清单。留在这里只为追溯切分边界。
  * 切片是"连续无缝隙"的：所有 js 片段按顺序拼回去必须逐字符等于原 script 内容。 */
 const fs = require('fs');
 const path = require('path');
@@ -7,6 +10,12 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const LEGACY = path.join(ROOT, 'legacy', 'farm-v8.0.html');
+
+/* 防误跑：本脚本会按旧的数字编号重写 src/js，且不会更新 build.manifest.json */
+if (!process.argv.includes('--force')) {
+  console.error('已归档的 Phase 1 切分脚本：会按旧编号覆盖 src/js。确需重跑请加 --force。');
+  process.exit(1);
+}
 
 const lines = fs.readFileSync(LEGACY, 'utf8').split('\n');
 const at = n => lines[n - 1];                 // 1-based

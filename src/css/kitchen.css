@@ -1,5 +1,5 @@
 /* kitchen.css — 拖拽厨房样式
- * 深色玻璃拟态（与 v9.css 一致），尺寸一律 calc(Npx*var(--ui-scale)) 以适配 UI 缩放。
+ * 深色玻璃拟态（与 extras.css 一致），尺寸一律 calc(Npx*var(--ui-scale)) 以适配 UI 缩放。
  * 结构：货架 → 四工位 → 菜品仓库；拖拽时 .k-drop / .k-drop-bad 高亮工位。
  * 交互：单击选中（.k-sel）→ 连点工位；切菜板瞬发，只有 .k-chop / .k-chop-badge 短反馈（无进度条）。
  * 触屏：卡片 touch-action:none（拖拽），面板/工位 touch-action:pan-y + manipulation（保住纵向滚动）。

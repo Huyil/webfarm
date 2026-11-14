@@ -39,9 +39,19 @@ if (missing.length) {
   process.exit(1);
 }
 const listed = new Set([...MANIFEST.css.map(f => 'css/' + f), ...MANIFEST.js.map(f => 'js/' + f)]);
+/* 清单里的 js 可以带子目录（data/、core/…），所以孤儿检查要递归遍历 */
+function walkFiles(dir, rel = '') {
+  const out = [];
+  for (const ent of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+    const p = rel ? rel + '/' + ent.name : ent.name;
+    if (ent.isDirectory()) out.push(...walkFiles(dir, p));
+    else out.push(p);
+  }
+  return out;
+}
 const orphans = [];
 for (const dir of ['css', 'js']) {
-  for (const f of fs.readdirSync(path.join(SRC, dir))) {
+  for (const f of walkFiles(path.join(SRC, dir))) {
     if (!listed.has(dir + '/' + f)) orphans.push(`src/${dir}/${f}`);
   }
 }
@@ -212,10 +222,10 @@ function banner(f, kind) {
 }
 
 const cssRaw = MANIFEST.css.map(f => banner(f, 'css') + '\n' + read('css', f).replace(/\s+$/, '') + '\n').join('\n');
-/* 全部 js 拼进**一个 IIFE**：源码文件本身不再自带括号（否则 src/index.html 直接开
-   （45 个 <script> 分开加载）会因为「半个 IIFE」而语法错误）。括号在这里补上。 */
+/* 全部 js 按清单顺序拼进**一个 IIFE**。源码文件本身不再自带括号，也不写 'use strict'：
+   两者都在这里补，保证拆开看每个文件都只是普通语句。 */
 const jsBody = MANIFEST.js.map(f => banner(f, 'js') + '\n' + read('js', f).replace(/\s+$/, '') + '\n').join('\n');
-const jsRaw = '(function(){\n' + jsBody + '})();\n';
+const jsRaw = '(function(){\n\'use strict\';\n' + jsBody + '})();\n';
 const tpl = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
 
 const built = new Date();

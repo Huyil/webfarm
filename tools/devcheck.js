@@ -46,7 +46,7 @@ setTimeout(() => {
   ok(/dev-bundle\.css/.test(rawHtml) && !/href=["'][^"']*\/(?:base|hud|toolbar|v9)\.css/.test(rawHtml),
     '样式走 src/dev-bundle.css（拼接产物）');
   ok(/dev-bundle\.js/.test(rawHtml) && (rawHtml.match(/<script[^>]+src=/g) || []).length === 1,
-    '脚本走 src/dev-bundle.js（单个 IIFE，不是 45 个 script）');
+    '脚本走 src/dev-bundle.js（单个 IIFE，不是几十个 script）');
   /* 拼接产物必须真的含清单里的每个文件（顺序也对） */
   {
     const fs2 = require('fs'), path2 = require('path');

@@ -1,5 +1,5 @@
 /* ============ 地面细节 & 动态阴影 ============
- * 契约（由 50-render.js 调用，实现方只填空函数体）：
+ * 契约（由 render.js 调用，实现方只填空函数体）：
  *   drawGroundLayer(g, cx, cy)   地块之上、边界线下方的常驻细节（苔藓/草簇/碎石/土色高亮/水汽/云影/雨涟漪）
  *   drawShadows(g, cx, cy)       作物与小人之前绘制的投影（装饰物自带影子，这里不重复画）
  * 实现要点：
@@ -78,7 +78,7 @@ function shDrawTileDetails(g, cx, cy){
   }
   if(any){ g.fillStyle = 'rgba(26,18,10,.15)'; g.fill(); }
 
-  /* ② 耕地纹理：改为在 40-tiles.js 里铺「图案」(pattern)，不再画线条 */
+  /* ② 耕地纹理：改为在 tiles.js 里铺「图案」(pattern)，不再画线条 */
 
   /* ② 苔藓斑（荒地） */
   any = false; g.beginPath();
@@ -299,7 +299,7 @@ function drawShadows(g, cx, cy){
     any = true;
   }
   if(any){ g.fillStyle = shStyleFull; g.fill(); }
-  /* 小人贴地那层影子由 43-player.js 自己画，这里补一层随太阳拉长的投影 */
+  /* 小人贴地那层影子由 player.js 自己画，这里补一层随太阳拉长的投影 */
   const p = state.player;
   if(p){
     const { x, y } = playerScreen(ccx, ccy);

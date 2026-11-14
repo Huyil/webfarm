@@ -54,7 +54,7 @@ function waterTile(t){
   if(t.watered) return { ok:false, msg:'已经浇过' };
   t.watered = true;
   trackAction('water');
-  return { ok:true, msg:'💧 浇水完成' };
+  return { ok:true, msg:'浇水完成' };
 }
 
 function fertilizeTile(t, premium){
@@ -68,7 +68,7 @@ function fertilizeTile(t, premium){
     /* 高级肥料除了催熟，还给 5 次「收完不返草地」 */
     t.fertLeft = Math.max(t.fertLeft || 0, PREMIUM_KEEP);
     trackAction('premium');
-    return { ok:true, msg:'✨ 高级肥料：立刻催熟！（这块地还能收 ' + t.fertLeft + ' 次不返草地）', ripened:true };
+    return { ok:true, msg:'高级肥料：立刻催熟！（这块地还能收 ' + t.fertLeft + ' 次不返草地）', ripened:true };
   }
   if(t.fertile) return { ok:false, msg:'已施过肥' };
   if(state.fertilizer <= 0) return { ok:false, msg:'肥料不足' };
@@ -76,7 +76,7 @@ function fertilizeTile(t, premium){
   t.fertile = true;
   t.fertLeft = Math.max(t.fertLeft || 0, FERT_KEEP);
   trackAction('fert');
-  return { ok:true, msg:'🧪 施肥完成（这块地还能收 ' + t.fertLeft + ' 次不返草地）' };
+  return { ok:true, msg:'施肥完成（这块地还能收 ' + t.fertLeft + ' 次不返草地）' };
 }
 
 /* 收获：多次收获作物会原地复熟 */
@@ -146,7 +146,7 @@ function applyRainWatering(){
     if(t.state === 'growing' && !t.watered){ t.watered = true; n++; }
   }
   if(n > 0){
-    if(!rainDone){ rainDone = true; toast(`🌧️ 下雨了，${n} 块地自动喝饱水（雨天不用浇水）`); }
+    if(!rainDone){ rainDone = true; toast(`下雨了，${n} 块地自动喝饱水（雨天不用浇水）`, 'rain'); }
     save();
   }
 }

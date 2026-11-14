@@ -5,7 +5,7 @@
  *   框选     → 用最近邻排出一条顺路，小人一路做完；中途点别处可取消
  */
 /* 石头地面上所有工具的统一提示 */
-const STONE_ONLY_DECOR = '这里只能放置装饰（侧栏 🏡 装饰）';
+const STONE_ONLY_DECOR = '这里只能放置装饰（侧栏「装饰」）';
 
 function applyToolAt(gx, gy, silent){
   const t = getTile(gx, gy);
@@ -56,7 +56,7 @@ function runTool(gx, gy, silent, toolOverride){
     if(t.stone){ if(!silent){ toast(STONE_ONLY_DECOR); SFX.play('error'); } return; }
     /* ③ 没装饰：农场内把荒地开垦成耕地 */
     if(!inFarm(gx, gy)){
-      if(!silent){ toast('农场外的地要先扩建（侧栏 💰 扩建）'); SFX.play('error'); }
+      if(!silent){ toast('农场外的地要先扩建（侧栏「扩建」）', 'coins'); SFX.play('error'); }
       return;
     }
     if(t.state === 'wild'){
@@ -106,7 +106,7 @@ function runTool(gx, gy, silent, toolOverride){
       SFX.play('achieve');
       spawnParticles(sp.x, sp.y - 14, 'sparkle');
       fxFlash(sp.x, sp.y - 14, '#fff3b0', 96);
-      fxToastBig('✨ 催熟！');
+      fxToastBig('催熟！');
       checkAchievements();
     } else {
       SFX.play('fert');
@@ -123,12 +123,12 @@ function runTool(gx, gy, silent, toolOverride){
     if(!r.ok){ if(!silent){ toast(r.msg); SFX.play('error'); } return; }
     const def = CROPS[r.cropId];
     if(state.warehouseEnabled){
-      flyToStore(t, def.emoji);
+      flyToStore(t, def.icon);
       if(!silent) floatPlus(t, 1);
-      if(!silent) toast(`收获 ${def.emoji} ${def.produce}${r.multi ? '（还会继续长）' : ''}`);
+      if(!silent) toast(`收获 ${def.produce}${r.multi ? '（还会继续长）' : ''}`, def.icon);
     } else {
       trackAction('coins', r.gain);
-      floatPlusText(t, '+' + r.gain + '💰');
+      floatPlusText(t, '+' + r.gain);
       fxCoinBurst(sp.x, sp.y - 12, r.gain);
       if(!silent) toast(`卖出 +${r.gain} 金`);
     }

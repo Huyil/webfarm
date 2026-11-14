@@ -22,11 +22,11 @@ function renderAchievements(){
     const card = document.createElement('div');
     card.className = 'ach-card' + (unlocked ? ' unlocked' : '') + (claimed ? ' claimed' : '');
     card.innerHTML = `
-      <div class="ach-icon">${a.icon}</div>
+      <div class="ach-icon">${iconHTML(a.icon)}</div>
       <div class="ach-info">
         <div class="ach-name">${a.name}</div>
         <div class="ach-desc">${a.desc}</div>
-        <div class="ach-reward">🎁 ${achRewardText(a.reward)}</div>
+        <div class="ach-reward">${iconHTML('gift')} ${achRewardText(a.reward)}</div>
         ${unlocked ? '' : `<div class="ach-progress">${getAchProgress(a.id)}</div>`}
       </div>`;
     const btn = document.createElement('button');
@@ -41,7 +41,7 @@ function renderAchievements(){
   const allBtn = document.getElementById('claimAllAchBtn');
   if(allBtn){
     allBtn.style.display = claimable ? '' : 'none';
-    allBtn.textContent = `🏆 一键领取成就奖励（${claimable}）`;
+    allBtn.innerHTML = iconHTML('trophy') + ' 一键领取成就奖励（' + claimable + '）';
   }
 }
 function getAchProgress(id){
@@ -90,7 +90,7 @@ function renderTaskList(){
   const head = document.createElement('div');
   head.className = 'r-meta';
   head.style.padding = '0 4px 10px';
-  head.textContent = '每天刷新 3 个任务，奖励是普通肥料 / 高级肥料（✨ 高级肥料可直接催熟）。';
+  head.textContent = '每天刷新 3 个任务，奖励是普通肥料 / 高级肥料（高级肥料可直接催熟）。';
   el.appendChild(head);
 
   state.tasks.list.forEach(t => {
@@ -122,7 +122,7 @@ function renderTaskList(){
       return def && !t.claimed && getTaskProgress(t.id) >= def.target;
     }).length;
     claimAll.style.display = n ? '' : 'none';
-    claimAll.textContent = `✨ 一键领取（${n}）`;
+    claimAll.innerHTML = iconHTML('sparkles') + ' 一键领取（' + n + '）';
   }
 }
 function renderChangelog(){
@@ -133,7 +133,7 @@ function renderChangelog(){
     const box = document.createElement('div');
     box.className = 'log-box';
     box.innerHTML = `
-      <div class="log-head"><span class="log-ver">${log.version}</span>${log.by ? `<span class="tag log-by" title="提交作者">👤 ${log.by}</span>` : ''}<span class="log-title">${log.title}</span><span class="log-date">${log.date}</span></div>
+      <div class="log-head"><span class="log-ver">${log.version}</span>${log.by ? `<span class="tag log-by" title="提交作者">${iconHTML('user')} ${log.by}</span>` : ''}<span class="log-title">${log.title}</span><span class="log-date">${log.date}</span></div>
       <ul class="log-items">${log.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
     el.appendChild(box);
   }

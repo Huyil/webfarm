@@ -100,8 +100,14 @@ const frames = n => new Promise(res => {
   ok(/\d+\.\d+\.\d+/.test(W.document.title), '标题带版本号', W.document.title);
   eq(W.document.querySelectorAll('#sidePanel button .sl').length, 12, '侧栏 12 个按钮都有文字标签（v9.28 多了「🤖 自动农活」）');
   ok(!!W.document.getElementById('lbBtn'), '顶栏也有 🏅 排行榜入口（两个入口都能点开）');
-  eq(W.document.getElementById('lbBtn').textContent, '🏅', '顶栏入口就是奖牌图标');
+  eq(W.document.querySelector('#lbBtn .ico').getAttribute('data-icon'), 'medal', '顶栏入口就是奖牌图标');
   eq(W.document.querySelectorAll('#toolbar button').length, 5, '工具栏 5 个工具（v9.19 起「催熟」并进「肥料」的小凸起）');
+  eq(W.document.querySelectorAll('#sidePanel .si svg').length, 12, '侧栏 12 个图标都已注入 SVG');
+  ok(!!W.document.querySelector('#lbBtn svg'), '顶栏奖牌入口已注入 SVG');
+  const pict = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF\u2B00-\u2BFF]/u;
+  const uiText = ['.hud', '#sidePanel', '#toolbar', '#hudMore']
+    .map(sel => W.document.querySelector(sel)).filter(Boolean).map(e => e.textContent).join('');
+  ok(!pict.test(uiText), '主界面控件文本里不再有 emoji', uiText.slice(0, 80));
 
   const D = W.FarmDebug;
   if (!D) { ok(false, '游戏暴露 FarmDebug 调试接口'); dom.window.close(); process.exit(1); }
@@ -248,8 +254,12 @@ const frames = n => new Promise(res => {
     ok(!!api.CROPS[id], `作物 ${id} 存在`);
   ok(api.CROPS.strawberry.harvests >= 8, '草莓是「多轮收获」（10 轮）');
   ok(api.CROPS.wheat.noChop === true, '小麦标记为不可切块');
-  const emojis = Object.keys(api.CROPS).map(k => api.CROPS[k].emoji);
-  eq(new Set(emojis).size, emojis.length, '没有两种作物共用同一个图标');
+  const cropIcons = Object.keys(api.CROPS).map(k => api.CROPS[k].icon);
+  eq(new Set(cropIcons).size, cropIcons.length, '没有两种作物共用同一个图标');
+  ok(Object.keys(api.CROPS).every(k => !!api.ICONS[api.CROPS[k].icon]), '作物图标名都能在图标库找到');
+  ok(api.ACHIEVEMENTS.every(a => !!api.ICONS[a.icon]), '成就图标名都能在图标库找到');
+  ok(Object.keys(api.DECOR_META).every(k => !!api.ICONS[api.DECOR_META[k].icon]), '装饰图标名都能在图标库找到');
+  ok(api.LB_METRICS.every(m => !!api.ICONS[m.icon]), '榜单图标名都能在图标库找到');
   ok(api.CROPS.chili.harvests >= 2, '辣椒是多次收获作物');
   ok(api.CROPS.eggplant.harvests >= 2 && api.CROPS.tomato.harvests >= 2, '茄子/西红柿是多次收获作物');
   ok(!api.CROPS.rice.harvests, '水稻是单次收获');
@@ -481,7 +491,7 @@ const frames = n => new Promise(res => {
 
   section('存档槽位');
   st().coins = 777;
-  st().dishes = { 'bread|perfect|flour': { n: 2, name:'面包', emoji:'🍞', value:78, quality:'perfect', pieces:['flour'] } };
+  st().dishes = { 'bread|perfect|flour': { n: 2, name:'面包', icon:'bread', value:78, quality:'perfect', pieces:['flour'] } };
   ok(api.saveToSlot(2), '写入槽位 2');
   ok(!!W.localStorage.getItem(api.slotKey(2)), '槽位 2 落到 localStorage');
   const meta = api.slotMeta(2);
@@ -997,6 +1007,11 @@ const frames = n => new Promise(res => {
     api.openSheet('kitchen');
     ok($('kitchenModal').classList.contains('show'), '厨房弹层打开');
     ok($('kitchenBody').children.length > 0, '厨房界面有内容');
+    for(const sel of ['[data-stock-hint]', '[data-pieces-hint]']){
+      const hint = $('kitchenBody').querySelector(sel);
+      ok(!!hint && !!hint.querySelector('svg'), '厨房提示 ' + sel + ' 的图标已渲染成 SVG');
+      ok(!!hint && !/<\s*span/i.test(hint.textContent), '厨房提示 ' + sel + ' 没有把 HTML 当文本');
+    }
     let keys = KD.shelfKeys();
     ok(keys.includes('crop:wheat') && keys.includes('crop:carrot') && keys.includes('prep:flour'),
       '货架列出小麦/胡萝卜/面粉', keys.join(','));
@@ -1910,6 +1925,7 @@ const frames = n => new Promise(res => {
     near(parseFloat(pbar2.style.width), 100, 1, '走满 = 进度条 100%');
     const stNode = W.document.querySelector('#kitchenBody [data-state="pot"]');
     ok(/焦糊/.test(stNode.textContent), '走满后状态变成焦糊', stNode.textContent);
+    ok(!!stNode.querySelector('svg') && !/<\s*span/i.test(stNode.textContent), '焦糊状态的图标已渲染成 SVG');
     const take = api.cook.potTake(false);
     eq(take.quality, 'burnt', '此时出锅 = 焦糊');
     /* 自动出锅也要能触发（同一个冻结点会导致它永不触发）——
@@ -2591,7 +2607,7 @@ const frames = n => new Promise(res => {
 
     /* ② 面包切片：1 面包 → 2 片，每片比对半分多 2 金 */
     st().dishes = {};
-    const bread = api.cook.addDish({ id:'bread', name:'面包', emoji:'🍞', base:60, pieces:['flour'], counts:{ flour:1 } }, 'normal');
+    const bread = api.cook.addDish({ id:'bread', name:'面包', icon:'bread', base:60, pieces:['flour'], counts:{ flour:1 } }, 'normal');
     const bkey = Object.keys(st().dishes).find(k => /^bread\|/.test(k));
     ok(!!bkey, '面包进了菜品仓库', String(bkey));
     eq(bread.value, 60, '面包 60 金');
@@ -2608,14 +2624,14 @@ const frames = n => new Promise(res => {
     eq(st().dishes[bkey].n, before - 1, '面包少了一个');
     eq(st().dishes[skey].value * 2, 64, '两片合计 64 金（比整个面包多 4 金）');
     /* 精品面包 → 精品面包片（品质跟着走） */
-    const pb = api.cook.addDish({ id:'bread', name:'面包', emoji:'🍞', base:60, pieces:['flour'], counts:{ flour:1 } }, 'perfect');
+    const pb = api.cook.addDish({ id:'bread', name:'面包', icon:'bread', base:60, pieces:['flour'], counts:{ flour:1 } }, 'perfect');
     const pbkey = Object.keys(st().dishes).find(k => st().dishes[k] === pb);
     api.cook.boardSliceBread(pbkey);
     const pskey = Object.keys(st().dishes).find(k => /^slice\|perfect\|/.test(k));
     ok(!!pskey, '精品面包切出精品面包片');
     ok(st().dishes[pskey].value > 32, '精品面包片更贵', String(st().dishes[pskey].value));
     /* 别的菜不能切片 */
-    const stew = api.cook.addDish({ id:'stew', name:'红烩土豆', emoji:'🍲', base:50, pieces:['potato'], counts:{ potato:2 } }, 'normal');
+    const stew = api.cook.addDish({ id:'stew', name:'红烩土豆', icon:'pot', base:50, pieces:['potato'], counts:{ potato:2 } }, 'normal');
     const stkey = Object.keys(st().dishes).find(k => st().dishes[k] === stew);
     ok(!api.cook.boardSliceBread(stkey).ok, '别的菜不能切片（只有面包）');
     /* 货架上能看到面包（能拖到菜板） */
@@ -2652,12 +2668,12 @@ const frames = n => new Promise(res => {
     ok(rt.autoFarm && rt.autoFarm.box.x1 === 2 && rt.autoFarm.seeds.join() === 'wheat,carrot', '读档还原（区域 + 轮作种子）');
     /* ② 饱食度公式：材料块数 × 10 × 品质系数 */
     st().dishes = {};
-    api.cook.addDish({ id:'disanxian', name:'地三鲜', emoji:'🥘', base:100, pieces:['potato','eggplant','chili'], counts:{ potato:1, eggplant:1, chili:1 } }, 'normal');
+    api.cook.addDish({ id:'disanxian', name:'地三鲜', icon:'stew', base:100, pieces:['potato','eggplant','chili'], counts:{ potato:1, eggplant:1, chili:1 } }, 'normal');
     const k1 = Object.keys(st().dishes)[0];
     eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '3 材料的菜 = 30 点饱食度');
     eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '数值 = 3 块 × 每块点数（现在每块 25 点）',
       '每块 ' + AF.AF_SAT_PER_MATERIAL + ' 点 → ' + AF.dishSatiety(k1) + ' 点');
-    const pr = api.cook.addDish({ id:'soup', name:'田园浓汤', emoji:'🥣', base:100, pieces:['carrot'], counts:{ carrot:1 } }, 'perfect');
+    const pr = api.cook.addDish({ id:'soup', name:'田园浓汤', icon:'bowl', base:100, pieces:['carrot'], counts:{ carrot:1 } }, 'perfect');
     const pkey = Object.keys(st().dishes).find(k => st().dishes[k] === pr);
     eq(AF.dishSatiety(pkey), Math.round(AF.AF_SAT_PER_MATERIAL * 1.5), '精品 1 材料 = 每块点数 ×1.5');
     /* ③ 只有成品菜能当饭；贵菜不能选 */
@@ -2666,7 +2682,7 @@ const frames = n => new Promise(res => {
       '原材料/菜块/面粉不会出现在口粮清单里（只有菜品仓库里的菜）');
     const cheapKey = k1, cheapValue = st().dishes[k1].value;
     ok(AF.rationOK(k1), '普通菜可以当口粮', String(cheapValue) + ' 金');
-    const rich = api.cook.addDish({ id:'mix', name:'杂烩', emoji:'🍲', base:AF.AF_RATION_MAX_VALUE + 500, pieces:['potato'], counts:{ potato:1 } }, 'normal');
+    const rich = api.cook.addDish({ id:'mix', name:'杂烩', icon:'pot', base:AF.AF_RATION_MAX_VALUE + 500, pieces:['potato'], counts:{ potato:1 } }, 'normal');
     const richKey = Object.keys(st().dishes).find(k => st().dishes[k] === rich);
     ok(!AF.rationOK(richKey), '价值 >' + AF.AF_RATION_MAX_VALUE + ' 金的菜不能当口粮', String(rich.value) + ' 金');
     /* ④ 花钱：没饱食度就自动吃口粮 */
@@ -2759,7 +2775,7 @@ const frames = n => new Promise(res => {
     ok(/饱食度/.test($('autoFarmBody').textContent) && /42/.test($('autoFarmBody').textContent),
       '面板顶部显示当前饱食度', '42 点');
     api.renderHUD();
-    ok(/🍚42/.test($('autoFarmState').textContent), '侧栏按钮也显示饱食度', $('autoFarmState').textContent);
+    ok(/42/.test($('autoFarmState').textContent) && !!$('autoFarmState').querySelector('[data-icon="rice"]'), '侧栏按钮也显示饱食度', $('autoFarmState').textContent);
 
     /* ⑨ 面板：该有的控件都在 */
     api.openAutoFarm();
@@ -3492,7 +3508,7 @@ const frames = n => new Promise(res => {
     eq(mine.farmW, 9, '统计：田宽'); eq(mine.farmH, 7, '统计：田高');
     eq(mine.ach, 3, '统计：成就数'); eq(mine.tasks, 8, '统计：完成任务数');
     eq(api.LB_METRICS.length, 5, '正好五个榜单项目');
-    eq(api.LB_METRICS.map(m => m.icon).join(''), '💰🌾🗺️🏆✅', '五项图标各就各位');
+    eq(api.LB_METRICS.map(m => m.icon).join(','), 'coins,wheat,map,trophy,check-circle', '五项图标各就各位');
 
     /* ── 五个项目都能排序（含同分兜底） ── */
     const list = [

@@ -47,6 +47,7 @@
     "gameplay/decor-bag.js",
     "gameplay/expand.js",
     "gameplay/autofarm.js",
+    "ui/icons.js",
     "ui/hud.js",
     "ui/modals.js",
     "ui/seedlist.js",

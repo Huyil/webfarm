@@ -98,6 +98,7 @@ function applyPayload(d){
   return true;
 }
 function init(){
+  injectIcons(document);             /* 先把静态 HTML 里的 data-icon 换成 SVG */
   resize(); applyUIScale();
   const migrated = migrateLegacy();
 
@@ -162,7 +163,7 @@ window.FarmDebug = {
     step: ms => advanceGrowth(ms),
     /* 小人 */
     updatePlayer, playerGoto, playerActionT, PLAYER_SPEED, ACTION_MS,
-    CROPS, cropReadyMs, cropTotalMs, cropProfit, cropRate,
+    CROPS, cropReadyMs, cropTotalMs, cropProfit, cropRate, ICONS, iconHTML,
     applyRainWatering, rollWeather, updateAtmosphere, hourFromClock, DAY_PHASES,
     /* 厨房 */
     cook: { mill, ovenPut, ovenTake, boardPut, boardSliceBread, potAdd, potAddMany, potTake, sellDish, addDish, kitchenShelf },

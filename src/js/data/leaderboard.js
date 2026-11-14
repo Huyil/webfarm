@@ -11,11 +11,11 @@ const LB_TABLE_MAX = 50;                 /* 榜单最多显示多少行 */
 
 /* 五个榜单项目：图标 + 取值方式。点一下表头/图标就切换排序。 */
 const LB_METRICS = [
-  { id:'coins',   icon:'💰', name:'金币', short:'金币',   of: e => e.coins | 0,        fmt: v => v.toLocaleString('en-US') },
-  { id:'harvest', icon:'🌾', name:'收获', short:'收获数', of: e => e.harvest | 0,      fmt: v => v + ' 株' },
-  { id:'area',    icon:'🗺️', name:'田块', short:'田块尺寸', of: e => (e.farmW | 0) * (e.farmH | 0), fmt: (v, e) => (e.farmW | 0) + '×' + (e.farmH | 0) },
-  { id:'ach',     icon:'🏆', name:'成就', short:'成就数', of: e => e.ach | 0,          fmt: v => v + ' / 30' },
-  { id:'tasks',   icon:'✅', name:'任务', short:'完成任务', of: e => e.tasks | 0,      fmt: v => v + ' 个' },
+  { id:'coins',   icon:'coins', name:'金币', short:'金币',   of: e => e.coins | 0,        fmt: v => v.toLocaleString('en-US') },
+  { id:'harvest', icon:'wheat', name:'收获', short:'收获数', of: e => e.harvest | 0,      fmt: v => v + ' 株' },
+  { id:'area',    icon:'map', name:'田块', short:'田块尺寸', of: e => (e.farmW | 0) * (e.farmH | 0), fmt: (v, e) => (e.farmW | 0) + '×' + (e.farmH | 0) },
+  { id:'ach',     icon:'trophy', name:'成就', short:'成就数', of: e => e.ach | 0,          fmt: v => v + ' / 30' },
+  { id:'tasks',   icon:'check-circle', name:'任务', short:'完成任务', of: e => e.tasks | 0,      fmt: v => v + ' 个' },
 ];
 function lbMetric(id){ return LB_METRICS.find(m => m.id === id) || LB_METRICS[0]; }
 

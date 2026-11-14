@@ -31,10 +31,10 @@ function renderStore(){
     const counts = { crop: CROP_IDS.reduce((a, id) => a + (state.bag[id] || 0), 0),
                      prep: Object.values(state.pieces).reduce((a, b) => a + b, 0) + (state.prep.flour || 0),
                      dish: dishTotal() };
-    for(const [key, label] of [['crop','🥕 作物'],['prep','🔪 备料'],['dish','🍳 菜品']]){
+    for(const [key, label, ico] of [['crop','作物','carrot'],['prep','备料','knife'],['dish','菜品','pan']]){
       const b = document.createElement('button');
       b.className = 'tab' + (storeTab === key ? ' active' : '');
-      b.textContent = `${label}${counts[key] ? ' ' + counts[key] : ''}`;
+      b.innerHTML = iconHTML(ico) + ' ' + label + (counts[key] ? ' ' + counts[key] : '');
       b.onclick = () => { storeTab = key; SFX.play('click'); renderStore(); };
       tabs.appendChild(b);
     }
@@ -106,12 +106,12 @@ function renderStoreCrops(el){
       { label:'全卖', fn:() => sellCrop(id, n) },
     ]);
   }
-  if(!any) el.innerHTML = '<div class="empty">仓库空空如也 🌱<br><span class="r-meta">去种点东西吧</span></div>';
+  if(!any) el.innerHTML = '<div class="empty">仓库空空如也 ' + iconHTML('sprout') + '<br><span class="r-meta">去种点东西吧</span></div>';
   else {
     const bar = document.createElement('div');
     bar.className = 'wh-actions';
     const all = document.createElement('button');
-    all.className = 'mini sell'; all.textContent = '💸 一键全卖作物';
+    all.className = 'mini sell'; all.innerHTML = iconHTML('coins') + ' 一键全卖作物';
     all.onclick = () => {
       let gain = 0, cnt = 0;
       for(const id of CROP_IDS){
@@ -140,15 +140,15 @@ function renderStorePrep(el){
     any = true;
     storeRow(el, 'piece:' + id, CROPS[id].produce + '块', '可下锅 · 也可进烤箱烤（精品/一般/焦糊）· 不可直接出售', n, []);
   }
-  if(!any) el.innerHTML = '<div class="empty">还没有备料 🔪<br><span class="r-meta">去厨房把小麦磨成面粉、把菜切块</span></div>';
+  if(!any) el.innerHTML = '<div class="empty">还没有备料 ' + iconHTML('knife') + '<br><span class="r-meta">去厨房把小麦磨成面粉、把菜切块</span></div>';
 }
 function renderStoreDishes(el){
   const keys = Object.keys(state.dishes);
-  if(!keys.length){ el.innerHTML = '<div class="empty">还没有做好的菜 🍳<br><span class="r-meta">打开厨房试试</span></div>'; return; }
+  if(!keys.length){ el.innerHTML = '<div class="empty">还没有做好的菜 ' + iconHTML('pan') + '<br><span class="r-meta">打开厨房试试</span></div>'; return; }
   for(const key of keys){
     const d = state.dishes[key];
     const pieces = (d.pieces || []).map(itemName).join('+') || '—';
-    storeRow(el, 'dish:' + key, `${d.name}${d.qtag || ''}`, `${d.qname || '一般'} · 单价 ${d.value} 金 · 用料：${pieces}`, d.n, [
+    storeRow(el, 'dish:' + key, `${d.name} ${qualityIconHTML(d.quality)}`, `${d.qname || '一般'} · 单价 ${d.value} 金 · 用料：${pieces}`, d.n, [
       { label:'卖1',  fn:() => sellDishUI(key, 1) },
       { label:'全卖', fn:() => sellDishUI(key, d.n) },
     ]);
@@ -156,7 +156,7 @@ function renderStoreDishes(el){
   const bar = document.createElement('div');
   bar.className = 'wh-actions';
   const all = document.createElement('button');
-  all.className = 'mini sell'; all.textContent = '💸 一键全卖菜品';
+  all.className = 'mini sell'; all.innerHTML = iconHTML('coins') + ' 一键全卖菜品';
   all.onclick = () => {
     let gain = 0;
     for(const key of Object.keys(state.dishes)) gain += sellDish(key, state.dishes[key].n);

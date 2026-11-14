@@ -35,7 +35,7 @@ function renderSlots(){
   mig.className = 'slot-btns';
   mig.style.marginBottom = '10px';
   const mb = document.createElement('button');
-  mb.className = 'mini primary'; mb.textContent = '📦 存档迁移（导出 / 导入）';
+  mb.className = 'mini primary'; mb.innerHTML = iconHTML('box') + ' 存档迁移（导出 / 导入）';
   mb.onclick = () => { SFX.play('click'); openTransfer(); };
   mig.appendChild(mb);
   el.appendChild(mig);
@@ -51,7 +51,7 @@ function renderSlots(){
       </div>
       <div class="slot-body">
         ${m.exists
-          ? `💰 ${m.coins} 金 · 🏆 ${m.ach} 成就 · 🍳 ${m.dishes} 道菜 · 📦 ${m.crop} 件作物
+          ? `${iconHTML('coins')} ${m.coins} 金 · ${iconHTML('trophy')} ${m.ach} 成就 · ${iconHTML('pan')} ${m.dishes} 道菜 · ${iconHTML('box')} ${m.crop} 件作物
              <div class="r-meta">保存于 ${fmtTime(m.savedAt)}</div>`
           : '<span class="r-meta">空槽位</span>'}
       </div>`;

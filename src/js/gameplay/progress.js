@@ -79,12 +79,12 @@ function getTaskProgress(taskId){
 }
 function grantReward(reward){
   const got = [];
-  if(reward.fert){ state.fertilizer += reward.fert; got.push(`🧪×${reward.fert}`); }
-  if(reward.premium){ state.premium += reward.premium; got.push(`✨×${reward.premium}`); }
+  if(reward.fert){ state.fertilizer += reward.fert; got.push('肥料×' + reward.fert); }
+  if(reward.premium){ state.premium += reward.premium; got.push('高级肥料×' + reward.premium); }
   if(reward.decor){                       /* 每日任务也会送地砖 / 装饰 */
     for(const k in reward.decor){
       state.decorBag[k] = (state.decorBag[k] || 0) + reward.decor[k];
-      got.push((DECOR_META[k] ? DECOR_META[k].icon : '🏡') + '×' + reward.decor[k]);
+      got.push((DECOR_META[k] ? DECOR_META[k].name : '装饰') + '×' + reward.decor[k]);
     }
   }
   return got.join(' ');
@@ -124,20 +124,20 @@ function claimTask(taskId){
 function achRewardText(reward){
   if(!reward) return '';
   const parts = [];
-  if(reward.fert) parts.push('🧪×' + reward.fert);
-  if(reward.premium) parts.push('✨×' + reward.premium);
-  if(reward.decor) for(const k in reward.decor) parts.push((DECOR_META[k] ? DECOR_META[k].icon : '🏡') + '×' + reward.decor[k]);
+  if(reward.fert) parts.push(iconHTML('flask') + '×' + reward.fert);
+  if(reward.premium) parts.push(iconHTML('sparkles') + '×' + reward.premium);
+  if(reward.decor) for(const k in reward.decor) parts.push(iconHTML(DECOR_META[k] ? DECOR_META[k].icon : 'house') + '×' + reward.decor[k]);
   return parts.join(' ') || '—';
 }
 function grantAchReward(reward){
   if(!reward) return '';
   const got = [];
-  if(reward.fert){ state.fertilizer += reward.fert; got.push('🧪×' + reward.fert); }
-  if(reward.premium){ state.premium += reward.premium; got.push('✨×' + reward.premium); }
+  if(reward.fert){ state.fertilizer += reward.fert; got.push('肥料×' + reward.fert); }
+  if(reward.premium){ state.premium += reward.premium; got.push('高级肥料×' + reward.premium); }
   if(reward.decor){
     for(const k in reward.decor){
       state.decorBag[k] = (state.decorBag[k] || 0) + reward.decor[k];
-      got.push((DECOR_META[k] ? DECOR_META[k].icon : '🏡') + '×' + reward.decor[k]);
+      got.push((DECOR_META[k] ? DECOR_META[k].name : '装饰') + '×' + reward.decor[k]);
     }
   }
   return got.join(' ');
@@ -152,7 +152,7 @@ function claimAchievement(id){
   const got = grantAchReward(a.reward);
   SFX.play('achieve');
   renderHUD(); renderAchievements(); updateHudDots(); save();
-  toast(`🏆 ${a.name} 奖励：${got}`);
+  toast(`${a.name} 奖励：${got}`, 'trophy');
   return { ok:true, got };
 }
 function claimAllAchievements(){
@@ -174,9 +174,9 @@ function showAchToast(a){
   const el = document.createElement('div');
   el.className = 'ach-toast';
   el.innerHTML = `
-    <span class="ach-toast-icon">${a.icon}</span>
+    <span class="ach-toast-icon">${iconHTML(a.icon)}</span>
     <div>
-      <div class="ach-toast-label">🏆 成就解锁</div>
+      <div class="ach-toast-label">${iconHTML('trophy')} 成就解锁</div>
       <div class="ach-toast-name">${a.name}</div>
     </div>`;
   document.body.appendChild(el);

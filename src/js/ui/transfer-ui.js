@@ -12,7 +12,7 @@ function tfSizeKB(text){ return (text.length / 1024).toFixed(1) + ' KB'; }
 function tfSlotLabel(n){
   const m = slotMeta(n);
   if(!m.exists) return '空槽位';
-  return `💰 ${m.coins} · 🏆 ${m.ach} 成就 · ${fmtTime(m.savedAt)}`;
+  return `${iconHTML('coins')} ${m.coins} · ${iconHTML('trophy')} ${m.ach} 成就 · ${fmtTime(m.savedAt)}`;
 }
 function renderTransfer(){
   const el = document.getElementById('transferBody');
@@ -26,9 +26,9 @@ function renderTransfer(){
   u.shareOk = (typeof navigator !== 'undefined' && !!navigator.share);
   const risk = tfStorageRisk();
   const iosHint = risk
-    ? '<div class="tf-warn">⚠️ 这台设备可能随时清掉网页存档（iOS 上 7 天没打开就会清、无痕模式也是）。建议把存档导出留一份，或者「添加到主屏幕」再玩。</div>'
+    ? '<div class="tf-warn">' + iconHTML('warning') + ' 这台设备可能随时清掉网页存档（iOS 上 7 天没打开就会清、无痕模式也是）。建议把存档导出留一份，或者「添加到主屏幕」再玩。</div>'
     : '';
-  const noCrypto = tfHasCrypto() ? '' : '<div class="tf-warn">⚠️ 这台设备的浏览器不支持加密接口，导出/导入用不了（换 Safari / Chrome 新版）。</div>';
+  const noCrypto = tfHasCrypto() ? '' : '<div class="tf-warn">' + iconHTML('warning') + ' 这台设备的浏览器不支持加密接口，导出/导入用不了（换 Safari / Chrome 新版）。</div>';
   const cur = currentSlot() || 1;
 
   /* ---------- 导出区 ---------- */
@@ -58,10 +58,10 @@ function renderTransfer(){
       <div class="tf-box">
         <div class="tf-prev">
           <b>存档摘要</b>
-          <div class="r-meta">💰 ${d.coins || 0} 金 · 🗺️ ${(m.w || 0)}×${(m.h || 0)}（${tiles} 块地）
-            · 🏆 ${Object.keys(d.achievements || {}).length} 成就
-            · 🍳 ${Object.keys(d.dishes || {}).length} 种菜
-            · 👤 ${tfEsc2(d.playerName || '（没起名）')}</div>
+          <div class="r-meta">${iconHTML('coins')} ${d.coins || 0} 金 · ${iconHTML('map')} ${(m.w || 0)}×${(m.h || 0)}（${tiles} 块地）
+            · ${iconHTML('trophy')} ${Object.keys(d.achievements || {}).length} 成就
+            · ${iconHTML('pan')} ${Object.keys(d.dishes || {}).length} 种菜
+            · ${iconHTML('user')} ${tfEsc2(d.playerName || '（没起名）')}</div>
           <div class="r-meta">导出时间：${fmtTime(d.savedAt)}</div>
         </div>
         <div class="tf-pick">
@@ -86,7 +86,7 @@ function renderTransfer(){
       ${u.msg ? '<div class="tf-ok">' + tfEsc2(u.msg) + '</div>' : ''}
       ${u.err ? '<div class="tf-err">' + tfEsc2(u.err) + '</div>' : ''}
       <section class="tf-sec">
-        <div class="k-sec-title">📤 导出（槽位 ${u.slot || cur}）</div>
+        <div class="k-sec-title">${iconHTML('upload')} 导出（槽位 ${u.slot || cur}）</div>
         ${u.out ? out : `
           <div class="tf-row">
             <input class="tf-pin" data-pin="1" type="text" inputmode="numeric" maxlength="4" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" value="${tfEsc2(u.pin)}" placeholder="设 4 位密码">
@@ -96,11 +96,11 @@ function renderTransfer(){
           <div class="tf-btns"><button class="mini primary" data-act="gen">生成存档串 / 文件 / 链接</button></div>`}
       </section>
       <section class="tf-sec">
-        <div class="k-sec-title">📷 二维码</div>
+        <div class="k-sec-title">${iconHTML('camera')} 二维码</div>
         ${tfQrNote()}
       </section>
       <section class="tf-sec">
-        <div class="k-sec-title">📥 导入</div>
+        <div class="k-sec-title">${iconHTML('download')} 导入</div>
         ${prev}
         ${u.phase === 'preview' ? '' : `
           <textarea class="tf-text" rows="3" data-in placeholder="把存档串粘贴到这里（FT1:…）">${tfEsc2(u.text)}</textarea>

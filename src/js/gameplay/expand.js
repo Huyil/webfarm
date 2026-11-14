@@ -244,7 +244,7 @@ function renderExpandHint(){
     return `<span class="eb-item${poor}">${d.label} <b>${info.price}</b> ${kind}</span>`;
   }).join('');
   el.innerHTML = `
-    <div class="eb-row"><span class="eb-title">💰 扩建</span>${rows}</div>
+    <div class="eb-row"><span class="eb-title">${iconHTML('coins')} 扩建</span>${rows}</div>
     <div class="eb-row eb-sub">耕地 ${f.w}×${f.h} · 岛 ${m.w}×${m.h} · 每个方向 <b>${EXPAND_BASE}</b> 起各自 ×${EXPAND_RATE}（封顶 ${EXPAND_CAP}）· 新买的地是草地 · 点击发光长条购买 · 点击同一处可连买 · Esc 退出</div>`;
 }
 

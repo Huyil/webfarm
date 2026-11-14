@@ -8,7 +8,7 @@ function renderShop(){
     const row = document.createElement('div');
     row.className = 'row';
     row.innerHTML = `
-      <div class="r-ico">${icon}</div>
+      <div class="r-ico">${iconHTML(icon)}</div>
       <div style="flex:1">
         <div class="r-name">${name}</div>
         <div class="r-meta">${meta}</div>
@@ -26,14 +26,14 @@ function renderShop(){
     el.appendChild(row);
   };
 
-  mk('🧪', '普通肥料', `生长速度 ×1.5，可与浇水叠加 · 现有 ${state.fertilizer}`, FERT_COST, n => {
+  mk('flask', '普通肥料', `生长速度 ×1.5，可与浇水叠加 · 现有 ${state.fertilizer}`, FERT_COST, n => {
     const cost = FERT_COST * n;
     if(state.coins < cost){ toast('金币不够'); SFX.play('error'); return; }
     state.coins -= cost; state.fertilizer += n;
     SFX.play('buy'); renderHUD(); renderShop(); save(); toast(`买入肥料 ×${n}`);
   }, true);
 
-  mk('✨', '高级肥料', `直接催熟当前作物 · 主要靠每日任务获得 · 现有 ${state.premium}`, PREMIUM_COST, n => {
+  mk('sparkles', '高级肥料', `直接催熟当前作物 · 主要靠每日任务获得 · 现有 ${state.premium}`, PREMIUM_COST, n => {
     const cost = PREMIUM_COST * n;
     if(state.coins < cost){ toast('金币不够'); SFX.play('error'); return; }
     state.coins -= cost; state.premium += n;
@@ -49,7 +49,7 @@ function renderShop(){
   /* ---------- 装饰品 ---------- */
   const sep = document.createElement('div');
   sep.className = 'shop-sep';
-  sep.textContent = '🏡 装饰品（买完进装饰仓库，摆在农场外的地面或石头地上）';
+  sep.innerHTML = iconHTML('house') + ' 装饰品（买完进装饰仓库，摆在农场外的地面或石头地上）';
   el.appendChild(sep);
 
   for(const id of DECOR_IDS){

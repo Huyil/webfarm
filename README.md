@@ -138,6 +138,14 @@ src/js/
 | `fx/` | `audio` `particles` | WebAudio 合成音效、粒子系统 |
 | `boot/` | `loop` `init` | 主循环、初始化 + `FarmDebug` |
 
+### 图标（SVG）
+
+- 图标库在 `src/js/ui/icons.js`：几何取自 **Lucide v1.72.0（ISC）**，只把 SVG 复制进仓库、不引入依赖；统一 24×24、`stroke="currentColor"`，颜色和尺寸跟着父元素走（`.ico svg{width:1em;height:1em}`）。
+- 静态 HTML 写 `<span class="ico" data-icon="coins"></span>`，`init()` 里 `injectIcons()` 注入。
+- JS 生成的 HTML 用 `iconHTML('coins')`；需要 DOM 节点用 `iconEl('coins')`。**不要**把图标写进 `textContent`。
+- 数据表里存图标名（`icon:'carrot'`），不要存 emoji；旧存档里的 `emoji/qtag` 字段会被忽略。
+- canvas 上直接 `fillText` 的水滴/肥料标记不在 DOM 图标体系内，仍按原样绘制；`changelog` 里的历史公告保留原文。
+
 ### 关键数据流
 
 - `state` 是唯一真相；`serialize()` 显式挑字段落盘，`unpackState()` 缺字段回落到默认值（因此旧档可直接读）。

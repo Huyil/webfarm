@@ -29,6 +29,7 @@
 /* ---------- 图标：统一用 --k-ico 控制尺寸（离屏预渲染的 dataURL） ---------- */
 .k-ico{display:block;width:var(--k-ico,calc(32px*var(--ui-scale)));height:var(--k-ico,calc(32px*var(--ui-scale)));object-fit:contain}
 .k-ico-em{display:grid;place-items:center;font-size:calc(24px*var(--ui-scale));line-height:1}
+.k-ico.ico svg{width:100%;height:100%}
 
 /* ---------- 一、食材货架 ---------- */
 .k-shelf{

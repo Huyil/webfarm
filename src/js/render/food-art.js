@@ -1004,13 +1004,13 @@ function kDishInfo(dishKey){
   let id = bits[0] || 'mix';
   let quality = bits[1] || 'normal';
   let pieces = bits[2] ? bits[2].split(',').filter(Boolean) : null;
-  let name = '', emoji = '';
+  let name = '', icon = '';
   const rec = (typeof state !== 'undefined' && state && state.dishes) ? state.dishes[dishKey] : null;
   if(rec){
     id = rec.id || id;
     quality = rec.quality || quality;
     if(rec.pieces && rec.pieces.length) pieces = rec.pieces.slice();
-    name = rec.name || ''; emoji = rec.emoji || '';
+    name = rec.name || ''; icon = rec.icon || '';
   }
   if(!pieces){
     if(id === 'bread') pieces = ['flour'];
@@ -1032,13 +1032,13 @@ function kDishInfo(dishKey){
       : (typeof DISHES !== 'undefined' && DISHES[id] ? DISHES[id].name
       : (typeof POT_FALLBACK !== 'undefined' ? POT_FALLBACK.name : id));
   }
-  if(!emoji){
+  if(!icon){
     const combo = (typeof POT_COMBOS !== 'undefined') ? POT_COMBOS.find(c => c.id === id) : null;
-    emoji = combo ? combo.emoji
-      : (typeof DISHES !== 'undefined' && DISHES[id] ? DISHES[id].emoji
-      : (typeof POT_FALLBACK !== 'undefined' ? POT_FALLBACK.emoji : '🍲'));
+    icon = combo ? combo.icon
+      : (typeof DISHES !== 'undefined' && DISHES[id] ? DISHES[id].icon
+      : (typeof POT_FALLBACK !== 'undefined' ? POT_FALLBACK.icon : 'pot'));
   }
-  return { id, quality: (typeof QUALITY !== 'undefined' && QUALITY[quality]) ? quality : 'normal', pieces, name, emoji };
+  return { id, quality: (typeof QUALITY !== 'undefined' && QUALITY[quality]) ? quality : 'normal', pieces, name, icon };
 }
 /* ---------- 统一入口 ---------- */
 function drawItemIcon(g, key, cx, cy, size){

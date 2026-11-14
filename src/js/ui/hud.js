@@ -39,7 +39,7 @@ function renderHUD(){
   if(afS){
     const a = state.autoFarm;
     /* 侧栏直接显示饱食度：手机上没有额外 HUD 位置，这里最顺手 */
-    afS.textContent = a ? ((a.on ? '开' : '关') + (a.satiety ? ' 🍚' + a.satiety : '')) : '关';
+    afS.innerHTML = a ? ((a.on ? '开' : '关') + (a.satiety ? ' ' + iconHTML('rice') + a.satiety : '')) : '关';
   }
   const ci = $('hudIdleM');
   if(ci && !ci.textContent) ci.textContent = '+' + idleRate().toFixed(1) + '/分';
@@ -85,13 +85,13 @@ function renderClock(){
   const w = document.getElementById('hudWeather');
   const h = Math.floor(ATMOS.hour), m = Math.floor((ATMOS.hour - h) * 60);
   const clockText = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-  const weatherIcon = ATMOS.weather === 'rain' ? '🌧️' : ATMOS.weather === 'cloudy' ? '⛅' : (atmosIsNight() ? '🌙' : '☀️');
+  const weatherIcon = ATMOS.weather === 'rain' ? 'rain' : ATMOS.weather === 'cloudy' ? 'cloud-sun' : (atmosIsNight() ? 'moon' : 'sun');
   if(c) c.textContent = clockText;
-  if(w) w.textContent = weatherIcon;
+  if(w) w.innerHTML = iconHTML(weatherIcon);
   const cm = document.getElementById('hudClockM');
   const wm = document.getElementById('hudWeatherM');
   if(cm) cm.textContent = clockText;
-  if(wm) wm.textContent = weatherIcon;
+  if(wm) wm.innerHTML = iconHTML(weatherIcon);
   const fm = document.getElementById('hudFarmM');
   if(fm) fm.textContent = state.farm.w + '×' + state.farm.h;
 }

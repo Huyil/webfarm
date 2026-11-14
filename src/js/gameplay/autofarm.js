@@ -86,7 +86,7 @@ function afEatOne(){
     const A = afGet();
     A.satiety += gain; A.eats++;
     if(!state.dishes[it.key]) delete A.ration[it.key];   /* 吃光了就把口粮勾选也去掉 */
-    if(typeof toast === 'function') toast('🍚 吃了一份 ' + it.dish.name + '（+' + gain + ' 饱食度）');
+    if(typeof toast === 'function') toast('吃了一份 ' + it.dish.name + '（+' + gain + ' 饱食度）', 'rice');
     return gain;
   }
   return 0;
@@ -164,7 +164,7 @@ function afEnsureFertilizer(need){
   if(buy <= 0) return 0;
   state.coins -= buy * FERT_COST;
   state.fertilizer = have + buy;
-  if(typeof toast === 'function') toast('🧪 自动买了 ' + buy + ' 份肥料（-' + (buy * FERT_COST) + ' 金）');
+  if(typeof toast === 'function') toast('自动买了 ' + buy + ' 份肥料（-' + (buy * FERT_COST) + ' 金）', 'flask');
   renderHUD();
   return buy;
 }
@@ -173,7 +173,7 @@ function afStop(msg, quiet){
   const A = afGet();
   A.on = false; A.lastMsg = msg || '';
   save(); renderAutoFarm();
-  if(msg && !quiet) toast('🤖 自动农活已停：' + msg);
+  if(msg && !quiet) toast('自动农活已停：' + msg, 'robot');
 }
 function afStatusText(){
   const A = afGet();
@@ -260,7 +260,7 @@ function renderAutoFarm(){
     const on = A.seeds.indexOf(id) >= 0;
     const ix = A.seeds.indexOf(id);
     return `<button class="af-seed${on ? ' on' : ''}" data-af-seed="${id}" title="${afEsc(CROPS[id].name)}">` +
-      (on ? '<b>' + (ix + 1) + '</b>' : '') + CROPS[id].emoji + '</button>';
+      (on ? '<b>' + (ix + 1) + '</b>' : '') + iconHTML(CROPS[id].icon) + '</button>';
   }).join('');
   /* 预备口粮：列出仓库里的菜 */
   const keys = Object.keys(state.dishes);
@@ -271,16 +271,16 @@ function renderAutoFarm(){
     const on = !!A.ration[k];
     return `<label class="af-ration${on ? ' on' : ''}${ok ? '' : ' poor'}">` +
       `<input type="checkbox" data-af-ration="${afEsc(k)}" ${on ? 'checked' : ''} ${ok ? '' : 'disabled'}>` +
-      `<span class="af-r-name">${afEsc(d.name)}${d.qtag ? ' ' + d.qtag : ''}` +
-      `<i>×${d.n} · 🍚${sat} 点 · ${d.value} 金${ok ? '' : ' · 太贵了，留着卖'}</i></span></label>`;
+      `<span class="af-r-name">${afEsc(d.name)} ${qualityIconHTML(d.quality)}` +
+      `<i>×${d.n} · ${iconHTML('rice')}${sat} 点 · ${d.value} 金${ok ? '' : ' · 太贵了，留着卖'}</i></span></label>`;
   }).join('');
   const eligible = keys.filter(afRationOK).length;
   el.innerHTML = `
     <div class="af-wrap">
       ${A.lastMsg ? '<div class="af-warn">上次停机：' + afEsc(A.lastMsg) + '</div>' : ''}
-      <div class="af-sat${A.satiety > 0 ? ' on' : ''}">🍚 饱食度 <b>${A.satiety}</b> 点<i>每执行一个方块的动作扣 1 点（耕地/播种/施肥/收获/浇水都算）</i></div>
+      <div class="af-sat${A.satiety > 0 ? ' on' : ''}">${iconHTML('rice')} 饱食度 <b>${A.satiety}</b> 点<i>每执行一个方块的动作扣 1 点（耕地/播种/施肥/收获/浇水都算）</i></div>
       <section class="af-sec">
-        <div class="k-sec-title">🤖 自动农活<span class="k-hint">小人自己干 · 每步扣 1 点饱食度</span></div>
+        <div class="k-sec-title">${iconHTML('robot')} 自动农活<span class="k-hint">小人自己干 · 每步扣 1 点饱食度</span></div>
         <label class="af-on${A.on ? ' on' : ''}"><input type="checkbox" data-af-on ${A.on ? 'checked' : ''}><span>启动</span></label>
         <div class="af-line">区域：<b>${boxTxt}</b>${A.box ? '（' + (A.box.x1 - A.box.x0 + 1) * (A.box.y1 - A.box.y0 + 1) + ' 格）' : ''}</div>
         <div class="af-btns">
@@ -290,14 +290,14 @@ function renderAutoFarm(){
         </div>
       </section>
       <section class="af-sec">
-        <div class="k-sec-title">🔄 轮作流水线</div>
+        <div class="k-sec-title">${iconHTML('cycle')} 轮作流水线</div>
         ${AF_STEPS.map(id => stepRow(id, STEP_LABEL[id][0], STEP_LABEL[id][1])).join('')}
         <label class="af-step${A.buyFert ? ' on' : ''}"><input type="checkbox" data-af-buyfert ${A.buyFert ? 'checked' : ''}><span>自动购买肥料</span><i>不够时按 ${FERT_COST} 金/份买（单趟最多 ${AF_BUY_FERT_MAX} 份）</i></label>
         <div class="af-line">种子顺序（点选，数字是轮作次序）：</div>
         <div class="af-seeds">${seedChips}</div>
       </section>
       <section class="af-sec">
-        <div class="k-sec-title">🍚 预备口粮<span class="k-hint">当前 ${A.satiety} 点 · 已吃 ${A.eats} 份</span></div>
+        <div class="k-sec-title">${iconHTML('rice')} 预备口粮<span class="k-hint">当前 ${A.satiety} 点 · 已吃 ${A.eats} 份</span></div>
         <div class="af-line">勾选要用来抵扣的菜（**只有成品菜算**；价值 >${AF_RATION_MAX_VALUE} 金的不能选）</div>
         <div class="af-btns">
           <button class="mini" data-af-act="all">全选（${eligible} 道）</button>
@@ -306,7 +306,7 @@ function renderAutoFarm(){
         <div class="af-rations">${rows || '<div class="r-meta">仓库里还没有做好的菜 —— 去厨房做几道</div>'}</div>
       </section>
       <section class="af-sec">
-        <div class="k-sec-title">📊 状态</div>
+        <div class="k-sec-title">${iconHTML('chart')} 状态</div>
         <div class="af-line">${afEsc(afStatusText())}</div>
         <div class="af-line r-meta">累计自动耕作 ${A.worked} 次 · 小人${p.queue && p.queue.length ? '正在干活' : '空闲'}</div>
       </section>
@@ -321,7 +321,7 @@ function afOnChange(e){
     A.lastMsg = '';
     if(A.on && !A.box){ A.on = false; toast('先框一块地'); }
     else if(A.on && !A.rationList().length && afSatietyLeft() <= 0) toast('提醒：还没勾选预备口粮，饿了会自动停');
-    else if(A.on) toast('🤖 自动农活启动');
+    else if(A.on) toast('自动农活启动', 'robot');
   } else if(t.dataset.afBuyfert !== undefined){
     A.buyFert = !!t.checked;
     if(A.buyFert) toast('肥料不够时会自动买（单趟最多 ' + AF_BUY_FERT_MAX + ' 份）');

@@ -74,8 +74,8 @@ function bindAll(){
     state.longPressBox = state.longPressBox === false;
     SFX.play('click');
     toast(state.longPressBox
-      ? '👆 长按 = 框选（批量作业）；轻点还是让小人走过去'
-      : '👆 长按框选已关闭：长按只会让小人走过去，不会划范围');
+      ? '长按 = 框选（批量作业）；轻点还是让小人走过去'
+      : '长按框选已关闭：长按只会让小人走过去，不会划范围', 'hand');
     renderHUD(); save();
   };
   /* 手机顶栏把 🏆 收进「⋯」里了，这里给弹层那一行接上 */

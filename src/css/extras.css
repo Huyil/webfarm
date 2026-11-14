@@ -3,6 +3,13 @@
  * （放在清单最后，覆盖前面的基础样式）
  * ===================================================================== */
 
+/* ---------- SVG 图标（src/js/ui/icons.js） ----------
+   图标尺寸跟着父元素的 font-size 走：.si/.ti/.hud-ico 不用改字号。 */
+.ico{display:inline-flex;align-items:center;justify-content:center;line-height:1;vertical-align:-.12em}
+.ico svg{width:1em;height:1em;display:block}
+.ico.toast-ico{margin-right:.4em;vertical-align:-.16em}
+.ico.k-ico-svg{font-size:inherit}
+
 /* ---------- 侧栏抽屉把手（只在手机出现，桌面完全不显示） ---------- */
 .side-toggle{display:none}
 

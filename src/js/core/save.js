@@ -233,7 +233,7 @@ function save(){
   /* 以前写失败是静默的（配额满 / 无痕模式）—— 存档悄悄丢最坑，这里至少说一次 */
   if(!ok && !saveWarned){
     saveWarned = true;
-    if(typeof toast === 'function') toast('⚠️ 这台设备没能写入存档（空间不够或无痕模式）');
+    if(typeof toast === 'function') toast('这台设备没能写入存档（空间不够或无痕模式）', 'warning');
   }
   return ok;
 }

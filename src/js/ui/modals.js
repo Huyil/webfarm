@@ -37,7 +37,7 @@ function ensureModalX(){
     btn.type = 'button';
     btn.setAttribute('data-close', '');
     btn.setAttribute('aria-label', '关闭');
-    btn.textContent = '✕';
+    btn.innerHTML = iconHTML('x');
     box.insertBefore(btn, box.firstChild);
   });
 }
@@ -79,7 +79,7 @@ function renderDecorBag(){
     const row = document.createElement('div');
     row.className = 'row clickable' + (state.selectedDecor === id && state.tool === 'decor' ? ' active' : '');
     row.innerHTML = `
-      <div class="r-ico">${meta.icon}</div>
+      <div class="r-ico">${iconHTML(meta.icon)}</div>
       <div style="flex:1">
         <div class="r-name">${meta.name}${meta.ground ? ' · 地面' : ''}${free ? ' · 免费铺装' : ''}</div>
         <div class="r-meta">${free
@@ -106,5 +106,5 @@ function renderDecorBag(){
     };
     el.appendChild(row);
   }
-  if(!any) el.innerHTML = '<div class="empty">装饰仓库空空如也 🏡<br><span class="r-meta">用锄头锄掉地里的树/石头/灌木/花就能收进来</span></div>';
+  if(!any) el.innerHTML = '<div class="empty">装饰仓库空空如也 ' + iconHTML('house') + '<br><span class="r-meta">用锄头锄掉地里的树/石头/灌木/花就能收进来</span></div>';
 }

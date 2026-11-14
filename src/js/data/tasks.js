@@ -62,9 +62,9 @@ function todayStr(){
 }
 function rewardText(reward){
   const parts = [];
-  if(reward.fert)    parts.push(`🧪×${reward.fert}`);
-  if(reward.premium) parts.push(`✨×${reward.premium}`);
-  if(reward.decor)   for(const k in reward.decor) parts.push(`${DECOR_META[k] ? DECOR_META[k].icon : '🏡'}×${reward.decor[k]}`);
+  if(reward.fert)    parts.push(iconHTML('flask') + '×' + reward.fert);
+  if(reward.premium) parts.push(iconHTML('sparkles') + '×' + reward.premium);
+  if(reward.decor)   for(const k in reward.decor) parts.push(iconHTML(DECOR_META[k] ? DECOR_META[k].icon : 'house') + '×' + reward.decor[k]);
   return parts.join(' ') || '—';
 }
 /* 任务是否已解锁（避免开局就发做菜/扩建类任务） */

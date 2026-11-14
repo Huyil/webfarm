@@ -43,7 +43,7 @@ function ok(c, label, extra) { if (c) { pass++; console.log('  \x1b[32m✓\x1b[0
 setTimeout(() => {
   const D = W.FarmDebug;
   ok(!!D, '源码版启动了（window.FarmDebug 存在）');
-  ok(/dev-bundle\.css/.test(rawHtml) && !/href=["'][^"']*\/(?:base|hud|toolbar|v9)\.css/.test(rawHtml),
+  ok(/dev-bundle\.css/.test(rawHtml) && !/href=["'][^"']*\/(?:base|hud|toolbar|extras)\.css/.test(rawHtml),
     '样式走 src/dev-bundle.css（拼接产物）');
   ok(/dev-bundle\.js/.test(rawHtml) && (rawHtml.match(/<script[^>]+src=/g) || []).length === 1,
     '脚本走 src/dev-bundle.js（单个 IIFE，不是几十个 script）');
@@ -63,6 +63,9 @@ setTimeout(() => {
     ok(!!api && typeof api.getTile === 'function', 'FarmDebug.api 可用');
     ok(W.document.querySelectorAll('.side-panel button').length === 12, '侧栏 12 个按钮都在（多了「长按框选」和「自动农活」）');
     ok(W.document.querySelectorAll('.toolbar button').length === 5, '工具栏 5 个工具都在（催熟并进肥料小凸起）');
+    ok(W.document.querySelectorAll('#sidePanel .si svg').length === 12, '侧栏 12 个图标已注入 SVG');
+    ok(W.document.querySelectorAll('#toolbar .ti svg').length === 5, '工具栏 5 个图标已注入 SVG');
+    ok(!!W.document.querySelector('.hud .ico svg'), 'HUD 图标已注入 SVG');
     ok(!!W.document.getElementById('fertPop') && !!W.document.getElementById('seedPop'), '两个工具小凸起容器都在');
     ok(!!W.document.getElementById('btnLongPress'), '侧栏「长按框选」开关在');
     ok(!!W.document.getElementById('hudFarmM') && !!W.document.getElementById('hudClockM') && !!W.document.getElementById('hudIdleM'),

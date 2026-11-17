@@ -477,26 +477,32 @@ function atmSpawnRipple(){
   for(let k = 0; k < 3; k++){
     const t = tiles[(Math.random() * tiles.length) | 0];
     if(!t) return;
-    const sp = worldToScreen(t);
+    const sp = worldToScreen(t);                  /* 只用来判断这一格是否在视野内 */
     if(sp.x < -40 || sp.x > W + 40 || sp.y < -40 || sp.y > H + 40) continue;
     atmRippleIdx = (atmRippleIdx + 1) % ATM_RIPPLE_N;
     const r = atmRipples[atmRippleIdx];
     r.max = 0.85; r.life = 0.85;
-    r.x = sp.x + (Math.random() - 0.5) * 26;
-    r.y = sp.y + (Math.random() - 0.5) * 13;
+    /* 存的是**世界坐标**（和地块同一套），画的时候再加 cx/cy。
+       以前这里存 worldToScreen() 的屏幕坐标，却在世界层里画 ——
+       一平移/缩放，涟漪就和地面错开、满地滑动。 */
+    const { sx, sy } = iso(t.gx, t.gy);
+    r.x = sx * SCALE + (Math.random() - 0.5) * 26;
+    r.y = sy * SCALE + (Math.random() - 0.5) * 13;
     r.r = 5 + Math.random() * 5;
     return;
   }
 }
-function atmDrawGroundRain(g){
+function atmDrawGroundRain(g, cx, cy){
   if(ATMOS.rainFade <= 0.02) return;
+  const ox = (cx == null) ? W / 2 + state.camera.x : cx;
+  const oy = (cy == null) ? H / 2 + state.camera.y : cy;
   for(let i = 0; i < ATM_RIPPLE_N; i++){
     const r = atmRipples[i];
     if(r.life <= 0) continue;
     const k = 1 - r.life / r.max;
     const rad = r.r + k * 11;
     g.beginPath();
-    g.ellipse(r.x, r.y, rad, rad * 0.5, 0, 0, Math.PI * 2);
+    g.ellipse(ox + r.x, oy + r.y, rad, rad * 0.5, 0, 0, Math.PI * 2);
     g.strokeStyle = 'rgba(214,240,255,' + ((r.life / r.max) * 0.62 * ATMOS.rainFade).toFixed(3) + ')';
     g.lineWidth = 1.4;
     g.stroke();

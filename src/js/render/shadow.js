@@ -233,7 +233,7 @@ function drawGroundDynamic(g, cx, cy){
   const ccy = (cy == null) ? H / 2 + state.camera.y : cy;
   shDrawPondVapor(g, ccx, ccy);                  /* 水汽 */
   if(SH_CLOUD_SHADOWS) atmDrawCloudShadows(g, ccx, ccy);
-  atmDrawGroundRain(g);                          /* 雨点涟漪 */
+  atmDrawGroundRain(g, ccx, ccy);                /* 雨点涟漪 */
 }
 
 /* ============================================================

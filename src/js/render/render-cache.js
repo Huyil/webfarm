@@ -185,14 +185,29 @@ function drawTerrainCached(W0, H0, zoom, dpr){
   const cache = terrainCacheFor(W0, H0, zoom, dpr);
   if(!cache) return false;
   const sig = terrainSignature(zoom, dpr, W0, H0);
-  const dx = zoom * (state.camera.x - cache.camX);
-  const dy = zoom * (state.camera.y - cache.camY);
   const P = cache.P;
-  if(cache.sig !== sig || cache.zoom !== zoom || Math.abs(dx) > P || Math.abs(dy) > P){
+  /* 先按"上一张缓存"的锚点算出平移量，只为判断要不要重烘。
+   * 阈值扣掉 1px：下面贴图要取整到设备像素，最多再挪 0.5px，
+   * 不扣掉的话贴图边缘可能露 1px 没烘到的缝（背景色会从缝里透出来）。 */
+  const lim = P > 1 ? P - 1 : 0;
+  const offX = zoom * (state.camera.x - cache.camX);
+  const offY = zoom * (state.camera.y - cache.camY);
+  if(cache.sig !== sig || cache.zoom !== zoom || Math.abs(offX) > lim || Math.abs(offY) > lim){
     bakeTerrain(cache, W0, H0, zoom, sig);
   } else {
     renderStats.terrainHit++;
   }
+  /* 重烘后 cache.camX/camY 已经等于当前相机，贴图偏移**必须重新算**（即 0）。
+   * 以前直接用重烘之前算出的 offX/offY 去贴：那一帧整层地表会按"旧锚点"偏移
+   * 最多 P(128) 像素，下一帧又弹回原位 —— 连续拖动镜头时每隔 P 就跳一次，
+   * 看上去就是画面在频繁闪动。（改地块外观触发重烘时同理，站着不动也会闪。） */
+  let dx = zoom * (state.camera.x - cache.camX);
+  let dy = zoom * (state.camera.y - cache.camY);
+  /* 再对齐到整数设备像素：dx/dy 是小数时每帧的采样相位都不一样，
+   * 地表的砂粒/噪点会随拖动"爬行"。取整后是一次干净的像素对像素平移。 */
+  const q = (dpr > 0) ? dpr : 1;
+  dx = Math.round(dx * q) / q;
+  dy = Math.round(dy * q) / q;
   /* 缓存是设备像素，这里按 CSS 尺寸贴回去（浏览器负责 DPR 缩放） */
   ctx.save();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);

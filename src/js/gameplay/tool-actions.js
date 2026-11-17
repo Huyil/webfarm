@@ -44,8 +44,8 @@ function runTool(gx, gy, silent, toolOverride){
       SFX.play('till');
       spawnParticles(sp.x, sp.y - 4, 'till', 4);
       if(hit && hit.removed){
-        toast(`敲掉了 ${DECOR_META[hit.type].name}，收进装饰仓库（再锄一下就能开垦）`);
-        renderDecorBag();
+        toast(`敲掉了 ${DECOR_META[hit.type].name}，收进仓库（再锄一下就能开垦）`);
+        renderStore();
       } else if(!silent){
         toast(`${DECOR_META[hit.type].name} 还需要 ${hit.left} 下`);
       }
@@ -152,7 +152,7 @@ function runTool(gx, gy, silent, toolOverride){
     if(!r.ok){ if(!silent){ toast(r.msg); SFX.play('error'); } return; }
     SFX.play('plant');
     spawnParticles(sp.x, sp.y - 6, 'sparkle', 4);
-    renderDecorBag(); save();
+    renderStore(); save();
     return;
   }
 }

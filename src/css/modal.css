@@ -87,3 +87,96 @@
 .mini.sell{background:#5c4a1e;color:#ffd76e}
 .empty{font-size:calc(12px*var(--ui-scale));color:#5d6675;padding:calc(14px*var(--ui-scale)) 4px;text-align:center}
 
+/* ---------- 商店 / 仓库：上方分类 · 中间商品网格 · 下方 数量滑条 ----------
+ * 弹层改成「头尾固定、中间滚动」：分类和滑条始终看得见，商品多了只滚网格。
+ * 卡片是竖排矩形：上方图标、中间名称、下方单价（商店）或数量（仓库）。 */
+.modal-box.trade-box{display:flex;flex-direction:column;overflow:hidden}
+.modal-box.trade-box > :not(.goods-grid){flex:none}
+.goods-grid{
+  flex:1 1 auto;min-height:0;overflow-y:auto;
+  display:grid;gap:calc(8px*var(--ui-scale));
+  grid-template-columns:repeat(auto-fill,minmax(calc(76px*var(--ui-scale)),1fr));
+  align-content:start;padding:calc(2px*var(--ui-scale));
+}
+.goods-grid .empty,.goods-grid .g-note{grid-column:1/-1}
+.g-card{
+  display:flex;flex-direction:column;align-items:center;gap:calc(3px*var(--ui-scale));
+  padding:calc(9px*var(--ui-scale)) calc(4px*var(--ui-scale)) calc(7px*var(--ui-scale));
+  background:#252c26;border:1px solid #2f3a30;border-radius:calc(11px*var(--ui-scale));
+  color:#c2cfc4;font-family:inherit;font-size:calc(11px*var(--ui-scale));
+  cursor:pointer;transition:.15s;text-align:center;
+}
+.g-card:hover{background:#2f3a30;border-color:#3d4a3c}
+.g-card.active{background:#1f3520;border-color:#4d8a4a;box-shadow:inset 0 0 0 1px #4d8a4a}
+.g-ico{
+  width:calc(42px*var(--ui-scale));height:calc(42px*var(--ui-scale));
+  display:grid;place-items:center;border-radius:calc(9px*var(--ui-scale));
+  background:rgba(0,0,0,.25);font-size:calc(21px*var(--ui-scale));color:#dfe9e0;
+}
+.g-ico canvas,.g-ico svg{display:block}
+.g-name{
+  max-width:100%;font-weight:700;color:#dbe4dc;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.g-sub{color:#ffd76e;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.g-note{margin-top:calc(6px*var(--ui-scale));font-size:calc(11px*var(--ui-scale));color:#8b9a8d}
+/* 底部操作条：滑条 + 数量 + 按钮 */
+.trade-bar{
+  display:flex;align-items:center;gap:calc(10px*var(--ui-scale));
+  margin-top:calc(10px*var(--ui-scale));
+  padding-top:calc(10px*var(--ui-scale));border-top:1px solid #333f34;
+}
+.trade-slider{
+  flex:1 1 auto;min-width:0;height:calc(24px*var(--ui-scale));
+  -webkit-appearance:none;appearance:none;background:transparent;
+  cursor:pointer;font-family:inherit;
+}
+.trade-slider::-webkit-slider-runnable-track{height:calc(6px*var(--ui-scale));border-radius:999px;background:#3a4a3c}
+.trade-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:calc(16px*var(--ui-scale));height:calc(16px*var(--ui-scale));
+  margin-top:calc(-5px*var(--ui-scale));
+  border-radius:50%;background:#8fd68f;border:2px solid #1c231d;
+}
+.trade-slider::-moz-range-track{height:calc(6px*var(--ui-scale));border-radius:999px;background:#3a4a3c}
+.trade-slider::-moz-range-thumb{
+  width:calc(16px*var(--ui-scale));height:calc(16px*var(--ui-scale));
+  border-radius:50%;background:#8fd68f;border:2px solid #1c231d;
+}
+.trade-slider:disabled{opacity:.4;cursor:not-allowed}
+.trade-count{
+  flex:none;min-width:calc(46px*var(--ui-scale));text-align:center;
+  font-size:calc(13px*var(--ui-scale));font-weight:700;color:#ffd76e;
+  font-variant-numeric:tabular-nums;
+}
+.trade-btn{
+  flex:none;min-width:calc(96px*var(--ui-scale));
+  background:#2f6b3a;border:none;color:#d8ffd8;font-family:inherit;font-weight:700;
+  font-size:calc(12px*var(--ui-scale));
+  padding:calc(9px*var(--ui-scale)) calc(11px*var(--ui-scale));
+  border-radius:calc(10px*var(--ui-scale));cursor:pointer;white-space:nowrap;
+}
+.trade-btn:hover{background:#3d8a4b}
+.trade-btn.sell{background:#5c4a1e;color:#ffd76e}
+.trade-btn.sell:hover{background:#6f5a24}
+.trade-btn:disabled{opacity:.4;cursor:not-allowed}
+.trade-btn:disabled:hover{background:#2f6b3a}
+.trade-btn.sell:disabled:hover{background:#5c4a1e}
+/* 装饰分类的「摆放」：和卖出区分开（摆放是拿起工具，不是换钱） */
+.trade-btn.place{background:#2f4a6b;color:#dbe9ff}
+.trade-btn.place:hover{background:#3a5c85}
+.trade-btn[hidden]{display:none}
+/* 「一键全卖」这类附加动作：贴在操作条上方，空的时候不占位置 */
+.trade-extra{display:flex;justify-content:flex-end;margin-top:calc(8px*var(--ui-scale))}
+.trade-extra:empty{display:none}
+
+/* 窄屏：卡片别缩成看不清的小方块，字也不能小于 11px（跟其他面板同一套兜底） */
+@media (orientation: portrait), (max-width: 620px){
+  .goods-grid{grid-template-columns:repeat(auto-fill,minmax(max(58px,calc(72px*var(--ui-scale))),1fr))}
+  .g-ico{width:max(34px,calc(40px*var(--ui-scale)));height:max(34px,calc(40px*var(--ui-scale)))}
+  .g-name,.g-sub{font-size:max(11px,calc(11px*var(--ui-scale)))}
+  .trade-count{font-size:max(13px,calc(13px*var(--ui-scale)))}
+  .trade-btn{font-size:max(12px,calc(12px*var(--ui-scale)));min-width:max(84px,calc(96px*var(--ui-scale)))}
+}
+
+

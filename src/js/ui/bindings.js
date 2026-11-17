@@ -17,7 +17,7 @@ function onViewportChange(){
 }
 const SIDE_SHEETS = {
   btnShop:'shop', btnStore:'store', btnKitchen:'kitchen',
-  btnDecor:'decor', btnSettings:'settings', btnLeaderboard:'leaderboard',
+  btnSettings:'settings', btnLeaderboard:'leaderboard',
 };
 function bindAll(){
   const tb = document.getElementById('toolbar');

@@ -48,7 +48,6 @@
   <button id="btnShop"><span class="si">🛒</span><span class="sl">商店</span></button>
   <button id="btnStore"><span class="si">📦</span><span class="sl">仓库</span><span class="badge" id="storeBadge" style="display:none"></span></button>
   <button id="btnKitchen"><span class="si">🍳</span><span class="sl">厨房</span><span class="badge" id="kitchenBadge" style="display:none"></span></button>
-  <button id="btnDecor"><span class="si">🏡</span><span class="sl">装饰</span></button>
   <button id="btnLeaderboard"><span class="si">🏅</span><span class="sl">排行</span></button>
   <button id="btnExpand"><span class="si">💰</span><span class="sl">扩建</span></button>
   <button id="btnGrid"><span class="si">🔧</span><span class="sl">网格</span><span class="st" id="gridState">关</span></button>
@@ -79,15 +78,21 @@
 </div>
 
 <div class="modal" id="shopModal">
-  <div class="modal-box">
+  <div class="modal-box trade-box">
     <h4>🛒 商店</h4>
-    <div id="shopList"></div>
+    <div class="tabs" id="shopTabs"></div>
+    <div class="goods-grid" id="shopList"></div>
+    <div class="trade-bar">
+      <input class="trade-slider" id="shopQty" type="range" min="1" max="1" step="1" value="1" aria-label="购买数量">
+      <div class="trade-count" id="shopQtyText">×1</div>
+      <button class="trade-btn" id="shopBuy">购买</button>
+    </div>
     <button class="modal-close" data-close>关闭</button>
   </div>
 </div>
 
 <div class="modal" id="storeModal">
-  <div class="modal-box">
+  <div class="modal-box trade-box">
     <h4>📦 我的仓库</h4>
     <div class="wh-toggle">
       <div class="wh-info">
@@ -97,7 +102,14 @@
       <button class="wh-btn on" id="whBtn">已开启</button>
     </div>
     <div class="tabs" id="storeTabs"></div>
-    <div id="storeList"></div>
+    <div class="goods-grid" id="storeList"></div>
+    <div class="trade-extra" id="storeExtra"></div>
+    <div class="trade-bar">
+      <input class="trade-slider" id="storeQty" type="range" min="1" max="1" step="1" value="1" aria-label="出售数量">
+      <div class="trade-count" id="storeQtyText">×1</div>
+      <button class="trade-btn place" id="storePlace" hidden>摆放</button>
+      <button class="trade-btn sell" id="storeSell">售出</button>
+    </div>
     <button class="modal-close" data-close>关闭</button>
   </div>
 </div>
@@ -161,14 +173,6 @@
       </div>
       <button class="mini primary" id="btnOpenSlots">管理存档</button>
     </div>
-    <button class="modal-close" data-close>关闭</button>
-  </div>
-</div>
-
-<div class="modal" id="decorModal">
-  <div class="modal-box">
-    <h4>🏡 装饰仓库</h4>
-    <div id="decorList"></div>
     <button class="modal-close" data-close>关闭</button>
   </div>
 </div>

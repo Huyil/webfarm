@@ -98,7 +98,7 @@ const frames = n => new Promise(res => {
   ok(!!W.document.getElementById('game'), 'canvas #game 存在');
   eq(W.document.getElementById('hudMoney').textContent, '50', '初始金币 = 50（降低起步难度）');
   ok(/\d+\.\d+\.\d+/.test(W.document.title), '标题带版本号', W.document.title);
-  eq(W.document.querySelectorAll('#sidePanel button .sl').length, 12, '侧栏 12 个按钮都有文字标签（v9.28 多了「🤖 自动农活」）');
+  eq(W.document.querySelectorAll('#sidePanel button .sl').length, 11, '侧栏 11 个按钮都有文字标签（装饰已并进仓库）');
   ok(!!W.document.getElementById('lbBtn'), '顶栏也有 🏅 排行榜入口（两个入口都能点开）');
   eq(W.document.getElementById('lbBtn').textContent, '🏅', '顶栏入口就是奖牌图标');
   eq(W.document.querySelectorAll('#toolbar button').length, 5, '工具栏 5 个工具（v9.19 起「催熟」并进「肥料」的小凸起）');
@@ -352,15 +352,24 @@ const frames = n => new Promise(res => {
   eq(st().decorBag.rock, rocksBefore - 2, '仓库数量扣减');
   st().coins = 500;
   st().decorBag.bush = 1;
-  api.openSheet('decor');
-  const dList = W.document.getElementById('decorList');
-  const dRows = [...dList.querySelectorAll('.row')];
-  ok(dRows.length >= 1, '装饰仓库列出可卖装饰');
-  const bushRow = dRows.find(r => r.textContent.includes('灌木'));
-  ok(!!bushRow && !!bushRow.querySelector('.mini.sell'), '装饰行有卖出按钮');
+  api.openSheet('store');                                 /* 装饰在仓库的第 4 个分类里 */
+  W.document.getElementById('storeTabs').children[3]
+    .dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+  const dList = W.document.getElementById('storeList');
+  const dCards = [...dList.querySelectorAll('.g-card')];
+  ok(dCards.length >= 1, '装饰分类列出可卖装饰');
+  const bushCard = dCards.find(r => r.textContent.includes('灌木'));
+  ok(!!bushCard, '装饰分类里有灌木');
   const coinsBeforeSell = st().coins;
-  bushRow.querySelector('.mini.sell').dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
-  ok(st().coins > coinsBeforeSell, '点卖出真的进账');
+  if (bushCard) {
+    bushCard.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    const sellBtn = W.document.getElementById('storeSell');
+    ok(!sellBtn.disabled, '选中装饰后「售出」可用');
+    ok(W.document.getElementById('storePlace').hidden === false, '装饰分类有「摆放」按钮');
+    ok(/一键全卖/.test(W.document.getElementById('storeExtra').textContent), '装饰分类有「一键全卖」');
+    sellBtn.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    ok(st().coins > coinsBeforeSell, '点售出真的进账');
+  }
   api.closeSheet();
 
   section('厨房：小麦 → 面粉 → 面包（石磨和切菜板一个操作：点一下直接出粉）');
@@ -839,11 +848,18 @@ const frames = n => new Promise(res => {
   const $ = id => W.document.getElementById(id);
   const click = el => { if (!el) { ok(false, '元素存在'); return; } el.dispatchEvent(new W.MouseEvent('click', { bubbles: true })); };
   click($('btnShop'));   ok($('shopModal').classList.contains('show'), '商店弹层打开');
-  ok($('shopList').children.length >= 2, '商店列出普通/高级肥料');
+  eq($('shopTabs').children.length, 2, '商店上方两个分类（肥料 / 装饰）');
+  ok($('shopList').querySelectorAll('.g-card').length >= 2, '商店列出普通/高级肥料');
+  ok(!!$('shopQty') && !!$('shopBuy'), '商店下方有数量滑条 + 购买按钮');
   click($('btnStore'));  ok($('storeModal').classList.contains('show'), '仓库弹层打开');
-  eq($('storeTabs').children.length, 3, '仓库三个页签（作物/备料/菜品）');
+  eq($('storeTabs').children.length, 4, '仓库四个页签（作物/备料/菜品/装饰）');
   click($('storeTabs').children[2]);
-  click($('btnDecor'));  ok($('decorModal').classList.contains('show'), '装饰仓库弹层打开');
+  /* 装饰已并进仓库；侧栏不再有「装饰」按钮，旧弹层连同重定向一起删干净 */
+  ok(!$('btnDecor'), '侧栏不再有「装饰」按钮');
+  ok(!W.document.getElementById('decorModal'), '独立的装饰仓库弹层已移除');
+  ok(!W.document.getElementById('decorList'), '旧的装饰列表容器也删了');
+  click($('storeTabs').children[3]);
+  ok($('storeTabs').children[3].classList.contains('active'), '点第 4 个页签切到装饰分类');
   // 存档入口已经挪进设置面板，侧栏原位置改成缩放
   click($('btnOpenSlots')); ok($('slotsModal').classList.contains('show'), '从设置里打开存档弹层');
   eq($('slotsBody').querySelectorAll('.slot-card').length, 3, '存档界面 3 个槽位卡片');
@@ -889,7 +905,8 @@ const frames = n => new Promise(res => {
   click(tbBtns[3]); eq(st().tool, 'fert', '再点肥料键切回普通肥料');
 
   const labels = [...W.document.querySelectorAll('#sidePanel .sl')].map(e => e.textContent.trim());
-  ok(labels.includes('厨房') && labels.includes('缩放') && labels.includes('装饰') && labels.includes('平移'), '侧栏按钮都有文字（存档已换到设置里的缩放）', labels.join('/'));
+  ok(labels.includes('厨房') && labels.includes('缩放') && labels.includes('仓库') && labels.includes('平移'), '侧栏按钮都有文字（存档已换到设置里的缩放，装饰已并进仓库）', labels.join('/'));
+  ok(!labels.includes('装饰'), '侧栏不再有独立的「装饰」按钮', labels.join('/'));
   ok($('hudIdleM') && $('hudClockM') && $('hudFarmM'), 'HUD 有挂机速率/时钟/田块尺寸');
 
   // 成就面板：奖励文案 + 领取按钮 + 一键领取
@@ -953,12 +970,12 @@ const frames = n => new Promise(res => {
   st().pieces.carrot = 2; st().prep.flour = 1;
   click($('btnStore'));
   click($('storeTabs').children[1]);      // 备料页
-  const prepRows = [...$('storeList').querySelectorAll('.row')];
+  const prepRows = [...$('storeList').querySelectorAll('.g-card')];
   ok(prepRows.length >= 2, '备料页列出面粉与菜块', 'rows=' + prepRows.length);
-  ok(prepRows.some(r => r.querySelector('.r-ico canvas')), '备料行里有 canvas 图标');
+  ok(prepRows.some(r => r.querySelector('.g-ico canvas')), '备料卡片里有 canvas 图标');
   click($('storeTabs').children[0]);      // 作物页
   st().bag.carrot = 1; api.renderStore();
-  ok([...$('storeList').querySelectorAll('.row')].some(r => r.querySelector('.r-ico canvas')), '作物行也有图标');
+  ok([...$('storeList').querySelectorAll('.g-card')].some(r => r.querySelector('.g-ico canvas')), '作物卡片也有图标');
   click($('btnStore'));
 
   // 厨房三段进度条
@@ -973,16 +990,23 @@ const frames = n => new Promise(res => {
   }
   api.closeSheet();
 
-  // 商店装饰品
+  // 商店装饰品（分类：装饰）
   click($('btnShop'));
-  const shopRows = [...$('shopList').querySelectorAll('.row')];
-  ok(shopRows.length >= 8, '商店列出肥料 + 装饰品', 'rows=' + shopRows.length);
+  click($('shopTabs').children[1]);
+  const shopRows = [...$('shopList').querySelectorAll('.g-card')];
+  ok(shopRows.length >= 8, '装饰分类列出装饰品', 'cards=' + shopRows.length);
   const treeRow = shopRows.find(r => r.textContent.includes('树'));
   ok(!!treeRow, '商店里有「树」可买');
   if (treeRow) {
     st().coins = 500;
     const bagB = st().decorBag.tree || 0;
-    click(treeRow.querySelector('.mini'));
+    click(treeRow);                                   // 先选中这张卡
+    const q = $('shopQty');
+    q.value = '3'; q.dispatchEvent(new W.Event('input', { bubbles: true }));
+    eq($('shopQtyText').textContent, '×3', '拖动滑条 → 数量显示跟着变');
+    ok($('shopBuy').textContent.indexOf('96') >= 0, '购买按钮上写总价（32 × 3）', $('shopBuy').textContent);
+    q.value = '1'; q.dispatchEvent(new W.Event('input', { bubbles: true }));
+    click($('shopBuy'));
     eq(st().decorBag.tree, bagB + 1, '买树进装饰仓库');
     eq(st().coins, 500 - 32, '扣 32 金');
   }
@@ -1835,8 +1859,8 @@ const frames = n => new Promise(res => {
     click($('btnShop'));
     ok($('shopModal').classList.contains('show'), '抽屉里的「商店」打开了');
     ok(panel.classList.contains('open'), '点菜单里的内容后抽屉**不**自动收回');
-    click($('btnDecor'));
-    ok($('decorModal').classList.contains('show') && panel.classList.contains('open'), '连着点第二项也不用重开抽屉');
+    click($('btnStore'));
+    ok($('storeModal').classList.contains('show') && panel.classList.contains('open'), '连着点第二项也不用重开抽屉');
     $('game').dispatchEvent(new W.MouseEvent('pointerdown', { bubbles: true }));
     ok(!panel.classList.contains('open'), '点空白处（画布）才收回抽屉');
     api.closeSheet();
@@ -2078,7 +2102,8 @@ const frames = n => new Promise(res => {
     ok(Object.keys(api.DECOR_META).length >= 14, '装饰总数 ≥ 14', String(Object.keys(api.DECOR_META).length));
     /* 商店里全都能买 */
     api.renderShop();
-    const shopNames = [...W.document.querySelectorAll('#shopList .row .r-name')].map(n => n.textContent);
+    click($('shopTabs').children[1]);                 /* 装饰分类 */
+    const shopNames = [...W.document.querySelectorAll('#shopList .g-card .g-name')].map(n => n.textContent);
     for (const id of NEW_DECOR) {
       ok(shopNames.some(n => n.indexOf(api.DECOR_META[id].name) === 0), `商店里有「${api.DECOR_META[id].name}」`);
     }
@@ -3261,7 +3286,8 @@ const frames = n => new Promise(res => {
     for (const id of FULL) ok(api.DECOR_META[id].full === true, `${id} 铺满整格（不需要连接面）`);
     /* 商店里能买 */
     api.renderShop();
-    const shop = [...W.document.querySelectorAll('#shopList .row .r-name')].map(n => n.textContent);
+    click($('shopTabs').children[1]);                 /* 装饰分类 */
+    const shop = [...W.document.querySelectorAll('#shopList .g-card .g-name')].map(n => n.textContent);
     for (const id of PAVE) ok(shop.some(n => n.indexOf(api.DECOR_META[id].name) === 0), `商店里能买「${api.DECOR_META[id].name}」`);
     /* 没货就铺不了（不再免费） */
     st().coins = 100000;
@@ -3391,7 +3417,8 @@ const frames = n => new Promise(res => {
       ok(new RegExp('type\\s*={2,3}\\s*[\'"]' + id + '[\'"]').test(html), `${id} 有对应画法`);
     }
     api.renderShop();
-    const shopNames = [...W.document.querySelectorAll('#shopList .row .r-name')].map(n => n.textContent);
+    click($('shopTabs').children[1]);                 /* 装饰分类 */
+    const shopNames = [...W.document.querySelectorAll('#shopList .g-card .g-name')].map(n => n.textContent);
     for (const id of ['chair', 'table', 'bench', 'plant'])
       ok(shopNames.some(n => n.indexOf(api.DECOR_META[id].name) === 0), `商店里有「${api.DECOR_META[id].name}」`);
     api.applyPayload(backup);
@@ -3452,19 +3479,23 @@ const frames = n => new Promise(res => {
     eq(st().decorations.filter(d => d.type === 'path').length, cntBefore, '点已有小路不会变成铺第二块');
     ok(/连接/.test(W.document.getElementById('toast').textContent || ''), '会提示当前连接档位',
       (W.document.getElementById('toast').textContent || '').slice(0, 24));
-    /* 小路现在是要买/任务拿的物品：商店有卖、仓库有数量与卖出按钮 */
+    /* 小路现在是要买/任务拿的物品：商店有卖、仓库有数量与售出按钮 */
     api.renderShop();
-    ok([...W.document.querySelectorAll('#shopList .row .r-name')].some(n => n.textContent.indexOf('碎石小路') >= 0),
+    click($('shopTabs').children[1]);                 /* 装饰分类 */
+    ok([...W.document.querySelectorAll('#shopList .g-card .g-name')].some(n => n.textContent.indexOf('碎石小路') >= 0),
       '商店里能买到碎石小路（不再是免费铺装）');
-    api.renderDecorBag();
     st().decorBag.path = 2;
-    api.renderDecorBag();
-    const pathRow = [...W.document.querySelectorAll('#decorList .row')].find(r => /碎石小路/.test(r.textContent));
-    ok(!!pathRow, '装饰仓库里显示小路这一项');
-    if (pathRow) {
-      ok(/×2/.test(pathRow.textContent), '仓库里显示实际数量', pathRow.textContent.replace(/\s+/g, ' ').slice(0, 40));
-      ok(!!pathRow.querySelector('button.sell'), '有卖出按钮（付费物品可以卖回一半价）');
+    api.openSheet('store');                           /* 装饰在仓库的第 4 个分类 */
+    click($('storeTabs').children[3]);
+    const pathCard = [...W.document.querySelectorAll('#storeList .g-card')].find(r => /碎石小路/.test(r.textContent));
+    ok(!!pathCard, '装饰分类里显示小路这一项');
+    if (pathCard) {
+      ok(/×2/.test(pathCard.textContent), '仓库里显示实际数量', pathCard.textContent.replace(/\s+/g, ' ').slice(0, 40));
+      pathCard.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+      const sellBtn = W.document.getElementById('storeSell');
+      ok(!!sellBtn && !sellBtn.disabled && /金/.test(sellBtn.textContent), '选中后有「售出 +N 金」按钮（付费物品可以卖回一半价）');
     }
+    api.closeSheet();
     api.applyPayload(backup);
   }
 

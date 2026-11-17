@@ -35,7 +35,7 @@ function resetRuntime(){
 function renderAll(){
   renderHUD(); renderClock(); renderToolbar(); renderGridBtn();
   renderSettings(); renderWarehouseToggle(); updateNoticeDot(); updateHudDots();
-  renderDecorBag(); renderExpandHint(); renderZoomBtn();
+  renderStore(); renderExpandHint(); renderZoomBtn();
 }
 let hiddenAt = 0;                  /* 切到后台的时刻（墙上时间） */
 let awayCatchUp = false;           /* 补算期间：不逐次播音效、不逐次写存档 */
@@ -186,7 +186,7 @@ window.FarmDebug = {
     unpackState, migrateLegacy, serialize, readSlot,
     /* 其它 */
     sellCrop, sellDishUI, save, renderAll, renderHUD, applyOffline, newState,
-    claimTask, claimAllTasks, renderTaskList, renderStore, renderSlots, renderExpandHint, renderShop, renderDecorBag, renderToolbar,
+    claimTask, claimAllTasks, renderTaskList, renderStore, renderSlots, renderExpandHint, renderShop, renderToolbar,
     CHANGELOG, ACHIEVEMENTS, DECOR_META, claimAchievement, claimAllAchievements, claimableAchCount, achClaimed, achRewardText,
     TASK_POOL, checkTasks, taskUnlocked, decorOffset, EXTRA_ITEMS, DISHES, START_COINS,
     renderAchievements, renderKitchen, renderSeedList,

@@ -1,68 +1,147 @@
-/* 商店 */
-function renderShop(){
-  const el = document.getElementById('shopList');
-  if(!el) return;
-  el.innerHTML = '';
+/* ============ 商店 ============
+ * 上方分类 → 中间商品网格（图标 / 名称 / 单价）→ 下方滑条 + 数量 + 购买。
+ * 滑条上限 = 当前金币买得起的最大数量（封顶 SHOP_QTY_MAX）。 */
+const SHOP_TABS = [['fert', '肥料', '🧪'], ['decor', '装饰', '🏡']];
+const SHOP_QTY_MAX = 99;
+let shopTab = 'fert', shopSel = '', shopQty = 1;
 
-  const mk = (icon, name, meta, price, onBuy, buyMany) => {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
-      <div class="r-ico">${icon}</div>
-      <div style="flex:1">
-        <div class="r-name">${name}</div>
-        <div class="r-meta">${meta}</div>
-      </div>`;
-    const b1 = document.createElement('button');
-    b1.className = 'mini'; b1.textContent = `买 ${price} 金`;
-    b1.onclick = e => { e.stopPropagation(); onBuy(1); };
-    row.appendChild(b1);
-    if(buyMany){
-      const b10 = document.createElement('button');
-      b10.className = 'mini'; b10.textContent = `×10`;
-      b10.onclick = e => { e.stopPropagation(); onBuy(10); };
-      row.appendChild(b10);
-    }
-    el.appendChild(row);
+/* 商品/物品卡片（商店、仓库共用）：上方图标、名称，下方单价或数量。
+ * icon：厨房绘制键（'crop:carrot'）或 emoji（'🌳'）。 */
+function goodsCard(opt){
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'g-card' + (opt.active ? ' active' : '');
+  if(opt.title) card.title = opt.title;
+  const ico = document.createElement('div');
+  ico.className = 'g-ico';
+  const key = String(opt.icon == null ? '' : opt.icon);
+  ico.appendChild(iconNode(key, 30));
+  const nm = document.createElement('div');
+  nm.className = 'g-name'; nm.textContent = opt.name;
+  const sub = document.createElement('div');
+  sub.className = 'g-sub'; sub.textContent = opt.sub;
+  card.append(ico, nm, sub);
+  if(opt.onPick) card.onclick = opt.onPick;
+  return card;
+}
+/* 分类页签（商店、仓库共用）；counts 可选，用来说明每类有多少件 */
+function tradeTabs(box, tabs, cur, counts, onPick){
+  box.innerHTML = '';
+  for(const [key, label, ico] of tabs){
+    const b = document.createElement('button');
+    b.className = 'tab' + (cur === key ? ' active' : '');
+    b.textContent = ico + ' ' + label + (counts && counts[key] ? ' ' + counts[key] : '');
+    b.onclick = () => onPick(key);
+    box.appendChild(b);
+  }
+}
+/* 数量滑条（商店、仓库共用）：夹紧数量并回写滑条/文字，返回实际数量。
+ * id 是「shop」/「store」：对应 #shopQty / #shopQtyText / #storeQty / #storeQtyText。 */
+function syncQtyBar(id, o){
+  const slider = document.getElementById(id + 'Qty');
+  const txt = document.getElementById(id + 'QtyText');
+  const max = Math.max(1, o.max || 1);
+  const qty = Math.max(1, Math.min(o.qty || 1, max));
+  slider.disabled = !!o.disabled;
+  slider.max = max; slider.value = qty;
+  txt.textContent = o.dash ? '—' : '×' + qty;
+  slider.oninput = o.disabled ? null : () => {
+    const v = Math.max(1, Math.round(+slider.value) || 1);
+    if(v !== qty) o.onInput(v);
   };
+  return qty;
+}
+/* 扣金币：够就扣并返回 true；不够只提示、不扣 */
+function spendCoins(cost){
+  if(state.coins < cost){ toast('金币不够'); SFX.play('error'); return false; }
+  state.coins -= cost;
+  return true;
+}
 
-  mk('🧪', '普通肥料', `生长速度 ×1.5，可与浇水叠加 · 现有 ${state.fertilizer}`, FERT_COST, n => {
-    const cost = FERT_COST * n;
-    if(state.coins < cost){ toast('金币不够'); SFX.play('error'); return; }
-    state.coins -= cost; state.fertilizer += n;
-    SFX.play('buy'); renderHUD(); renderShop(); save(); toast(`买入肥料 ×${n}`);
-  }, true);
-
-  mk('✨', '高级肥料', `直接催熟当前作物 · 主要靠每日任务获得 · 现有 ${state.premium}`, PREMIUM_COST, n => {
-    const cost = PREMIUM_COST * n;
-    if(state.coins < cost){ toast('金币不够'); SFX.play('error'); return; }
-    state.coins -= cost; state.premium += n;
-    SFX.play('buy'); renderHUD(); renderShop(); save(); toast(`买入高级肥料 ×${n}`);
-  }, false);
-
-  const tip = document.createElement('div');
-  tip.className = 'r-meta';
-  tip.style.padding = '10px 4px 0';
-  tip.textContent = '提示：每日任务的奖励就是这两种肥料，高级肥料能省下一整个生长周期。';
-  el.appendChild(tip);
-
-  /* ---------- 装饰品 ---------- */
-  const sep = document.createElement('div');
-  sep.className = 'shop-sep';
-  sep.textContent = '🏡 装饰品（买完进装饰仓库，摆在农场外的地面或石头地上）';
-  el.appendChild(sep);
-
+/* 网格末尾的说明行（商店、仓库共用） */
+function gridNote(el, text){
+  const note = document.createElement('div');
+  note.className = 'g-note';
+  note.textContent = text;
+  el.appendChild(note);
+}
+/* 某一分类下的商品：key / icon / name / price / buy(n) / meta(悬停说明) */
+function shopCatalog(tab){
+  const out = [];
+  const mkFert = (key, icon, name, label, price, note, get, add) => ({
+    key, icon, name, price,
+    meta: `${note} · 每份 ${price} 金 · 现有 ${get()}`,
+    buy(n){
+      if(!spendCoins(price * n)) return false;
+      add(n);
+      SFX.play('buy'); renderHUD(); save();
+      toast(`买入${label} ×${n}`);
+      return true;
+    },
+  });
+  if(tab === 'fert'){
+    out.push(
+      mkFert('fert', '🧪', '普通肥料', '肥料', FERT_COST, '生长速度 ×1.5，可与浇水叠加',
+             () => state.fertilizer, n => { state.fertilizer += n; }),
+      mkFert('premium', '✨', '高级肥料', '高级肥料', PREMIUM_COST,
+             '直接催熟当前作物 · 主要靠每日任务获得',
+             () => state.premium, n => { state.premium += n; }),
+    );
+    return out;
+  }
+  /* 装饰品：买完进仓库的「装饰」分类，摆在农场外的地面或石头地上 */
   for(const id of DECOR_IDS){
     const meta = DECOR_META[id];
     if(!DECOR_PRICE[id]) continue;
-    mk(meta.icon, meta.name, `装饰物 · 现有 ${state.decorBag[id] || 0} · 回收价 ${DECOR_SELL[id] || 0} 金`, DECOR_PRICE[id], n => {
-      const cost = DECOR_PRICE[id] * n;
-      if(state.coins < cost){ toast('金币不够'); SFX.play('error'); return; }
-      state.coins -= cost;
-      state.decorBag[id] = (state.decorBag[id] || 0) + n;
-      SFX.play('buy');
-      renderHUD(); renderShop(); renderDecorBag(); save();
-      toast(`买入 ${meta.name} ×${n}`);
-    }, true);
+    out.push({
+      key: 'decor:' + id, icon: meta.icon, name: meta.name, price: DECOR_PRICE[id],
+      meta: `装饰物 · 每件 ${DECOR_PRICE[id]} 金 · 回收价 ${DECOR_SELL[id] || 0} 金 · 现有 ${state.decorBag[id] || 0}`,
+      buy(n){
+        if(!spendCoins(DECOR_PRICE[id] * n)) return false;
+        state.decorBag[id] = (state.decorBag[id] || 0) + n;
+        SFX.play('buy'); renderHUD(); renderStore(); save();
+        toast(`买入 ${meta.name} ×${n}`);
+        return true;
+      },
+    });
   }
+  return out;
+}
+function renderShop(){
+  const tabs = document.getElementById('shopTabs'), el = document.getElementById('shopList');
+  if(!el) return;
+  const items = shopCatalog(shopTab);
+  if(!items.some(it => it.key === shopSel)){ shopSel = items.length ? items[0].key : ''; shopQty = 1; }
+  if(tabs) tradeTabs(tabs, SHOP_TABS, shopTab, null, key => {
+    shopTab = key; shopSel = ''; shopQty = 1;
+    SFX.play('click'); renderShop();
+  });
+  el.innerHTML = '';
+  for(const it of items){
+    el.appendChild(goodsCard({
+      icon: it.icon, name: it.name, sub: it.price + ' 金', title: it.meta,
+      active: it.key === shopSel,
+      onPick: () => { shopSel = it.key; shopQty = 1; SFX.play('click'); renderShop(); },
+    }));
+  }
+  if(shopTab === 'fert') gridNote(el, '提示：每日任务的奖励就是这两种肥料，高级肥料能省下一整个生长周期。');
+  syncShopBar(items);
+}
+/* 操作条：滑条上限 = 金币买得起的数量（至少 1），按钮上直接写总价 */
+function syncShopBar(items){
+  const btn = document.getElementById('shopBuy');
+  if(!btn) return;
+  const it = (items || shopCatalog(shopTab)).find(x => x.key === shopSel);
+  if(!it){
+    syncQtyBar('shop', { disabled: true, dash: true });
+    btn.disabled = true; btn.textContent = '购买'; btn.onclick = null;
+    return;
+  }
+  const maxQ = Math.min(SHOP_QTY_MAX, Math.floor(state.coins / it.price));
+  shopQty = syncQtyBar('shop', { max: maxQ, qty: shopQty,
+    onInput: v => { shopQty = v; syncShopBar(items); } });
+  const cost = it.price * shopQty;
+  btn.disabled = state.coins < cost;
+  btn.textContent = btn.disabled ? '金币不足' : ('购买 ' + cost + ' 金');
+  btn.onclick = btn.disabled ? null : () => { if(it.buy(shopQty)) renderShop(); };
 }

@@ -166,8 +166,8 @@ const AUTO_MAX = 5;                                   /* 每种最多同时养�
  * 槽里的东西已经从仓库扣掉，所以它会跟着存档走（state.autoSlot）。 */
 /* 切块机挑料：优先继续切料斗里已有的那种（成品一致），否则挑仓库里最多的 */
 function autoPickCrop(slot){
-  /* v9.30：用户可以在菜单里指定"只切这一种"。指定了就**只认它**：
-     没货就停（缺原料），不会顺手抓别的作物顶上。'' = 自动挑库存最多的。 */
+  /* v9.30：指定了就只认这一种，没货就停。注意「指定作物」的选择条已经随厨房改版移除，
+     所以读档时不再恢复这个限制（见 save.js），避免老存档永远卡在一种已经没货的作物上。 */
   const want = (state.autoCrop && state.autoCrop.chopper) || '';
   if(want){
     if(CROPS[want] && !CROPS[want].noChop && (state.bag[want] || 0) > 0) return want;
@@ -217,8 +217,19 @@ function autoPrice(id){
   return Math.round(dev.price * Math.pow(dev.rate || 1.6, autoCountOf(id)));
 }
 function autoUntilOf(id){ return (state.autoUntil && state.autoUntil[id]) || 0; }
-function autoLeftMs(id){ return Math.max(0, autoUntilOf(id) - Date.now()); }
-function autoActive(id){ return autoLeftMs(id) > 0; }
+/* 剩余租期：**暂停时冻结在按下暂停的那一刻**。
+ * 以前这里直接拿 Date.now() 相减：停着的时候界面上的剩余时间继续往下走，
+ * 停得久了 autoActive() 就变成 false —— 设备显示成「未启用」，开关也拉不回来，
+ * 等于付了钱却把机器停了。现在暂停期间剩余不变，恢复时 autoResume 把停掉的
+ * 那段补回 autoUntil；nowMs 只在补算历史（catchUpAway）时传入。 */
+function autoLeftMs(id, nowMs){
+  const until = autoUntilOf(id);
+  if(until <= 0) return 0;
+  const at = (state.autoPause && state.autoPause[id]) || 0;
+  const now = at > 0 ? at : (nowMs == null ? Date.now() : nowMs);
+  return Math.max(0, until - now);
+}
+function autoActive(id, nowMs){ return autoLeftMs(id, nowMs) > 0; }
 /* 机器的开 / 停：暂停时不产出、也不吃料，而且**租期冻结**（回来接着用，不白扣租金） */
 function autoPaused(id){ return ((state.autoPause && state.autoPause[id]) || 0) > 0; }
 function autoPause(id){
@@ -232,9 +243,13 @@ function autoPause(id){
 function autoResume(id){
   if(!state.autoPause) state.autoPause = { donkey:0, chopper:0 };
   const at = state.autoPause[id] || 0;
-  if(!at) return { ok:false, msg:AUTO_DEVICES[id].name + '本来就在跑' };
-  /* 暂停期间补回租期 —— 停着的时候不该烧租金 */
-  state.autoUntil[id] = autoUntilOf(id) + Math.max(0, Date.now() - at);
+  if(!at) return { ok:false, msg: autoActive(id) ? (AUTO_DEVICES[id].name + '本来就在跑')
+                                                : (AUTO_DEVICES[id].name + '还没买 / 已经到期') };
+  /* 暂停期间补回租期 —— 停着的时候不该烧租金。
+     用「暂停那一刻的剩余」重新对齐到 now，比直接加 (now - at) 更稳：
+     老存档里万一 until 已经停在过去，也不会凭空复活一段租期。 */
+  const left = Math.max(0, autoUntilOf(id) - at);
+  state.autoUntil[id] = Date.now() + left;
   state.autoPause[id] = 0;
   save();
   return { ok:true, msg:AUTO_DEVICES[id].name + '继续工作（剩余 ' + Math.ceil(autoLeftMs(id) / 60000) + ' 分钟）' };
@@ -248,6 +263,9 @@ function autoBuy(id){
   if(state.coins < price) return { ok:false, msg:`金币不够（第 ${autoCountOf(id) + 1} 台需要 ${price} 金）` };
   state.coins -= price;
   state.autoCount[id] = autoCountOf(id) + 1;
+  /* 停着的时候买新台：先把暂停那段的租期结清（autoResume 会补回），
+     再在这条已经对齐到「现在」的时间线上叠加 —— 否则会多送一大段租期。 */
+  if(autoPaused(id)) autoResume(id);
   const base = Math.max(Date.now(), autoUntilOf(id));       /* 还在跑就顺延 */
   state.autoUntil[id] = base + dev.durMs;
   state.autoAcc[id] = state.autoAcc[id] || 0;
@@ -260,26 +278,33 @@ function autoBuy(id){
   const n = state.autoCount[id];
   return { ok:true, msg:`${dev.name} ×${n} 上线 ${mins} 分钟（剩余 ${Math.ceil(autoLeftMs(id) / 60000)} 分钟，每轮产 ${n} 份）` };
 }
-/* 每帧推进：到点产出一次；原料不足就空转（时间照走，界面提示缺料） */
-function autoTick(dt){
+/* 每帧推进：到点产出一次；原料不足就空转（时间照走，界面提示缺料）
+ * nowMs：补算历史（catchUpAway）时传入那一刻的墙钟，租期按时间轴推进，
+ * 而不是拿「现在」判断 —— 否则离开期间到期的设备会按现在是否还在租用，
+ * 该补的产量少算了，界面上的剩余时间也对不上。 */
+function autoTick(dt, nowMs){
   const K = KITCHEN;
+  const now = nowMs == null ? Date.now() : nowMs;
   const audible = (typeof kKitchenOpen === 'function') && kKitchenOpen();   /* 开着厨房面板才出声 */
-  /* 石磨的进度条画的是「自动磨面」的进度（手动磨粉是瞬时的，不占进度条） */
-  if(autoActive('donkey') && !autoPaused('donkey')){
+  /* 石磨的进度条画的是「自动磨面」的进度（手动磨粉是瞬时的，不占进度条）。
+     租期内即使暂停也保留进度（停在这一步），别把条清零当成"没在磨"。 */
+  if(autoActive('donkey', now)){
     K.mill.busy = true; K.mill.dur = AUTO_DEVICES.donkey.per;
     K.mill.t = state.autoAcc.donkey || 0;
   } else {
-    K.mill.busy = false;                     /* 驴停了/没买：进度条归零，别一直显示成"还在磨" */
-    K.mill.t = 0;
+    K.mill.busy = false; K.mill.t = 0;
   }
   for(const id of AUTO_IDS){
-    if(!autoActive(id) || autoPaused(id)) continue;      /* 停着的机器不产出、也不吃料 */
+    if(!autoActive(id, now) || autoPaused(id)) continue;      /* 停着的机器不产出、也不吃料 */
     state.autoAcc[id] = (state.autoAcc[id] || 0) + dt;
     const dev = AUTO_DEVICES[id];
     if(state.autoAcc[id] < dev.per) continue;
     state.autoAcc[id] -= dev.per;
     const n = autoCountOf(id);                 /* 养了几台，一轮就产几份 */
     const slot = autoSlotOf(id);
+    /* 料斗空了就先从仓库补：以前只在「产出之后」才补，一旦料斗在暂停/离线期间被
+       吃空（或买的时候仓库没料），机器就会一直空转不出货，看着就像自动加工坏了。 */
+    if(!slot.length) autoSlotRefill(id);
     if(id === 'donkey'){
       let made = 0;
       for(let i = 0; i < n; i++){
@@ -311,8 +336,20 @@ function autoTick(dt){
 /* 全自动：同一个开关同时负责「自动取出」和「自动投料」（到原料不足才停） */
 function autoLoopFeed(){
   const K = KITCHEN;
-  if(K.oven.auto && !K.oven.busy && !K.oven.items.length){
-    if(!K.oven.lastItem) return;             /* 还没烤过东西，没什么可重复的 */
+  /* 烤箱：开了自动但还没烤过东西时，先自己挑一份默认配方（有面粉就做面包，否则烤库存最多的菜块），
+     否则勾选会一直空转，看起来就像「自动烹饪没效果」。之后沿用同一份配方。 */
+  if(K.oven.auto && !K.oven.busy && !K.oven.items.length && !K.oven.lastItem){
+    if((state.prep.flour || 0) > 0) K.oven.lastItem = { prep:'flour' };
+    else {
+      let pick = null, best = 0;
+      for(const id of CROP_IDS){
+        const n = state.pieces[id] || 0;
+        if(n > best){ best = n; pick = id; }
+      }
+      if(pick) K.oven.lastItem = { piece: pick };
+    }
+  }
+  if(K.oven.auto && !K.oven.busy && !K.oven.items.length && K.oven.lastItem){
     /* 队列空了就补一轮的量（每轮加工 ovenCap() 份） */
     let fed = 0;
     while(K.oven.items.length < ovenCap()){
@@ -490,9 +527,9 @@ function kitchenShelf(){
 }
 
 /* ---------- 每帧推进（由 kitchen.js 的 updateKitchen 调用） ---------- */
-function kitchenLogicTick(dt){
+function kitchenLogicTick(dt, nowMs){
   const K = KITCHEN;
-  autoTick(dt);            /* 限时自动化设备（驴 / 切块机） */
+  autoTick(dt, nowMs);     /* 限时自动化设备（驴 / 切块机） */
   /* 石磨不再有计时逻辑：手动磨粉是瞬时的（见 mill()），
      mill.busy/t/dur 只是「自动磨面」进度条的显示状态，由 autoTick 写入 */
   if(K.board.busy){

@@ -14,6 +14,10 @@ function resetRuntime(){
   const ka = state.kitchenAuto || { oven:false, pot:false };
   KITCHEN.oven.auto = !!ka.oven;
   KITCHEN.pot.auto = !!ka.pot;
+  /* 恢复「自动烹饪」的上一份配方：否则刷新后勾选还在，却因为没有配方一直不动 */
+  const kl = state.kitchenLast || {};
+  KITCHEN.oven.lastItem = kl.oven || null;
+  KITCHEN.pot.lastPieces = Array.isArray(kl.pot) ? kl.pot.slice() : [];
 
   if(!state.autoUntil) state.autoUntil = { donkey:0, chopper:0 };
   if(!state.autoAcc) state.autoAcc = { donkey:0, chopper:0 };
@@ -51,8 +55,10 @@ function catchUpAway(ms){
      按 ≤1 秒的步长推进，才不会把好几轮产量挤成一轮。 */
   awayCatchUp = true;
   try{
-    let left = capped;
-    while(left > 0){ const step = Math.min(1000, left); kitchenLogicTick(step); left -= step; }
+    /* 逐秒推进时也把墙钟往前拨：租期按「离开时那一刻 → 现在」的时间轴结算，
+       离开期间到期的驴/切块机只补到到期为止，不会因为「现在已到期」就整段少算。 */
+    let left = capped, at = Date.now() - capped;
+    while(left > 0){ const step = Math.min(1000, left); kitchenLogicTick(step, at); at += step; left -= step; }
   } finally { awayCatchUp = false; }
   idleTick();
   renderAll(); save();

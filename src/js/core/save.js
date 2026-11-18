@@ -24,9 +24,13 @@ function serialize(st){
     /* 厨房勾选状态住在模块常量 KITCHEN 里，存档时镜像进来 */
     kitchenAuto: { oven: !!(typeof KITCHEN !== 'undefined' && KITCHEN.oven.auto),
                    pot: !!(typeof KITCHEN !== 'undefined' && KITCHEN.pot.auto) },
+    /* 自动烹饪的上一份配方：只存“要做什么”，材料仍从仓库扣 */
+    kitchenLast: {
+      oven: (typeof KITCHEN !== 'undefined' && KITCHEN.oven.lastItem) || null,
+      pot: (typeof KITCHEN !== 'undefined' && Array.isArray(KITCHEN.pot.lastPieces)) ? KITCHEN.pot.lastPieces.slice() : [],
+    },
     autoUntil: st.autoUntil, autoAcc: st.autoAcc, autoCount: st.autoCount, ovenSlots: st.ovenSlots,
     autoSlot: st.autoSlot, autoPause: st.autoPause, autoCrop: st.autoCrop,
-    kExpand: st.kExpand,
     longPressBox: st.longPressBox !== false,
     autoFarm: st.autoFarm,
     showCropBars: st.showCropBars !== false,
@@ -130,14 +134,26 @@ function unpackState(d){
   /* 老存档里 auto 与 loop 是两个开关，现在合并成一个：任意一个开过就算全自动开着 */
   const kaOld = d.kitchenAuto || {};
   st.kitchenAuto = { oven: !!(kaOld.oven || kaOld.ovenLoop), pot: !!(kaOld.pot || kaOld.potLoop) };
+  {
+    /* 自动烹饪的上一份配方：只恢复认识的材料，脏数据直接丢掉 */
+    const kl = d.kitchenLast || {};
+    const lo = kl.oven;
+    let oven = null;
+    if(lo && lo.piece && CROPS[lo.piece]) oven = { piece: lo.piece };
+    else if(lo && lo.prep === 'flour') oven = { prep: 'flour' };
+    st.kitchenLast = {
+      oven,
+      pot: Array.isArray(kl.pot) ? kl.pot.filter(id => !!CROPS[id]) : [],
+    };
+  }
   st.ovenSlots = Math.max(1, Math.min(OVEN_SLOT_MAX, d.ovenSlots | 0 || 1));
   st.autoUntil = Object.assign({ donkey:0, chopper:0 }, d.autoUntil || {});
   st.autoCount = Object.assign({ donkey:0, chopper:0 }, d.autoCount || {});
   st.autoAcc = Object.assign({ donkey:0, chopper:0 }, d.autoAcc || {});
   st.autoSlot = { donkey: (d.autoSlot && d.autoSlot.donkey) || [], chopper: (d.autoSlot && d.autoSlot.chopper) || [] };
   st.autoPause = Object.assign({ donkey:0, chopper:0 }, d.autoPause || {});
-  st.autoCrop = { chopper: (d.autoCrop && CROPS[d.autoCrop.chopper]) ? d.autoCrop.chopper : '' };
-  st.kExpand = { prep: !!(d.kExpand && d.kExpand.prep), cook: !!(d.kExpand && d.kExpand.cook) };
+  /* 「只切某一种」的选择条已经移除：老存档里带的限制不再恢复，否则没有界面能改回来 */
+  st.autoCrop = { chopper: '' };
   st.longPressBox = d.longPressBox !== false;
   {
     const af = Object.assign({}, afDefaults(), d.autoFarm || {});

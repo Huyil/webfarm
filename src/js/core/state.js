@@ -61,14 +61,14 @@ function newState(){
     idle: { lastAt: Date.now(), frac: 0, total: 0 },
     clockMs: DAY_MS * 0.16,
     kitchenAuto: { oven: false, pot: false },
+    kitchenLast: { oven: null, pot: [] },      /* 自动烹饪的上一份配方（刷新后继续做同一种） */
     ovenSlots: 1,                              /* 烤箱槽位（可花钱升级，一次烤多份） */
     autoUntil: { donkey: 0, chopper: 0 },      /* 限时自动化设备的到期时间戳 */
     autoCount: { donkey: 0, chopper: 0 },      /* 各养了几台（每轮产几份） */
     autoAcc: { donkey: 0, chopper: 0 },
     autoSlot: { donkey: [], chopper: [] },   /* 各机器**独立**的进料槽（内容物已从仓库扣掉） */
     autoPause: { donkey: 0, chopper: 0 },      /* 0 = 在跑；非 0 = 暂停时刻（暂停时租期冻结） */
-    autoCrop: { chopper: '' },                 /* 切块机指定切哪种作物（'' = 自动挑库存最多的） */
-    kExpand: { prep: false, cook: false },   /* 厨房两行工位的展开状态（缩略行 ↔ 大界面） */
+    autoCrop: { chopper: '' },                 /* 旧存档的「切块机只切某种作物」；对应界面已移除，读档时不再生效 */
     longPressBox: true,                        /* 长按 = 框选（关掉则长按只当普通点击，不会跟移动打架） */
     afPicking: false,                          /* 正在划自动农活的区域（下一次框选用来定区域） */
     autoFarm: afDefaults(),                    /* 自动农活：区域/轮作/口粮/饱食度（见 autofarm.js） */

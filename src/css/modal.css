@@ -126,6 +126,7 @@
   margin-top:calc(10px*var(--ui-scale));
   padding-top:calc(10px*var(--ui-scale));border-top:1px solid #333f34;
 }
+.trade-bar.single .trade-btn{margin-left:auto}
 .trade-slider{
   flex:1 1 auto;min-width:0;height:calc(24px*var(--ui-scale));
   -webkit-appearance:none;appearance:none;background:transparent;

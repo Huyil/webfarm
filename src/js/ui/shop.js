@@ -1,7 +1,7 @@
 /* ============ 商店 ============
  * 上方分类 → 中间商品网格（图标 / 名称 / 单价）→ 下方滑条 + 数量 + 购买。
  * 滑条上限 = 当前金币买得起的最大数量（封顶 SHOP_QTY_MAX）。 */
-const SHOP_TABS = [['fert', '肥料', '🧪'], ['decor', '装饰', '🏡']];
+const SHOP_TABS = [['fert', '肥料', '🧪'], ['decor', '装饰', '🏡'], ['machine', '机器', '⚙️']];
 const SHOP_QTY_MAX = 99;
 let shopTab = 'fert', shopSel = '', shopQty = 1;
 
@@ -89,6 +89,43 @@ function shopCatalog(tab){
     );
     return out;
   }
+  if(tab === 'machine'){
+    /* 石磨 / 切菜板 / 烤箱的机器升级：一次只买 1 台，买完卡片改名成下一台 */
+    const mkAuto = (id, icon) => {
+      const dev = AUTO_DEVICES[id];
+      const n = autoCountOf(id);
+      if(n >= AUTO_MAX) return;
+      out.push({
+        key: 'machine:' + id, icon, name: '添加第' + (n + 1) + '台' + dev.name,
+        price: autoPrice(id), single: true,
+        meta: dev.desc + ' · 现有 ' + n + ' 台（最多 ' + AUTO_MAX + ' 台）',
+        buy(){
+          const r = autoBuy(id);
+          if(!r.ok){ toast(r.msg); SFX.play('error'); return false; }
+          toast(r.msg);
+          return true;
+        },
+      });
+    };
+    mkAuto('donkey', '🐴');
+    mkAuto('chopper', '🔪');
+    if(ovenCanUpgrade()){
+      const cap = ovenCap();
+      out.push({
+        key: 'machine:oven', icon: '🔥', name: '添加第' + (cap + 1) + '台烤箱',
+        price: ovenSlotPrice(), single: true,
+        meta: '烤箱增加 1 个烤位：每轮多出炉 1 份 · 现在每轮 ' + cap + ' 份（最多 ' + OVEN_SLOT_MAX + ' 份）',
+        buy(){
+          const r = ovenUpgrade();
+          toast(r.msg);
+          if(!r.ok){ SFX.play('error'); return false; }
+          SFX.play('buy');
+          return true;
+        },
+      });
+    }
+    return out;
+  }
   /* 装饰品：买完进仓库的「装饰」分类，摆在农场外的地面或石头地上 */
   for(const id of DECOR_IDS){
     const meta = DECOR_META[id];
@@ -125,6 +162,7 @@ function renderShop(){
     }));
   }
   if(shopTab === 'fert') gridNote(el, '提示：每日任务的奖励就是这两种肥料，高级肥料能省下一整个生长周期。');
+  else if(shopTab === 'machine') gridNote(el, '机器在厨房工位里启用：驴 / 切块机有 5 分钟租期，重复添加会顺延；烤箱升级增加每轮出炉份数。');
   syncShopBar(items);
 }
 /* 操作条：滑条上限 = 金币买得起的数量（至少 1），按钮上直接写总价 */
@@ -132,13 +170,20 @@ function syncShopBar(items){
   const btn = document.getElementById('shopBuy');
   if(!btn) return;
   const it = (items || shopCatalog(shopTab)).find(x => x.key === shopSel);
+  const single = !!(it && it.single);
+  const slider = document.getElementById('shopQty');
+  const qtyText = document.getElementById('shopQtyText');
+  if(slider) slider.style.display = single ? 'none' : '';
+  if(qtyText) qtyText.style.display = single ? 'none' : '';
+  const bar = btn.parentElement;
+  if(bar && bar.classList) bar.classList.toggle('single', single);
   if(!it){
     syncQtyBar('shop', { disabled: true, dash: true });
     btn.disabled = true; btn.textContent = '购买'; btn.onclick = null;
     return;
   }
-  const maxQ = Math.min(SHOP_QTY_MAX, Math.floor(state.coins / it.price));
-  shopQty = syncQtyBar('shop', { max: maxQ, qty: shopQty,
+  const maxQ = single ? 1 : Math.min(SHOP_QTY_MAX, Math.floor(state.coins / it.price));
+  shopQty = syncQtyBar('shop', { max: maxQ, qty: single ? 1 : shopQty, disabled: single,
     onInput: v => { shopQty = v; syncShopBar(items); } });
   const cost = it.price * shopQty;
   btn.disabled = state.coins < cost;

@@ -18,6 +18,11 @@ function gradeOf(t, dur, perfectMs, burnMs){
   if(t < dur + perfectMs) return 'perfect';
   return 'normal';
 }
+/* 品质角标：把 QUALITY[q].tag（图标名）渲染成 SVG；普通品质没有角标 */
+function qualityIconHTML(q){
+  const t = QUALITY[q] && QUALITY[q].tag;
+  return t ? iconHTML(t) : '';
+}
 function addDish(recipe, qualityId, n){
   n = n || 1;
   const q = QUALITY[qualityId] || QUALITY.normal;
@@ -26,8 +31,8 @@ function addDish(recipe, qualityId, n){
   let cur = state.dishes[key];
   if(cur) cur.n += n;
   else {
-    cur = state.dishes[key] = { n, name: recipe.name, emoji: recipe.emoji, value,
-      quality: qualityId, qname: q.name, qtag: q.tag, pieces: recipe.pieces.slice(), id: recipe.id,
+    cur = state.dishes[key] = { n, name: recipe.name, value,
+      quality: qualityId, qname: q.name, pieces: recipe.pieces.slice(), id: recipe.id,
       counts: recipe.counts ? Object.assign({}, recipe.counts) : null };
   }
   state.stats.total.dishTypes[recipe.id] = true;
@@ -86,7 +91,7 @@ function canOvenPut(){
   return (state.prep.flour || 0) > 0 || ovenPieceStock().length > 0;   /* 队列不限量，有料就能放 */
 }
 function roastRecipe(id){
-  return { id:'roast', name:'烤' + itemName(id), emoji:'🍢',
+  return { id:'roast', name:'烤' + itemName(id),
            base: Math.max(1, Math.round(pieceValue(id) * 2)), pieces:[id] };
 }
 /* arg 省略 = 优先面粉；也可以显式 { piece:id } / { flour:true } */
@@ -141,7 +146,7 @@ function ovenTake(auto){
   save();
   const n = out.length;
   return { ok:true, quality:q, dish:last, dishes:out, n, left:KITCHEN.oven.items.length,
-           msg:`${QUALITY[q].tag}${last.name}（${QUALITY[q].name}）` + (n > 1 ? ` ×${n}` : '') +
+           msg:`${last.name}（${QUALITY[q].name}）` + (n > 1 ? ` ×${n}` : '') +
                (KITCHEN.oven.items.length ? ` · 队列还剩 ${KITCHEN.oven.items.length} 份` : '') };
 }
 function ovenPreview(){
@@ -155,9 +160,9 @@ function ovenPreview(){
 /* ---------- 限时自动化设备（金币买、只能跑一段时间） ---------- */
 const AUTO_SLOT_MAX = 5;                              /* 每台机器**自己的**进料槽能放几份 */
 const AUTO_DEVICES = {
-  donkey:  { id:'donkey',  name:'拉磨的驴',   icon:'🐴', price:600, rate:1.6, durMs:5*60*1000, per:MILL_MS,
-             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份小麦，空了自动从仓库补）：进度条走完一次，每头驴产 1 份面粉' },
-  chopper: { id:'chopper', name:'切块机', icon:'🔪', price:900, rate:1.6, durMs:5*60*1000, per:1500,
+  donkey:  { id:'donkey',  name:'石磨',   icon:'station:mill', price:600, rate:1.6, durMs:5*60*1000, per:MILL_MS,
+             desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份小麦，空了自动从仓库补）：进度条走完一次，每台磨 1 份面粉' },
+  chopper: { id:'chopper', name:'切菜板', icon:'station:board', price:900, rate:1.6, durMs:5*60*1000, per:1500,
              desc:'自己带一个料斗（最多 ' + AUTO_SLOT_MAX + ' 份，空了自动补）：进度条走完一次，每台切 1 份。可指定只切某一种作物' },
 };
 const AUTO_IDS = Object.keys(AUTO_DEVICES);
@@ -244,7 +249,9 @@ function autoResume(id){
   if(!state.autoPause) state.autoPause = { donkey:0, chopper:0 };
   const at = state.autoPause[id] || 0;
   if(!at) return { ok:false, msg: autoActive(id) ? (AUTO_DEVICES[id].name + '本来就在跑')
-                                                : (AUTO_DEVICES[id].name + '还没买 / 已经到期') };
+                                                : (autoCountOf(id) > 0
+                                                    ? (AUTO_DEVICES[id].name + '租期已用完 —— 去商店「机器」续租（' + AUTO_RENT_PER_MIN + ' 金/分钟）')
+                                                    : (AUTO_DEVICES[id].name + '还没解锁自动加工 —— 先去商店「机器」购买')) };
   /* 暂停期间补回租期 —— 停着的时候不该烧租金。
      用「暂停那一刻的剩余」重新对齐到 now，比直接加 (now - at) 更稳：
      老存档里万一 until 已经停在过去，也不会凭空复活一段租期。 */
@@ -277,6 +284,30 @@ function autoBuy(id){
   const mins = Math.round(dev.durMs / 60000);
   const n = state.autoCount[id];
   return { ok:true, msg:`${dev.name} ×${n} 上线 ${mins} 分钟（剩余 ${Math.ceil(autoLeftMs(id) / 60000)} 分钟，每轮产 ${n} 份）` };
+}
+/* ---------- 单独续租（商店「机器」分类，1000 金/分钟） ----------
+ * 和「买机器」分开：买机器 = 解锁自动加工 + 5 分钟租期；这里只给已拥有的机器加时间。
+ * 暂停中也允许续租，租期加在冻结的那条时间线上（不会因为"现在"把暂停期间算进去）。 */
+const AUTO_RENT_PER_MIN = 1000;                       /* 每分钟租金 */
+function autoRent(id, minutes){
+  const dev = AUTO_DEVICES[id];
+  if(!dev) return { ok:false, msg:'没有这个设备' };
+  if(autoCountOf(id) <= 0) return { ok:false, msg:'先到商店购买「自动' + dev.name + '」解锁自动加工' };
+  const n = Math.max(1, Math.floor(minutes || 1));
+  const cost = AUTO_RENT_PER_MIN * n;
+  if(state.coins < cost) return { ok:false, msg:`金币不够（续租 ${n} 分钟需要 ${cost} 金）` };
+  state.coins -= cost;
+  let base;
+  if(autoPaused(id)){
+    const at = (state.autoPause && state.autoPause[id]) || 0;
+    base = Math.max(at, autoUntilOf(id));             /* 停着：在冻结的时间线上顺延 */
+  } else {
+    base = Math.max(Date.now(), autoUntilOf(id));     /* 还在跑：直接往后顺延 */
+  }
+  state.autoUntil[id] = base + n * 60000;
+  SFX.play('buy');
+  renderHUD(); renderKitchen(); save();
+  return { ok:true, msg:`${dev.name}续租 ${n} 分钟（剩余 ${Math.ceil(autoLeftMs(id) / 60000)} 分钟）` };
 }
 /* 每帧推进：到点产出一次；原料不足就空转（时间照走，界面提示缺料）
  * nowMs：补算历史（catchUpAway）时传入那一刻的墙钟，租期按时间轴推进，
@@ -356,7 +387,7 @@ function autoLoopFeed(){
       if(!ovenPut(K.oven.lastItem, true).ok){
         if(fed === 0){
           K.oven.auto = false;               /* 原料不足：自动关掉，免得一直空转 */
-          toast('🥣 原料用完了：烤箱全自动已停');
+          toast('原料用完了：烤箱全自动已停', 'pot');
         }
         break;
       }
@@ -373,7 +404,7 @@ function autoLoopFeed(){
     const added = potAddMany(last);
     if(added === 0){
       K.pot.auto = false;
-      toast('🔪 菜块用完了：锅全自动已停（原料不足）');
+      toast('菜块用完了：锅全自动已停（原料不足）', 'knife');
     }
   }
 }
@@ -453,7 +484,7 @@ function potTake(auto){
   trackAction('cook');
   if(q === 'perfect') trackAction('perfect');
   save();
-  return { ok:true, quality:q, dish:item, msg:`${QUALITY[q].tag}${item.name}（${QUALITY[q].name}）` };
+  return { ok:true, quality:q, dish:item, msg:`${item.name}（${QUALITY[q].name}）` };
 }
 
 /* ---------- 面包切片（v9.30）：1 面包 → 2 片，每片比"对半分"多 2 金 ---------- */
@@ -466,14 +497,14 @@ function boardSliceBread(dishKey){
   const key = 'slice|' + d.quality + '|bread';
   const cur = state.dishes[key];
   if(cur) cur.n += BREAD_SLICES;
-  else state.dishes[key] = { n:BREAD_SLICES, name:'面包片', emoji:'🍞', value:each,
-    quality:d.quality, qname:d.qname, qtag:d.qtag, pieces:['bread'], id:'slice', counts:{ bread:1 } };
+  else state.dishes[key] = { n:BREAD_SLICES, name:'面包片', value:each,
+    quality:d.quality, qname:d.qname, pieces:['bread'], id:'slice', counts:{ bread:1 } };
   d.n -= 1;
   if(d.n <= 0) delete state.dishes[dishKey];
   KITCHEN.board.busy = false; KITCHEN.board.t = 0;
   trackAction('chop', BREAD_SLICES);
   save();
-  return { ok:true, n:BREAD_SLICES, each, msg:`🍞 面包切片 ×${BREAD_SLICES}（每片 ${each} 金）` };
+  return { ok:true, n:BREAD_SLICES, each, msg:`面包切片 ×${BREAD_SLICES}（每片 ${each} 金）` };
 }
 /* 能切片的菜（目前只有面包） */
 function canSliceDish(dishKey){
@@ -503,19 +534,19 @@ function kitchenShelf(){
   const list = [];
   for(const id of CROP_IDS){
     const n = state.bag[id] || 0;
-    if(n > 0) list.push({ key:'crop:' + id, kind:'crop', id, name:CROPS[id].produce, emoji:CROPS[id].emoji, n, color:CROPS[id].color });
+    if(n > 0) list.push({ key:'crop:' + id, kind:'crop', id, name:CROPS[id].produce, n, color:CROPS[id].color });
   }
   for(const id of CROP_IDS){
     const n = state.pieces[id] || 0;
-    if(n > 0) list.push({ key:'piece:' + id, kind:'piece', id, name:CROPS[id].produce + '块', emoji:'🔪', n, color:CROPS[id].color });
+    if(n > 0) list.push({ key:'piece:' + id, kind:'piece', id, name:CROPS[id].produce + '块', n, color:CROPS[id].color });
   }
   const fl = state.prep.flour || 0;
-  if(fl > 0) list.push({ key:'prep:flour', kind:'prep', id:'flour', name:'面粉', emoji:'🥣', n:fl, color:'#f0e6d2' });
+  if(fl > 0) list.push({ key:'prep:flour', kind:'prep', id:'flour', name:'面粉', n:fl, color:'#f0e6d2' });
   /* 能切片的菜（面包）也进货架 —— 拖到菜板就切片 */
   for(const key in state.dishes){
     const d = state.dishes[key];
     if(!d || d.id !== 'bread') continue;
-    list.push({ key:'dish:' + key, kind:'dish', id:key, name:d.name + '（可切片）', emoji:'🍞', n:d.n, color:'#e8c07a' });
+    list.push({ key:'dish:' + key, kind:'dish', id:key, name:d.name + '（可切片）', n:d.n, color:'#e8c07a' });
   }
   const fav = state.fav || {};
   list.sort((a, b) => {

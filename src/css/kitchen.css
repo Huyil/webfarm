@@ -15,7 +15,7 @@
 }
 
 .k-sec-title{
-  display:flex;align-items:center;justify-content:space-between;gap:calc(8px*var(--ui-scale));
+  display:flex;align-items:center;gap:calc(8px*var(--ui-scale));
   font-size:calc(13px*var(--ui-scale));font-weight:700;color:#dbe4dc;
   margin-bottom:calc(8px*var(--ui-scale));letter-spacing:.5px;
 }
@@ -29,6 +29,7 @@
 /* ---------- 图标：统一用 --k-ico 控制尺寸（离屏预渲染的 dataURL） ---------- */
 .k-ico{display:block;width:var(--k-ico,calc(32px*var(--ui-scale)));height:var(--k-ico,calc(32px*var(--ui-scale)));object-fit:contain}
 .k-ico-em{display:grid;place-items:center;font-size:calc(24px*var(--ui-scale));line-height:1}
+.k-ico.ico svg{width:100%;height:100%}
 
 /* ---------- 一、食材货架 ---------- */
 .k-shelf{
@@ -126,7 +127,9 @@
 }
 .k-station.k-drop-bad{border-color:#e06b6b;box-shadow:0 0 0 2px rgba(224,107,107,.4)}
 .k-st-head{display:flex;align-items:center;gap:calc(6px*var(--ui-scale))}
-.k-st-ico{font-size:calc(15px*var(--ui-scale));line-height:1}
+.k-st-ico{--k-ico:calc(36px*var(--ui-scale));font-size:calc(15px*var(--ui-scale));line-height:1}
+/* 工位图标是 <canvas>：显示尺寸跟 --k-ico 走（内部按 36×36 一格切精灵图，放大不糊） */
+.k-st-cv{display:block;width:var(--k-ico);height:var(--k-ico)}
 .k-st-name{font-size:calc(12px*var(--ui-scale));font-weight:700;color:#e2ecdf}
 .k-st-count{
   font-size:calc(10px*var(--ui-scale));color:#8b9a8d;white-space:nowrap;
@@ -145,21 +148,7 @@
 .k-st-state.burnt{color:#ff9c7a;background:rgba(224,107,107,.16)}
 
 .k-st-body{display:flex;align-items:center;gap:calc(9px*var(--ui-scale));min-height:calc(58px*var(--ui-scale));min-width:0;overflow:hidden}
-.k-st-info{flex:0 0 auto;width:min(46%,calc(168px*var(--ui-scale)));min-width:0;display:flex;flex-direction:column;gap:calc(5px*var(--ui-scale))}
 .k-st-flow{display:flex;align-items:center;gap:calc(4px*var(--ui-scale))}
-
-/* 石磨转盘 */
-.k-mill{--k-ico:calc(48px*var(--ui-scale));width:calc(48px*var(--ui-scale));height:calc(48px*var(--ui-scale));display:grid;place-items:center}
-.k-mill-wheel{
-  width:calc(44px*var(--ui-scale));height:calc(44px*var(--ui-scale));border-radius:50%;
-  background:
-    radial-gradient(circle at 50% 50%,#6f6a60 0 calc(22%*var(--ui-scale)),transparent calc(23%*var(--ui-scale))),
-    repeating-conic-gradient(from 0deg,#b9b2a4 0deg 18deg,#8e877a 18deg 36deg);
-  box-shadow:inset 0 0 calc(6px*var(--ui-scale)) rgba(0,0,0,.6),0 calc(2px*var(--ui-scale)) calc(6px*var(--ui-scale)) rgba(0,0,0,.45);
-  border:calc(2px*var(--ui-scale)) solid #6a6156;
-  transition:transform .08s linear;
-}
-.k-mill-wheel.spin{box-shadow:inset 0 0 calc(6px*var(--ui-scale)) rgba(0,0,0,.6),0 0 calc(12px*var(--ui-scale)) rgba(255,215,110,.35)}
 
 /* 空槽 / 内容槽 */
 .k-slot{
@@ -200,13 +189,6 @@
   --k-ico:calc(22px*var(--ui-scale));
   display:grid;place-items:center;width:calc(26px*var(--ui-scale));height:calc(26px*var(--ui-scale));
   background:rgba(255,255,255,.06);border-radius:calc(6px*var(--ui-scale));
-}
-
-/* 自动出锅勾选 */
-.k-check{display:flex;align-items:center;gap:calc(5px*var(--ui-scale));font-size:calc(10px*var(--ui-scale));color:#a8b6a8;cursor:pointer}
-.k-check input{
-  width:calc(14px*var(--ui-scale));height:calc(14px*var(--ui-scale));
-  accent-color:#4d8a4a;cursor:pointer;flex:none;
 }
 
 /* 进度条（只剩石磨 / 烤箱 / 锅在用；切菜板是瞬发的，没有条） */
@@ -302,10 +284,11 @@
 .k-progress[data-tone="burnt"] i{background:linear-gradient(90deg,#6b4a3a,#3a2418)}
 
 /* ---------- 厨房：自动化设备（限时消耗品）----------
- * 不再单独占卡：开关 / 租期状态都并进石磨、切菜板的工位块底部。 */
-.k-auto-inline{display:flex;align-items:center;flex-wrap:wrap;gap:calc(6px*var(--ui-scale));
-  padding-top:calc(6px*var(--ui-scale));border-top:1px solid rgba(255,255,255,.06)}
-.k-auto-inline .mini{flex:none;margin-left:auto}
+ * 和「磨粉 / 切块 / 出炉 / 出锅」并排放在工位的动作行里（不再单独占一行）。
+ * 关着 = 绿底「自动磨面 / 自动切块 / 自动烹饪」，开着 = 红底「停止」。 */
+.k-auto-btn{padding:calc(4px*var(--ui-scale)) calc(9px*var(--ui-scale));font-size:calc(10.5px*var(--ui-scale))}
+.k-auto-btn.stop{background:#b3372c;color:#ffe4e0}
+.k-auto-btn.stop:hover{background:#cf4436}
 
 
 /* ============================================================
@@ -404,8 +387,12 @@
 .af-seeds{display:flex;gap:calc(5px*var(--ui-scale));flex-wrap:wrap}
 .af-seed{position:relative;width:max(38px,calc(40px*var(--ui-scale)));height:max(38px,calc(40px*var(--ui-scale)));
   border:1px solid #2f3a30;border-radius:calc(10px*var(--ui-scale));background:rgba(255,255,255,.04);
-  font-size:max(17px,calc(18px*var(--ui-scale)));cursor:pointer;color:#c8d6c9}
+  font-size:max(17px,calc(18px*var(--ui-scale)));cursor:pointer;color:#c8d6c9;
+  display:grid;place-items:center}                          /* canvas 图标是块级 <img>，不居中会贴左边 */
 .af-seed.on{border-color:#7fd0ff;box-shadow:inset 0 0 0 1px rgba(127,208,255,.35)}
+/* 图标跟 chip 的字号走：和以前 1em 的 SVG 一样大，也自动随 ui-scale 缩放 */
+.af-seed .k-ico{--k-ico:1em}
+.af-seed .k-ico-em{font-size:1em}
 .af-seed b{position:absolute;left:calc(2px*var(--ui-scale));top:calc(-2px*var(--ui-scale));
   font-size:calc(9px*var(--ui-scale));color:#12202a;background:#7fd0ff;border-radius:999px;
   padding:0 calc(4px*var(--ui-scale));line-height:1.35}

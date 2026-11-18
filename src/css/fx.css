@@ -30,6 +30,7 @@
   margin-left:calc(-21px*var(--ui-scale));margin-top:calc(-21px*var(--ui-scale));
   display:grid;place-items:center;font-size:calc(32px*var(--ui-scale));
 }
+.fly-item .k-ico{--k-ico:calc(30px*var(--ui-scale))}
 
 /* 成就解锁浮条 */
 .ach-toast{

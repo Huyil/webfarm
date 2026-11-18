@@ -32,7 +32,7 @@ function newState(){
     bag: { carrot:0, potato:0, rice:0, wheat:0, chili:0, eggplant:0, tomato:0 },
     pieces: {},                                 // 切好的菜块：{ cropId: n }
     prep: { flour: 0 },                         // 面粉等加工品
-    dishes: {},                                 // 菜品：key → { n, name, emoji, value, quality, pieces }
+    dishes: {},                                 // 菜品：key → { n, name, icon, value, quality, pieces }
     decorBag: { tree:0, rock:0, bush:0, flower:0, pond:0, path:0 },
     map, farm, expandCount: { xn:0, yn:0, xp:0, yp:0 }, upExpand: { xn:0, yn:0 }, expandMode: false,
     zoomMode: 'auto', cameraAuto: true,

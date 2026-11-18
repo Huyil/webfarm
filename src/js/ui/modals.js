@@ -36,7 +36,7 @@ function ensureModalX(){
     btn.type = 'button';
     btn.setAttribute('data-close', '');
     btn.setAttribute('aria-label', '关闭');
-    btn.innerHTML = '✕';
+    btn.innerHTML = iconHTML('x');
     box.insertBefore(btn, box.firstChild);
   });
 }

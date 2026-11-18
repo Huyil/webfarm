@@ -30,7 +30,7 @@ function idleTick(nowMs){
   const got = creditIdle(idleGain(dt));
   if(got > 0){
     renderHUD();
-    if(got >= 10) toast(`💤 挂机收益 +${got} 金`);
+    if(got >= 10) toast(`挂机收益 +${got} 金`, 'sleep');
   }
   return got;
 }

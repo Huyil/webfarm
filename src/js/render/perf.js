@@ -72,7 +72,7 @@ function perfToggle(){
   const on = !PERF.enabled;
   if(typeof state !== 'undefined' && state) state.perfHud = on;
   perfSetEnabled(on);
-  if(typeof toast === 'function') toast(on ? '📊 性能面板：开（Shift+P 关闭）' : '性能面板：关');
+  if(typeof toast === 'function') toast(on ? '性能面板：开（Shift+P 关闭）' : '性能面板：关', on ? 'chart' : null);
   if(typeof save === 'function') save();
 }
 function perfCreateHud(){

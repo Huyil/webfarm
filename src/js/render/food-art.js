@@ -2,7 +2,7 @@
  *
  * 对外接口（签名固定，其它模块会调用）：
  *   drawVeggieField(g, cropId, x, y, ratio)  田间作物：wheat|chili|eggplant|tomato
- *   drawItemIcon(g, key, cx, cy, size)       UI 图标：crop:<id> / piece:<id> / prep:<id> / dish:<dishKey>
+ *   drawItemIcon(g, key, cx, cy, size)       UI 图标：crop:<id> / piece:<id> / prep:<id> / dish:<dishKey> / decor:<id> / station:<id>
  *   veggiePalette(cropId)                    单色板 { body, leaf }
  *
  * 全部是纯绘制函数：不碰 DOM、不读键盘，可安全地在离屏 canvas 上预渲染。
@@ -1004,13 +1004,13 @@ function kDishInfo(dishKey){
   let id = bits[0] || 'mix';
   let quality = bits[1] || 'normal';
   let pieces = bits[2] ? bits[2].split(',').filter(Boolean) : null;
-  let name = '', emoji = '';
+  let name = '';
   const rec = (typeof state !== 'undefined' && state && state.dishes) ? state.dishes[dishKey] : null;
   if(rec){
     id = rec.id || id;
     quality = rec.quality || quality;
     if(rec.pieces && rec.pieces.length) pieces = rec.pieces.slice();
-    name = rec.name || ''; emoji = rec.emoji || '';
+    name = rec.name || '';
   }
   if(!pieces){
     if(id === 'bread') pieces = ['flour'];
@@ -1032,13 +1032,7 @@ function kDishInfo(dishKey){
       : (typeof DISHES !== 'undefined' && DISHES[id] ? DISHES[id].name
       : (typeof POT_FALLBACK !== 'undefined' ? POT_FALLBACK.name : id));
   }
-  if(!emoji){
-    const combo = (typeof POT_COMBOS !== 'undefined') ? POT_COMBOS.find(c => c.id === id) : null;
-    emoji = combo ? combo.emoji
-      : (typeof DISHES !== 'undefined' && DISHES[id] ? DISHES[id].emoji
-      : (typeof POT_FALLBACK !== 'undefined' ? POT_FALLBACK.emoji : '🍲'));
-  }
-  return { id, quality: (typeof QUALITY !== 'undefined' && QUALITY[quality]) ? quality : 'normal', pieces, name, emoji };
+  return { id, quality: (typeof QUALITY !== 'undefined' && QUALITY[quality]) ? quality : 'normal', pieces, name };
 }
 /* ---------- 统一入口 ---------- */
 function drawItemIcon(g, key, cx, cy, size){
@@ -1054,6 +1048,8 @@ function drawItemIcon(g, key, cx, cy, size){
   if(kind === 'crop' || kind === 'produce')       kProduceIcon(g, rest);
   else if(kind === 'piece' || kind === 'chunk')   kPieceIcon(g, rest);
   else if(kind === 'prep')                        (rest === 'flour' ? kFlourIcon(g) : kProduceIcon(g, rest));
+  else if(kind === 'decor')                       drawDecorIcon(g, rest, 0, 0, 30);
+  else if(kind === 'station')                     kStationEntry(g, rest);
   else if(kind === 'dish' || kind === 'plate')    kDishEntry(g, rest);
   else if(CROPS[raw])                             kProduceIcon(g, raw);
   else                                            kCrateIcon(g);
@@ -1213,4 +1209,212 @@ function kDishEntry(g, dishKey){
   else if(info.id === 'soup' || info.id === 'pumpkin_soup') kDishSoupIcon(g);   /* 浓汤类 */
   else kBowlIcon(g, info);
   kQualityFX(g, info.quality);   /* 精品=金光+星点，一般=熟色，焦糊=黑棕+烟 */
+}
+
+/* ============ 四个厨房工位的图标（石磨 / 切菜板 / 烤箱 / 锅 · 带动画帧） ============
+ * 工位标题前的小图标不再用图标库的通用 SVG，也不再是 base64 图片：
+ *   · 每个工位画 **K_STATION_FRAMES 帧**，帧号 → 相位 p = 帧号 / 帧数；
+ *   · 厨房把这 N 帧烘成一张横向的**精灵图**（kitchen.js 的 kStationSheet），
+ *     播放时只 drawImage 切其中一格 —— 加工中按帧翻页，停下来就停在空闲帧。
+ * 动作：石磨＝推柄转圈 + 面粉扬起；切菜板＝刀起刀落；烤箱＝火管与炉光呼吸；
+ * 锅＝气泡上浮 + 热气飘散。画布统一 32×32、原点在中心（drawItemIcon 已 translate+scale）。
+ * key：'station:mill' | 'station:board' | 'station:oven' | 'station:pot'，
+ *      带帧号写 'station:mill|3'（调试 / 截图用，不给帧号就是空闲帧）。 */
+const K_STATION_FRAMES = 8;
+const K_TAU = Math.PI * 2;
+function kStationEntry(g, rest){
+  const bits = String(rest).split('|');
+  const id = bits[0];
+  const n = K_STATION_FRAMES;
+  const f = ((Math.floor(Number(bits[1]) || 0) % n) + n) % n;
+  const p = f / n;
+  if(id === 'mill')       kStationMillIcon(g, p);
+  else if(id === 'board') kStationBoardIcon(g, p);
+  else if(id === 'oven')  kStationOvenIcon(g, p);
+  else if(id === 'pot')   kStationPotIcon(g, p);
+  else                    kCrateIcon(g);
+}
+function kStationMillIcon(g, p){
+  /* 下盘：石墩侧面 + 顶面 */
+  g.beginPath();
+  g.moveTo(-12.6, 3.4); g.lineTo(12.6, 3.4);
+  g.lineTo(11.2, 10.6); g.quadraticCurveTo(0, 13.4, -11.2, 10.6);
+  g.closePath();
+  const base = g.createLinearGradient(0, 3, 0, 13);
+  base.addColorStop(0, '#9c978c'); base.addColorStop(1, '#5c574f');
+  g.fillStyle = base; g.fill();
+  g.lineWidth = 0.9; g.strokeStyle = '#3c382f'; g.stroke();
+  g.beginPath(); g.ellipse(0, 3.4, 12.6, 4, 0, 0, Math.PI * 2);
+  g.fillStyle = '#c2bcae'; g.fill();
+  g.lineWidth = 0.8; g.strokeStyle = '#6d685e'; g.stroke();
+  /* 上盘：侧面 + 顶面 + 磨眼 */
+  g.beginPath();
+  g.moveTo(-9.4, -4.4); g.lineTo(9.4, -4.4);
+  g.lineTo(8.6, 2.4); g.quadraticCurveTo(0, 4.8, -8.6, 2.4);
+  g.closePath();
+  const side = g.createLinearGradient(0, -4, 0, 4);
+  side.addColorStop(0, '#b0aa9e'); side.addColorStop(1, '#6f6a61');
+  g.fillStyle = side; g.fill();
+  g.lineWidth = 0.9; g.strokeStyle = '#48443c'; g.stroke();
+  g.beginPath(); g.ellipse(0, -4.4, 9.4, 3.3, 0, 0, Math.PI * 2);
+  const top = g.createLinearGradient(-9, -7.4, 9, -1.4);
+  top.addColorStop(0, '#ded9cd'); top.addColorStop(1, '#a9a49a');
+  g.fillStyle = top; g.fill();
+  g.lineWidth = 0.8; g.strokeStyle = '#6d685e'; g.stroke();
+  g.beginPath(); g.ellipse(0, -4.4, 2.1, 1.4, 0, 0, Math.PI * 2);
+  g.fillStyle = '#443f38'; g.fill();
+  /* 推柄：在上盘顶面里绕圈（y 方向压扁，才像躺在盘面上） */
+  g.save();
+  g.translate(0, -4.4); g.scale(1, 0.34); g.rotate(p * K_TAU);
+  g.strokeStyle = '#8a6034'; g.lineWidth = 3.2; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(2.8, 0); g.lineTo(11, 0); g.stroke();
+  g.beginPath(); g.arc(12.4, 0, 1.9, 0, Math.PI * 2);
+  g.fillStyle = '#a87a46'; g.fill();
+  g.lineWidth = 0.8; g.strokeStyle = '#6b4423'; g.stroke();
+  g.restore();
+  /* 磨盘下沿的白面粉 + 转动时扬起来的粉尘 */
+  for(let i = 0; i < 3; i++){
+    const t = (p + i / 3) % 1;
+    g.globalAlpha = 0.9 * (1 - t * 0.75);
+    g.fillStyle = '#fffdf6';
+    g.beginPath(); g.arc(-5.4 + i * 4.6, 9.6 - t * 5, 1.05 + t * 0.35, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
+}
+function kStationBoardIcon(g, p){
+  /* 木板（略斜）：木纹 + 挂孔 */
+  g.save(); g.rotate(-0.09);
+  roundRect(g, -13.4, -4.4, 26.8, 15.6, 3.2);
+  const wd = g.createLinearGradient(0, -4.4, 0, 11.2);
+  wd.addColorStop(0, '#dcac6c'); wd.addColorStop(0.55, '#bd8446'); wd.addColorStop(1, '#8d5828');
+  g.fillStyle = wd; g.fill();
+  g.lineWidth = 0.9; g.strokeStyle = '#6a3f1d'; g.stroke();
+  g.strokeStyle = 'rgba(122,76,34,.4)'; g.lineWidth = 0.75;
+  for(const y of [-0.6, 4, 8.4]){
+    g.beginPath(); g.moveTo(-11, y); g.quadraticCurveTo(0, y + 1.3, 11, y - 0.5); g.stroke();
+  }
+  g.beginPath(); g.arc(9.6, -1.4, 1.4, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(58,32,12,.55)'; g.fill();
+  g.restore();
+  /* 菜刀：抬起来再落下去（p=0 停在刀落在板上的那一帧） */
+  const lift = (1 - Math.cos(p * K_TAU)) / 2;
+  g.save(); g.translate(-0.8, -8.6 - lift * 3.6); g.rotate(-0.32 - lift * 0.3);
+  roundRect(g, -12.4, -2.2, 4.8, 4.4, 1.4);
+  g.fillStyle = '#6d4525'; g.fill();
+  g.lineWidth = 0.7; g.strokeStyle = '#402813'; g.stroke();
+  g.beginPath();
+  g.moveTo(-8, -2.6); g.lineTo(5.4, -2.6);
+  g.quadraticCurveTo(8.2, -1.4, 5.2, 1.6);
+  g.lineTo(-8, 2.6); g.closePath();
+  const blade = g.createLinearGradient(0, -2.6, 0, 2.6);
+  blade.addColorStop(0, '#f6f9fb'); blade.addColorStop(0.55, '#cdd5db'); blade.addColorStop(1, '#8e99a3');
+  g.fillStyle = blade; g.fill();
+  g.lineWidth = 0.75; g.strokeStyle = '#5a656f'; g.stroke();
+  g.restore();
+  /* 刀落下去那一下崩起来的碎屑 */
+  if(p > 0 && lift < 0.2){
+    g.fillStyle = 'rgba(255,244,214,' + (0.7 * (1 - lift * 5)) + ')';
+    for(const b of [[-6.2, -1.2], [2.4, -2.4], [7, -0.6]]){
+      g.beginPath(); g.arc(b[0], b[1] - lift * 4, 0.85, 0, Math.PI * 2); g.fill();
+    }
+  }
+}
+function kStationOvenIcon(g, p){
+  /* 机身 */
+  roundRect(g, -11.6, -13.4, 23.2, 26.4, 3.2);
+  const body = g.createLinearGradient(0, -13.4, 0, 13);
+  body.addColorStop(0, '#8b9198'); body.addColorStop(0.45, '#5f656b'); body.addColorStop(1, '#393e43');
+  g.fillStyle = body; g.fill();
+  g.lineWidth = 1; g.strokeStyle = '#22272b'; g.stroke();
+  /* 顶部两个旋钮 */
+  for(const x of [-5.2, 0.6]){
+    g.beginPath(); g.arc(x, -10.8, 1.6, 0, Math.PI * 2);
+    g.fillStyle = '#c9d0d6'; g.fill();
+    g.lineWidth = 0.6; g.strokeStyle = '#2b3035'; g.stroke();
+    g.strokeStyle = '#3b4147'; g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(x, -10.8); g.lineTo(x, -12.2); g.stroke();
+  }
+  /* 门把手 */
+  roundRect(g, -7, -8.6, 14, 2.4, 1.2);
+  g.fillStyle = '#cfd6dc'; g.fill();
+  g.lineWidth = 0.7; g.strokeStyle = '#2b3035'; g.stroke();
+  /* 炉门：玻璃里透出暖光（火候越足越亮）+ 两根加热管 */
+  const glow = 0.5 + 0.5 * Math.sin(p * K_TAU);
+  roundRect(g, -8.4, -5.6, 16.8, 14.6, 2.2);
+  const glass = g.createLinearGradient(0, -5.6, 0, 9);
+  glass.addColorStop(0, '#4a2410'); glass.addColorStop(0.5, '#e09038'); glass.addColorStop(1, '#8a3c14');
+  g.fillStyle = glass; g.fill();
+  g.lineWidth = 1; g.strokeStyle = '#2c2118'; g.stroke();
+  /* 忽明忽暗的炉光 */
+  g.save();
+  roundRect(g, -8.4, -5.6, 16.8, 14.6, 2.2);
+  g.fillStyle = 'rgba(255,198,104,' + (0.10 + 0.26 * glow).toFixed(3) + ')';
+  g.fill();
+  g.restore();
+  g.strokeStyle = 'rgba(255,226,168,' + (0.62 + 0.34 * glow).toFixed(3) + ')';
+  g.lineWidth = 1.4; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(-5.6, 1.6); g.quadraticCurveTo(0, -2.2, 5.6, 1.6); g.stroke();
+  g.strokeStyle = 'rgba(255,246,214,' + (0.45 + 0.4 * glow).toFixed(3) + ')'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(-5.2, 5.6); g.quadraticCurveTo(0, 2.4, 5.2, 5.6); g.stroke();
+  /* 门缝里冒出来的热浪 */
+  g.strokeStyle = 'rgba(255,214,150,.5)'; g.lineWidth = 1;
+  for(const sx of [-3.6, 3.6]){
+    const y0 = 9.4 - p * 2.6;
+    g.beginPath(); g.moveTo(sx, y0);
+    g.quadraticCurveTo(sx + 1.6, y0 - 2.2, sx, y0 - 4); g.stroke();
+  }
+}
+function kStationPotIcon(g, p){
+  /* 双耳 */
+  g.strokeStyle = '#3f464c'; g.lineWidth = 2; g.lineCap = 'round';
+  for(const s of [-1, 1]){
+    g.beginPath();
+    g.moveTo(s * 9.4, -6.2);
+    g.quadraticCurveTo(s * 14.6, -6.2, s * 14.2, -2.6);
+    g.quadraticCurveTo(s * 13.8, -1.4, s * 11.2, -1.6);
+    g.stroke();
+  }
+  /* 锅身 */
+  g.beginPath();
+  g.moveTo(-11.2, -4.6);
+  g.quadraticCurveTo(-10.4, 8.4, -2.6, 11.4);
+  g.quadraticCurveTo(0, 12.4, 2.6, 11.4);
+  g.quadraticCurveTo(10.4, 8.4, 11.2, -4.6);
+  g.closePath();
+  const pg = g.createLinearGradient(-11, -4, 11, 12);
+  pg.addColorStop(0, '#6b7278'); pg.addColorStop(0.45, '#474d53'); pg.addColorStop(1, '#25292d');
+  g.fillStyle = pg; g.fill();
+  g.lineWidth = 1; g.strokeStyle = '#1d2124'; g.stroke();
+  /* 锅口：锅内壁 + 汤 */
+  g.beginPath(); g.ellipse(0, -4.6, 11.2, 3.8, 0, 0, Math.PI * 2);
+  g.fillStyle = '#2b3034'; g.fill();
+  g.lineWidth = 0.9; g.strokeStyle = '#12161a'; g.stroke();
+  g.beginPath(); g.ellipse(0, -4.6, 9.6, 3, 0, 0, Math.PI * 2);
+  const broth = g.createLinearGradient(0, -7.6, 0, -1.6);
+  broth.addColorStop(0, '#f0a94a'); broth.addColorStop(1, '#c0651f');
+  g.fillStyle = broth; g.fill();
+  /* 汤面上漂着的两块菜 */
+  kChunkShape(g, 'carrot', -3.4, -5, 2.4, 0.3, K_VEGGIE_PALETTE.carrot);
+  kChunkShape(g, 'cabbage', 3.2, -4.4, 2.2, -0.2, K_VEGGIE_PALETTE.cabbage);
+  /* 锅身高光 */
+  g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1.6;
+  g.beginPath(); g.moveTo(-7.4, -1.6); g.quadraticCurveTo(-7, 4.6, -3, 8.2); g.stroke();
+  /* 沸腾：气泡从锅底往上冒（越往上越淡越大） */
+  for(let i = 0; i < 3; i++){
+    const t = (p + i / 3) % 1;
+    const bx = -4.6 + i * 4.4 + Math.sin((t + i) * 6.2) * 1.1;
+    g.globalAlpha = 0.7 * (1 - t);
+    g.fillStyle = '#ffeec4';
+    g.beginPath(); g.arc(bx, 5.4 - t * 6, 0.85 + t * 0.6, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
+  /* 热气往上飘 */
+  for(const sx of [-3.2, 3]){
+    const off = -p * 3.4;
+    g.globalAlpha = 0.55 * (1 - p * 0.5);
+    g.strokeStyle = '#ffffff'; g.lineWidth = 1.1;
+    g.beginPath(); g.moveTo(sx, -8.4 + off);
+    g.quadraticCurveTo(sx + 2.4, -11.6 + off, sx, -15 + off); g.stroke();
+  }
+  g.globalAlpha = 1;
 }

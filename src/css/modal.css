@@ -67,6 +67,10 @@
   display:grid;place-items:center;font-size:calc(20px*var(--ui-scale));
   background:rgba(0,0,0,.25);
 }
+/* 种子列表的作物图标是 canvas 自绘（kIconHTML → <img>）：尺寸跟 ui-scale 走，
+   无 canvas 环境回落成 SVG/emoji 字形，靠上面的 font-size 兜住 */
+.r-ico .k-ico{--k-ico:calc(24px*var(--ui-scale))}
+.r-ico .k-ico-em{font-size:calc(20px*var(--ui-scale))}
 .r-name{flex:1;font-weight:700;color:#dbe4dc}
 .r-meta{font-size:calc(11px*var(--ui-scale));color:#8b9a8d;margin-top:2px}
 .r-count{color:#ffd76e;font-weight:700;font-size:calc(13px*var(--ui-scale))}
@@ -114,6 +118,7 @@
   background:rgba(0,0,0,.25);font-size:calc(21px*var(--ui-scale));color:#dfe9e0;
 }
 .g-ico canvas,.g-ico svg{display:block}
+.g-ico .k-ico{--k-ico:calc(30px*var(--ui-scale))}
 .g-name{
   max-width:100%;font-weight:700;color:#dbe4dc;line-height:1.25;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;

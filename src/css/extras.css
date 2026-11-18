@@ -3,6 +3,15 @@
  * （放在清单最后，覆盖前面的基础样式）
  * ===================================================================== */
 
+/* ---------- SVG 图标（src/js/ui/icons.js） ----------
+   图标尺寸跟着父元素的 font-size 走：.si/.ti/.hud-ico 不用改字号。 */
+.ico{display:inline-flex;align-items:center;line-height:1;vertical-align:-.12em}
+.ico svg{width:1em;height:1em;display:block}
+/* canvas 自绘的图标（.k-ico 见 kitchen.css）用在行内文案 / toast 里时的尺寸与对齐 */
+.k-ico-inl{--k-ico:calc(15px*var(--ui-scale));display:inline-block;vertical-align:-2px}
+.toast-ico{display:inline-block;vertical-align:-3px;margin-right:.4em}
+.toast-ico .k-ico{--k-ico:calc(18px*var(--ui-scale))}
+
 /* ---------- 侧栏抽屉把手（只在手机出现，桌面完全不显示） ---------- */
 .side-toggle{display:none}
 
@@ -402,6 +411,9 @@
 .tp-row.on{ border-color:#7fd0ff; box-shadow:inset 0 0 0 1px rgba(127,208,255,.35) }
 .tp-row.poor{ opacity:.5 }
 .tp-ico{ font-size:max(18px, calc(20px*var(--ui-scale))); flex:none }
+/* 种子的作物图标走 canvas 自绘（kIconHTML → <img>）：跟着 ui-scale 缩放 */
+.tp-ico .k-ico{ --k-ico:calc(20px*var(--ui-scale)) }
+.tp-ico .k-ico-em{ font-size:calc(18px*var(--ui-scale)) }
 .tp-txt{ flex:1; min-width:0; display:flex; flex-direction:column }
 .tp-txt b{ font-size:max(12px, calc(12.5px*var(--ui-scale))); font-weight:700 }
 .tp-txt i{ font-style:normal; font-size:max(10px, calc(10px*var(--ui-scale))); color:#8b9a8d }

@@ -40,19 +40,19 @@ const MILL_MS=900, CHOP_MS=600, CHOP_PIECES=3;
 
 /* 品质 */
 const QUALITY = {
-  perfect:{ id:'perfect', name:'精品', mult:1.5,  tag:'✨' },
+  perfect:{ id:'perfect', name:'精品', mult:1.5,  tag:'sparkles' },
   normal: { id:'normal',  name:'一般', mult:1.0,  tag:''   },
-  burnt:  { id:'burnt',   name:'焦糊', mult:0.5,  tag:'🔥' },
+  burnt:  { id:'burnt',   name:'焦糊', mult:0.5,  tag:'fire' },
 };
 
 /* 工具集 */
 const TOOLS = ['hoe','seed','water','fert','premium','sickle','decor'];
 const TOOL_META = {
-  hoe:    { icon:'⛏️', name:'锄头',     desc:'开垦荒地；顺手把装饰物收回仓库' },
-  seed:   { icon:'🌱', name:'种子',     desc:'在开垦过的地块播种' },
-  water:  { icon:'💧', name:'水壶',     desc:'浇水：生长 ×2（每周期一次，免费）' },
-  fert:   { icon:'🧪', name:'肥料',     desc:'生长 ×1.5；收完还留 ' + FERT_KEEP + ' 次耕地（不返草地）' },
-  premium:{ icon:'✨', name:'高级肥料', desc:'立即催熟，并留 ' + PREMIUM_KEEP + ' 次耕地（不返草地）' },
-  sickle: { icon:'✂️', name:'收获',     desc:'收获成熟作物；多次收获作物会继续生长' },
-  decor:  { icon:'🏡', name:'装饰',     desc:'把仓库里的装饰物摆回地块' },
+  hoe:    { icon:'pickaxe', name:'锄头',     desc:'开垦荒地；顺手把装饰物收回仓库' },
+  seed:   { icon:'sprout', name:'种子',     desc:'在开垦过的地块播种' },
+  water:  { icon:'droplet', name:'水壶',     desc:'浇水：生长 ×2（每周期一次，免费）' },
+  fert:   { icon:'flask', name:'肥料',     desc:'生长 ×1.5；收完还留 ' + FERT_KEEP + ' 次耕地（不返草地）' },
+  premium:{ icon:'sparkles', name:'高级肥料', desc:'立即催熟，并留 ' + PREMIUM_KEEP + ' 次耕地（不返草地）' },
+  sickle: { icon:'scissors', name:'收获',     desc:'收获成熟作物；多次收获作物会继续生长' },
+  decor:  { icon:'house', name:'装饰',     desc:'把仓库里的装饰物摆回地块' },
 };

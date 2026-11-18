@@ -1,12 +1,12 @@
 /* ============ 商店 ============
  * 上方分类 → 中间商品网格（图标 / 名称 / 单价）→ 下方滑条 + 数量 + 购买。
  * 滑条上限 = 当前金币买得起的最大数量（封顶 SHOP_QTY_MAX）。 */
-const SHOP_TABS = [['fert', '肥料', '🧪'], ['decor', '装饰', '🏡'], ['machine', '机器', '⚙️']];
+const SHOP_TABS = [['fert', '肥料', 'flask'], ['decor', '装饰', 'house'], ['machine', '机器', 'gear']];
 const SHOP_QTY_MAX = 99;
 let shopTab = 'fert', shopSel = '', shopQty = 1;
 
 /* 商品/物品卡片（商店、仓库共用）：上方图标、名称，下方单价或数量。
- * icon：厨房绘制键（'crop:carrot'）或 emoji（'🌳'）。 */
+ * icon：绘制键（'crop:carrot' / 'decor:tree'）或 Lucide 图标名（'flask'）。 */
 function goodsCard(opt){
   const card = document.createElement('button');
   card.type = 'button';
@@ -14,8 +14,7 @@ function goodsCard(opt){
   if(opt.title) card.title = opt.title;
   const ico = document.createElement('div');
   ico.className = 'g-ico';
-  const key = String(opt.icon == null ? '' : opt.icon);
-  ico.appendChild(iconNode(key, 30));
+  ico.innerHTML = kDrawnHTML(opt.icon, 30);
   const nm = document.createElement('div');
   nm.className = 'g-name'; nm.textContent = opt.name;
   const sub = document.createElement('div');
@@ -30,7 +29,7 @@ function tradeTabs(box, tabs, cur, counts, onPick){
   for(const [key, label, ico] of tabs){
     const b = document.createElement('button');
     b.className = 'tab' + (cur === key ? ' active' : '');
-    b.textContent = ico + ' ' + label + (counts && counts[key] ? ' ' + counts[key] : '');
+    b.innerHTML = iconHTML(ico) + ' ' + label + (counts && counts[key] ? ' ' + counts[key] : '');
     b.onclick = () => onPick(key);
     box.appendChild(b);
   }
@@ -44,7 +43,7 @@ function syncQtyBar(id, o){
   const qty = Math.max(1, Math.min(o.qty || 1, max));
   slider.disabled = !!o.disabled;
   slider.max = max; slider.value = qty;
-  txt.textContent = o.dash ? '—' : '×' + qty;
+  txt.textContent = o.dash ? '—' : ('×' + qty + (o.unit || ''));
   slider.oninput = o.disabled ? null : () => {
     const v = Math.max(1, Math.round(+slider.value) || 1);
     if(v !== qty) o.onInput(v);
@@ -81,24 +80,26 @@ function shopCatalog(tab){
   });
   if(tab === 'fert'){
     out.push(
-      mkFert('fert', '🧪', '普通肥料', '肥料', FERT_COST, '生长速度 ×1.5，可与浇水叠加',
+      mkFert('fert', 'flask', '普通肥料', '肥料', FERT_COST, '生长速度 ×1.5，可与浇水叠加',
              () => state.fertilizer, n => { state.fertilizer += n; }),
-      mkFert('premium', '✨', '高级肥料', '高级肥料', PREMIUM_COST,
+      mkFert('premium', 'sparkles', '高级肥料', '高级肥料', PREMIUM_COST,
              '直接催熟当前作物 · 主要靠每日任务获得',
              () => state.premium, n => { state.premium += n; }),
     );
     return out;
   }
   if(tab === 'machine'){
-    /* 石磨 / 切菜板 / 烤箱的机器升级：一次只买 1 台，买完卡片改名成下一台 */
-    const mkAuto = (id, icon) => {
+    /* 石磨 / 切菜板 / 烤箱的机器升级：一次只买 1 台，买完卡片改名成下一台。
+     * 石磨 / 切菜板的第 1 台 = 把厨房里那台基础设备解锁成自动加工（所以台数从 1 起算）。 */
+    const mkAuto = (id) => {
       const dev = AUTO_DEVICES[id];
       const n = autoCountOf(id);
       if(n >= AUTO_MAX) return;
       out.push({
-        key: 'machine:' + id, icon, name: '添加第' + (n + 1) + '台' + dev.name,
+        key: 'machine:' + id, icon: dev.icon, name: '自动' + dev.name + (n + 1),
         price: autoPrice(id), single: true,
-        meta: dev.desc + ' · 现有 ' + n + ' 台（最多 ' + AUTO_MAX + ' 台）',
+        meta: dev.desc + ' · 现有 ' + Math.max(1, n) + ' 台' +
+              (n ? '（自动 ' + n + ' 台）' : '（还没解锁自动加工）') + ' · 最多 ' + AUTO_MAX + ' 台',
         buy(){
           const r = autoBuy(id);
           if(!r.ok){ toast(r.msg); SFX.play('error'); return false; }
@@ -107,12 +108,32 @@ function shopCatalog(tab){
         },
       });
     };
-    mkAuto('donkey', '🐴');
-    mkAuto('chopper', '🔪');
+    /* 单独续租：已买的机器可以按 1000 金/分钟加时间（滑条数量 = 分钟） */
+    const mkRent = (id) => {
+      const dev = AUTO_DEVICES[id];
+      if(autoCountOf(id) <= 0) return;                 /* 没解锁自动加工：先买机器 */
+      const left = Math.ceil(autoLeftMs(id) / 60000);
+      out.push({
+        key: 'rent:' + id, icon: dev.icon, name: dev.name + '租期',
+        price: AUTO_RENT_PER_MIN, sub: AUTO_RENT_PER_MIN + ' 金/分钟', unit: ' 分钟',
+        meta: dev.name + '续租 · 每分钟 ' + AUTO_RENT_PER_MIN + ' 金（滑条数量 = 分钟）' +
+              ' · 当前剩余 ' + left + ' 分钟' + (autoPaused(id) ? '（已暂停，租期冻结）' : ''),
+        buy(n){
+          const r = autoRent(id, n);
+          if(!r.ok){ toast(r.msg); SFX.play('error'); return false; }
+          toast(r.msg);
+          return true;
+        },
+      });
+    };
+    mkAuto('donkey');
+    mkRent('donkey');
+    mkAuto('chopper');
+    mkRent('chopper');
     if(ovenCanUpgrade()){
       const cap = ovenCap();
       out.push({
-        key: 'machine:oven', icon: '🔥', name: '添加第' + (cap + 1) + '台烤箱',
+        key: 'machine:oven', icon: 'station:oven', name: '自动烤箱' + (cap + 1),
         price: ovenSlotPrice(), single: true,
         meta: '烤箱增加 1 个烤位：每轮多出炉 1 份 · 现在每轮 ' + cap + ' 份（最多 ' + OVEN_SLOT_MAX + ' 份）',
         buy(){
@@ -131,7 +152,7 @@ function shopCatalog(tab){
     const meta = DECOR_META[id];
     if(!DECOR_PRICE[id]) continue;
     out.push({
-      key: 'decor:' + id, icon: meta.icon, name: meta.name, price: DECOR_PRICE[id],
+      key: 'decor:' + id, icon: 'decor:' + id, name: meta.name, price: DECOR_PRICE[id],
       meta: `装饰物 · 每件 ${DECOR_PRICE[id]} 金 · 回收价 ${DECOR_SELL[id] || 0} 金 · 现有 ${state.decorBag[id] || 0}`,
       buy(n){
         if(!spendCoins(DECOR_PRICE[id] * n)) return false;
@@ -156,13 +177,13 @@ function renderShop(){
   el.innerHTML = '';
   for(const it of items){
     el.appendChild(goodsCard({
-      icon: it.icon, name: it.name, sub: it.price + ' 金', title: it.meta,
+      icon: it.icon, name: it.name, sub: it.sub || (it.price + ' 金'), title: it.meta,
       active: it.key === shopSel,
       onPick: () => { shopSel = it.key; shopQty = 1; SFX.play('click'); renderShop(); },
     }));
   }
   if(shopTab === 'fert') gridNote(el, '提示：每日任务的奖励就是这两种肥料，高级肥料能省下一整个生长周期。');
-  else if(shopTab === 'machine') gridNote(el, '机器在厨房工位里启用：驴 / 切块机有 5 分钟租期，重复添加会顺延；烤箱升级增加每轮出炉份数。');
+  else if(shopTab === 'machine') gridNote(el, '机器在厨房工位里启用：先买自动石磨 / 自动切菜板解锁自动加工（各含 5 分钟租期）；之后可以单独续租，1000 金/分钟。烤箱升级增加每轮出炉份数。');
   syncShopBar(items);
 }
 /* 操作条：滑条上限 = 金币买得起的数量（至少 1），按钮上直接写总价 */
@@ -183,7 +204,7 @@ function syncShopBar(items){
     return;
   }
   const maxQ = single ? 1 : Math.min(SHOP_QTY_MAX, Math.floor(state.coins / it.price));
-  shopQty = syncQtyBar('shop', { max: maxQ, qty: single ? 1 : shopQty, disabled: single,
+  shopQty = syncQtyBar('shop', { max: maxQ, qty: single ? 1 : shopQty, disabled: single, unit: it.unit,
     onInput: v => { shopQty = v; syncShopBar(items); } });
   const cost = it.price * shopQty;
   btn.disabled = state.coins < cost;

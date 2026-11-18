@@ -104,6 +104,7 @@ function applyPayload(d){
   return true;
 }
 function init(){
+  injectIcons(document);             /* 先把静态 HTML 里的 data-icon 换成 SVG */
   resize(); applyUIScale();
   const migrated = migrateLegacy();
 
@@ -168,15 +169,16 @@ window.FarmDebug = {
     step: ms => advanceGrowth(ms),
     /* 小人 */
     updatePlayer, playerGoto, playerActionT, PLAYER_SPEED, ACTION_MS,
-    CROPS, cropReadyMs, cropTotalMs, cropProfit, cropRate,
+    CROPS, cropReadyMs, cropTotalMs, cropProfit, cropRate, ICONS, iconHTML,
     applyRainWatering, rollWeather, updateAtmosphere, hourFromClock, DAY_PHASES,
     /* 厨房 */
     cook: { mill, ovenPut, ovenTake, boardPut, boardSliceBread, potAdd, potAddMany, potTake, sellDish, addDish, kitchenShelf },
     canBoard, canOvenPut, canMill, FERT_KEEP, PREMIUM_KEEP, pushRecentSeed,
     kitchenTick: ms => { kitchenLogicTick(ms); },
+    kitchenFrame: dt => updateKitchen(dt),      /* 推进一帧厨房界面（含工位图标的动画帧） */
     KITCHEN, potRecipe, applyQuality, kitchenShelf, dishTotal, drawItemIcon, pieceValue,
     OVEN_MS, OVEN_PERFECT_MS, OVEN_BURN_MS, POT_MS, POT_PERFECT_MS, POT_BURN_MS, QUALITY,
-    AUTO_DEVICES, AUTO_IDS, autoBuy, autoActive, autoLeftMs, autoTick, autoLoopFeed,
+    AUTO_DEVICES, AUTO_IDS, autoBuy, autoRent, AUTO_RENT_PER_MIN, autoActive, autoLeftMs, autoTick, autoLoopFeed,
     autoSlotOf, autoSlotRefill, AUTO_SLOT_MAX, autoPickCrop, autoPaused, autoPause, autoResume, autoSetOn, catchUpAway,
     ovenCap, ovenSlotPrice, ovenCanUpgrade, ovenUpgrade, ovenRoundSize, ovenQueue, ovenStartRound,
     OVEN_SLOT_PRICE0, OVEN_SLOT_MAX, QUALITY,

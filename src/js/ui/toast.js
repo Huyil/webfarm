@@ -1,22 +1,25 @@
 /* ============ Toast / 飘字 / 飞行动画 ============ */
 let toastTimer = 0;
-function toast(msg){
+/* 图标参数既可以是 Lucide 图标名，也可以是 'crop:carrot' / 'decor:tree' 这类绘制键：
+ * 绘制键交给 canvas 自绘（kIconHTML），没有 canvas 的环境自动回落成通用 SVG。 */
+function toast(msg, iconName){
   const el = document.getElementById('toast');
   if(!el) return;
-  el.textContent = msg;
+  el.innerHTML = iconName ? '<span class="toast-ico">' + kDrawnHTML(iconName, 18) + '</span>' : '';
+  el.appendChild(document.createTextNode(msg));
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
 }
 /* 把收获物飞向仓库/厨房按钮 */
-function flyTo(t, emoji, targetId){
+function flyTo(t, iconName, targetId){
   const btn = document.getElementById(targetId || 'btnStore');
   if(!btn) return;
   const r = btn.getBoundingClientRect();
   const from = worldToScreen(t);
   const el = document.createElement('div');
   el.className = 'fly-item';
-  el.textContent = emoji;
+  el.innerHTML = kDrawnHTML(iconName || 'box', 30);
   el.style.left = from.x + 'px';
   el.style.top = (from.y - TILE_H * SCALE * 0.3) + 'px';
   document.body.appendChild(el);
@@ -26,8 +29,8 @@ function flyTo(t, emoji, targetId){
   });
   setTimeout(() => el.remove(), 720);
 }
-function flyToStore(t, emoji){ flyTo(t, emoji, 'btnStore'); }
-function flyToKitchen(t, emoji){ flyTo(t, emoji, 'btnKitchen'); }
+function flyToStore(t, iconName){ flyTo(t, iconName, 'btnStore'); }
+function flyToKitchen(t, iconName){ flyTo(t, iconName, 'btnKitchen'); }
 function floatPlus(t, n){ floatTextAt(worldToScreen(t), '+' + n, 'float-plus'); }
 function floatPlusText(t, text){ floatTextAt(worldToScreen(t), text, 'float-plus'); }
 function floatTextAt(pos, text, cls){

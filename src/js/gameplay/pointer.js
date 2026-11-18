@@ -233,7 +233,7 @@ function drawInteractionUI(g, cx, cy){
     const meta = TOOL_META[state.tool];
     if(meta){
       g.font = '14px serif'; g.textAlign = 'center';
-      g.fillText(meta.icon, px, py - h * 0.34);
+      g.fillText(meta.name.charAt(0), px, py - h * 0.34);   /* canvas 不画 SVG，用工具名首字当提示 */
     }
     g.restore();
   }
@@ -260,7 +260,7 @@ function drawInteractionUI(g, cx, cy){
     g.fillStyle = 'rgba(200,236,255,.95)';
     const c0 = iso((ab.x0 + ab.x1) / 2, ab.y0 - 0.5);
     const afSat = (state.autoFarm && state.autoFarm.satiety) || 0;
-    g.fillText('🤖 ' + (ab.x1 - ab.x0 + 1) + '×' + (ab.y1 - ab.y0 + 1) + ' · 🍚' + afSat,
+    g.fillText('自动 ' + (ab.x1 - ab.x0 + 1) + '×' + (ab.y1 - ab.y0 + 1) + ' · 饱食 ' + afSat,
       cx + c0.sx * SCALE, cy + c0.sy * SCALE - 4);
     g.restore();
   }

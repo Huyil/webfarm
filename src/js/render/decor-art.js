@@ -882,6 +882,30 @@ function decorDrawBody(g, px, py, d){
   else if(d.type === 'bench') drawBench(g, px, py, d.seed);
   else if(d.type === 'plant') drawPlant(g, px, py, d.seed);
 }
+/* ---------- 卡片图标（商店 / 仓库用）----------
+ * 把世界里的画法缩进一个 size×size 的方框，和作物图标一样是 canvas 自绘。
+ * DECOR_SPR_BOX 是「以锚点为原点的世界像素包围盒」，据此等比缩放并居中；
+ * 铺装 / 栅栏的连接掩码按「孤立一格」算（gx/gy 摆到农场外），画出来是单块样例。
+ * 图标不随风摆：decorTimeOverride=0，同一件装饰每次画出来都一样（也利于缓存）。 */
+const DECOR_ICON_BOX = { pond: [-34, 34, -20, 20] };     /* 池塘不在精灵表里，单独给个框 */
+function drawDecorIcon(g, id, cx, cy, size){
+  if(!g || !DECOR_META[id]) return;
+  const box = DECOR_SPR_BOX[id] || DECOR_ICON_BOX[id] || [-40, 40, -46, 20];
+  const w = box[1] - box[0], h = box[3] - box[2];
+  const k = (size || 32) / Math.max(w, h || 1);
+  const oldT = decorTimeOverride;
+  decorTimeOverride = 0;
+  g.save();
+  g.translate(cx || 0, cy || 0);
+  g.scale(k, k);
+  g.translate(-(box[0] + box[1]) / 2, -(box[2] + box[3]) / 2);
+  try{
+    decorDrawBody(g, 0, 0, { type:id, seed:0, gx:-9999, gy:-9999 });
+  } finally {
+    decorTimeOverride = oldT;
+    g.restore();
+  }
+}
 function drawDecoration(g, px, py, d){
   /* 自动生成的装饰带随机偏移，不落在格子正中 */
   px += (typeof d.ox === 'number') ? d.ox : 0;

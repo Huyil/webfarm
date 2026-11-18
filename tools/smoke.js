@@ -100,8 +100,14 @@ const frames = n => new Promise(res => {
   ok(/\d+\.\d+\.\d+/.test(W.document.title), '标题带版本号', W.document.title);
   eq(W.document.querySelectorAll('#sidePanel button .sl').length, 11, '侧栏 11 个按钮都有文字标签（装饰已并进仓库）');
   ok(!!W.document.getElementById('lbBtn'), '顶栏也有 🏅 排行榜入口（两个入口都能点开）');
-  eq(W.document.getElementById('lbBtn').textContent, '🏅', '顶栏入口就是奖牌图标');
+  eq(W.document.querySelector('#lbBtn .ico').getAttribute('data-icon'), 'medal', '顶栏入口就是奖牌图标');
   eq(W.document.querySelectorAll('#toolbar button').length, 5, '工具栏 5 个工具（v9.19 起「催熟」并进「肥料」的小凸起）');
+  eq(W.document.querySelectorAll('#sidePanel .si svg').length, 11, '侧栏 11 个图标都已注入 SVG');
+  ok(!!W.document.querySelector('#lbBtn svg'), '顶栏奖牌入口已注入 SVG');
+  const pict = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF\u2B00-\u2BFF]/u;
+  const uiText = ['.hud', '#sidePanel', '#toolbar']
+    .map(sel => W.document.querySelector(sel)).filter(Boolean).map(e => e.textContent).join('');
+  ok(!pict.test(uiText), '主界面控件文本里不再有 emoji', uiText.slice(0, 80));
 
   const D = W.FarmDebug;
   if (!D) { ok(false, '游戏暴露 FarmDebug 调试接口'); dom.window.close(); process.exit(1); }
@@ -248,8 +254,20 @@ const frames = n => new Promise(res => {
     ok(!!api.CROPS[id], `作物 ${id} 存在`);
   ok(api.CROPS.strawberry.harvests >= 8, '草莓是「多轮收获」（10 轮）');
   ok(api.CROPS.wheat.noChop === true, '小麦标记为不可切块');
-  const emojis = Object.keys(api.CROPS).map(k => api.CROPS[k].emoji);
-  eq(new Set(emojis).size, emojis.length, '没有两种作物共用同一个图标');
+  ok(Object.keys(api.CROPS).every(k => !api.CROPS[k].icon), '作物不再带图标名（形状全由 canvas 画）');
+  ok(Object.keys(api.DECOR_META).every(k => !api.DECOR_META[k].icon), '装饰不再带图标名（形状全由 canvas 画）');
+  ok(!api.ICONS.carrot && !api.ICONS.tree && !api.ICONS.bread, '图标库里不再留作物 / 装饰 / 菜品图标');
+  ok(api.ACHIEVEMENTS.every(a => !!api.ICONS[a.icon]), '成就图标名都能在图标库找到');
+  ok(api.LB_METRICS.every(m => !!api.ICONS[m.icon]), '榜单图标名都能在图标库找到');
+  /* 图标库不留死条目：每个名字除了定义行以外至少还有一处引用 */
+  {
+    const html = fs.readFileSync(FILE, 'utf8');
+    const unused = Object.keys(api.ICONS).filter(name => {
+      const hits = html.match(new RegExp(`["']${name}["']`, 'g')) || [];
+      return hits.length < (/-/.test(name) ? 2 : 1);      /* 带横线的键定义时就带引号 */
+    });
+    ok(unused.length === 0, '图标库里没有被引用的条目', unused.join(' '));
+  }
   ok(api.CROPS.chili.harvests >= 2, '辣椒是多次收获作物');
   ok(api.CROPS.eggplant.harvests >= 2 && api.CROPS.tomato.harvests >= 2, '茄子/西红柿是多次收获作物');
   ok(!api.CROPS.rice.harvests, '水稻是单次收获');
@@ -490,7 +508,7 @@ const frames = n => new Promise(res => {
 
   section('存档槽位');
   st().coins = 777;
-  st().dishes = { 'bread|perfect|flour': { n: 2, name:'面包', emoji:'🍞', value:78, quality:'perfect', pieces:['flour'] } };
+  st().dishes = { 'bread|perfect|flour': { n: 2, name:'面包', icon:'bread', value:78, quality:'perfect', pieces:['flour'] } };
   ok(api.saveToSlot(2), '写入槽位 2');
   ok(!!W.localStorage.getItem(api.slotKey(2)), '槽位 2 落到 localStorage');
   const meta = api.slotMeta(2);
@@ -734,6 +752,7 @@ const frames = n => new Promise(res => {
     const rows = W.document.querySelectorAll('#seedList .row');
     eq(rows.length, Object.keys(api.CROPS).length, '种子列表行数 = 作物数');
     eq(rows.length, 11, '一共 11 种作物');
+    ok(!!rows[0].querySelector('.r-ico .k-ico'), '种子图标走 canvas 自绘（k-ico；无 canvas 环境回落成 SVG）');
     const names = Array.from(rows).map(r => r.querySelector('.r-name').textContent);
     for (const id of Object.keys(api.CROPS)) {
       ok(names.some(n => n.indexOf(api.CROPS[id].name) === 0), `列表里有 ${api.CROPS[id].name}`);
@@ -890,6 +909,7 @@ const frames = n => new Promise(res => {
   ok((st().recentSeeds || []).includes('carrot'), '播种后记住「最近用过的种子」', JSON.stringify(st().recentSeeds));
   api.renderToolbar && api.renderToolbar();
   ok($('seedPop').querySelectorAll('[data-seed]').length >= 1, '小凸起里列出常用种子');
+  ok(!!$('seedPop').querySelector('[data-seed] .tp-ico .k-ico'), '小凸起里的作物图标也是 canvas 自绘（k-ico）');
   click($('seedPop').querySelector('[data-act="seed-more"]'));
   ok($('seedModal').classList.contains('show'), '点「更多」才展开旧的种子窗口');
   ok($('seedList').children.length >= 8, '种子列表含 7 种作物 + 说明');
@@ -972,10 +992,10 @@ const frames = n => new Promise(res => {
   click($('storeTabs').children[1]);      // 备料页
   const prepRows = [...$('storeList').querySelectorAll('.g-card')];
   ok(prepRows.length >= 2, '备料页列出面粉与菜块', 'rows=' + prepRows.length);
-  ok(prepRows.some(r => r.querySelector('.g-ico canvas')), '备料卡片里有 canvas 图标');
+  ok(prepRows.some(r => r.querySelector('.g-ico .k-ico')), '备料卡片里有 canvas 图标');
   click($('storeTabs').children[0]);      // 作物页
   st().bag.carrot = 1; api.renderStore();
-  ok([...$('storeList').querySelectorAll('.g-card')].some(r => r.querySelector('.g-ico canvas')), '作物卡片也有图标');
+  ok([...$('storeList').querySelectorAll('.g-card')].some(r => r.querySelector('.g-ico .k-ico')), '作物卡片也有图标');
   click($('btnStore'));
 
   // 厨房三段进度条
@@ -1937,6 +1957,7 @@ const frames = n => new Promise(res => {
     near(parseFloat(pbar2.style.width), 100, 1, '走满 = 进度条 100%');
     const stNode = W.document.querySelector('#kitchenBody [data-state="pot-x"]');
     ok(/焦糊/.test(stNode.textContent), '走满后状态变成焦糊', stNode.textContent);
+    ok(!!stNode.querySelector('svg') && !/<\s*span/i.test(stNode.textContent), '焦糊状态的图标已渲染成 SVG');
     const take = api.cook.potTake(false);
     eq(take.quality, 'burnt', '此时出锅 = 焦糊');
     /* 自动出锅也要能触发（同一个冻结点会导致它永不触发）——
@@ -2392,8 +2413,11 @@ const frames = n => new Promise(res => {
       return n ? n.textContent : '';
     };
     eq(stCount('oven'), '共2台', '烤箱名称后显示台数');
-    eq(stCount('mill'), '共0台', '石磨名称后显示台数（驴）');
-    eq(stCount('board'), '共0台', '切菜板名称后显示台数（切块机）');
+    eq(stCount('mill'), '共1台', '石磨基础 1 台（没买自动石磨也不显示 0）');
+    eq(stCount('board'), '共1台', '切菜板基础 1 台（没买自动切菜板也不显示 0）');
+    const autoBtns = [...W.document.querySelectorAll('#kitchenBody [data-act="auto-dev"]')];
+    ok(autoBtns.length === 2 && autoBtns.every(b => b.tagName === 'BUTTON' && !b.classList.contains('locked')),
+      '石磨 / 切菜板各有一颗自动化按钮（没买机器时也不加 locked 样式）');
     eq(W.document.querySelectorAll('#kitchenBody [data-act="upgrade-oven"], #kitchenBody [data-act="buy-auto"]').length, 0,
       '厨房里不再放购买 / 升级按钮');
     api.closeSheet();
@@ -2402,11 +2426,19 @@ const frames = n => new Promise(res => {
     ok(!!mt, '商店有机器分类');
     click(mt);
     let names = [...W.document.querySelectorAll('#shopList .g-card .g-name')].map(n => n.textContent);
-    ok(names.includes('添加第1台拉磨的驴'), '机器分类有拉磨的驴', names.join(','));
-    ok(names.includes('添加第1台切块机'), '机器分类有切块机', names.join(','));
-    ok(names.includes('添加第3台烤箱'), '机器分类有烤箱（当前 2 台 → 下一台第 3 台）', names.join(','));
+    ok(names.includes('自动石磨1'), '机器分类有石磨（原来的「拉磨的驴」）', names.join(','));
+    ok(names.includes('自动切菜板1'), '机器分类有切菜板（原来的「切块机」）', names.join(','));
+    ok(!names.includes('石磨租期') && !names.includes('切菜板租期'),
+      '没解锁自动加工时不显示单独续租（先买机器）', names.join(','));
+    const machineIcos = [...W.document.querySelectorAll('#shopList .g-card .g-ico .k-ico')];
+    ok(machineIcos.length >= 2, '机器图标是 canvas 画的（石磨 / 切菜板 / 烤箱都是工位图标）',
+      String(machineIcos.length) + ' 个图标');
+    const emojiRe = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF]/u;
+    ok(!emojiRe.test([...W.document.querySelectorAll('#shopList .g-ico')].map(g => g.textContent).join('')),
+      '机器分类里不再有 emoji 图标');
+    ok(names.includes('自动烤箱3'), '机器分类有烤箱（当前 2 台 → 下一台第 3 台）', names.join(','));
     const ovenCard = [...W.document.querySelectorAll('#shopList .g-card')].find(c => {
-      const n = c.querySelector('.g-name'); return n && n.textContent === '添加第3台烤箱';
+      const n = c.querySelector('.g-name'); return n && n.textContent === '自动烤箱3';
     });
     click(ovenCard);
     ok(/3000/.test($('shopBuy').textContent), '选中后按钮显示价格', $('shopBuy').textContent);
@@ -2415,7 +2447,7 @@ const frames = n => new Promise(res => {
     click($('shopBuy'));
     eq(st().ovenSlots, 3, '在商店里买下烤箱升级');
     names = [...W.document.querySelectorAll('#shopList .g-card .g-name')].map(n => n.textContent);
-    ok(names.includes('添加第4台烤箱'), '买完卡片变成下一台', names.join(','));
+    ok(names.includes('自动烤箱4'), '买完卡片变成下一台', names.join(','));
     click($('shopTabs').children[0]);                    /* 回到肥料分类，避免影响后续用例 */
     api.closeSheet();
     api.applyPayload(backup);
@@ -2463,6 +2495,23 @@ const frames = n => new Promise(res => {
     eq(api.autoSlotOf('donkey').length, api.AUTO_SLOT_MAX, '驴自带的料斗装满（独立进料槽）');
     eq(st().bag.wheat, 1, '料斗里的 5 份从仓库扣掉了（还在，只是换了个地方放）');
     eq(api.autoSlotOf('donkey').filter(c => c === 'wheat').length, api.AUTO_SLOT_MAX, '料斗里全是小麦');
+    /* ③-b 单独续租：1000 金/分钟，暂停中也顺延且不会偷偷开机 */
+    {
+      const left0 = api.autoLeftMs('donkey'), coins0 = st().coins;
+      const rent = api.autoRent('donkey', 2);
+      ok(rent.ok, '能单独续租石磨', rent.msg);
+      eq(st().coins, coins0 - 2 * api.AUTO_RENT_PER_MIN, '续租按 1000 金/分钟扣钱');
+      const added = api.autoLeftMs('donkey') - left0;
+      ok(Math.abs(added - 120000) < 3000, '租期正好增加 2 分钟', added + 'ms');
+      api.autoPause('donkey');
+      const pausedLeft = api.autoLeftMs('donkey'), coins1 = st().coins;
+      ok(api.autoRent('donkey', 1).ok, '暂停中也能续租');
+      eq(st().coins, coins1 - api.AUTO_RENT_PER_MIN, '暂停中续租同样扣 1000 金');
+      ok(api.autoPaused('donkey'), '续租不会把暂停中的机器偷偷打开');
+      const pausedAdded = api.autoLeftMs('donkey') - pausedLeft;
+      ok(Math.abs(pausedAdded - 60000) < 100, '暂停中租期也正好增加 1 分钟（按冻结的时间线）', pausedAdded + 'ms');
+      api.autoResume('donkey');
+    }
     /* 一台驴：一轮产 1 份，吃自己料斗里的 */
     st().autoAcc.donkey = 0;
     const flour0 = st().prep.flour || 0;
@@ -2556,17 +2605,18 @@ const frames = n => new Promise(res => {
       eq(count('oven'), '共4台', '烤箱名称后显示烤位数量');
       eq(W.document.querySelectorAll('#kitchenBody [data-act="buy-auto"]').length, 0,
         '厨房里不再放自动化设备的购买按钮');
-      const donkeySw = [...W.document.querySelectorAll('#kitchenBody [data-dev-on="donkey"]')];
-      const chopperSw = [...W.document.querySelectorAll('#kitchenBody [data-dev-on="chopper"]')];
+      const donkeySw = [...W.document.querySelectorAll('#kitchenBody [data-dev="donkey"]')];
+      const chopperSw = [...W.document.querySelectorAll('#kitchenBody [data-dev="chopper"]')];
       ok(donkeySw.length === 1 && chopperSw.length === 1, '驴 / 切块机的开关并入对应工位',
         donkeySw.length + ' / ' + chopperSw.length);
+      ok(donkeySw.concat(chopperSw).every(b => b.tagName === 'BUTTON'), '自动化开关是按钮（不再是勾选框）');
       ok(donkeySw.some(s => s.closest('.k-station[data-station="mill"]')), '驴的开关在石磨工位里');
       ok(chopperSw.some(s => s.closest('.k-station[data-station="board"]')), '切块机的开关在切菜板工位里');
     }
-    /* 全自动与自动出已经合并成一个开关：每台设备只有一个 auto 勾选，没有多余的 loop 勾选 */
-    ok(!!W.document.querySelector('#kitchenBody [data-auto="oven"]'), '烤箱有「全自动」勾选');
-    eq(W.document.querySelectorAll('#kitchenBody [data-auto="oven"]').length, 1,
-      '烤箱只有一个「自动烹饪」开关（工位常驻显示）');
+    /* 全自动与自动出已经合并成一个开关：每台设备只有一颗按钮，没有多余的 loop 勾选 */
+    ok(!!W.document.querySelector('#kitchenBody [data-cook="oven"]'), '烤箱有「自动烹饪」按钮');
+    eq(W.document.querySelectorAll('#kitchenBody [data-cook="oven"]').length, 1,
+      '烤箱只有一个「自动烹饪」按钮（工位常驻显示）');
     ok(!W.document.querySelector('#kitchenBody [data-loop="oven"]'), '不再有单独的「同配方循环」勾选');
     api.closeSheet();
     /* 商店「机器」分类：名称按当前台数给出下一台 */
@@ -2575,9 +2625,16 @@ const frames = n => new Promise(res => {
     ok(!!mt, '商店有机器分类');
     click(mt);
     const names = [...W.document.querySelectorAll('#shopList .g-card .g-name')].map(n => n.textContent);
-    ok(names.includes('添加第3台拉磨的驴'), '机器名称 = 添加第3台拉磨的驴', names.join(','));
-    ok(names.includes('添加第4台切块机'), '机器名称 = 添加第4台切块机', names.join(','));
-    ok(names.includes('添加第5台烤箱'), '机器名称 = 添加第5台烤箱', names.join(','));
+    ok(names.includes('自动石磨3'), '机器名称 = 自动石磨3', names.join(','));
+    ok(names.includes('自动切菜板4'), '机器名称 = 自动切菜板4', names.join(','));
+    ok(names.includes('自动烤箱5'), '机器名称 = 自动烤箱5', names.join(','));
+    ok(names.includes('石磨租期') && names.includes('切菜板租期'),
+      '已解锁的机器有单独续租卡（1000 金/分钟）', names.join(','));
+    const rentCard = [...W.document.querySelectorAll('#shopList .g-card')].find(c => {
+      const n = c.querySelector('.g-name'); return n && n.textContent === '石磨租期';
+    });
+    ok(!!rentCard && /1000 金\/分钟/.test(rentCard.querySelector('.g-sub').textContent),
+      '续租卡单价写明 1000 金/分钟', rentCard ? rentCard.querySelector('.g-sub').textContent : '(没有卡片)');
     click($('shopTabs').children[0]);                    /* 回到肥料分类 */
     api.closeSheet();
     api.applyPayload(backup);
@@ -2660,7 +2717,7 @@ const frames = n => new Promise(res => {
 
     /* ② 面包切片：1 面包 → 2 片，每片比对半分多 2 金 */
     st().dishes = {};
-    const bread = api.cook.addDish({ id:'bread', name:'面包', emoji:'🍞', base:60, pieces:['flour'], counts:{ flour:1 } }, 'normal');
+    const bread = api.cook.addDish({ id:'bread', name:'面包', icon:'bread', base:60, pieces:['flour'], counts:{ flour:1 } }, 'normal');
     const bkey = Object.keys(st().dishes).find(k => /^bread\|/.test(k));
     ok(!!bkey, '面包进了菜品仓库', String(bkey));
     eq(bread.value, 60, '面包 60 金');
@@ -2677,14 +2734,14 @@ const frames = n => new Promise(res => {
     eq(st().dishes[bkey].n, before - 1, '面包少了一个');
     eq(st().dishes[skey].value * 2, 64, '两片合计 64 金（比整个面包多 4 金）');
     /* 精品面包 → 精品面包片（品质跟着走） */
-    const pb = api.cook.addDish({ id:'bread', name:'面包', emoji:'🍞', base:60, pieces:['flour'], counts:{ flour:1 } }, 'perfect');
+    const pb = api.cook.addDish({ id:'bread', name:'面包', icon:'bread', base:60, pieces:['flour'], counts:{ flour:1 } }, 'perfect');
     const pbkey = Object.keys(st().dishes).find(k => st().dishes[k] === pb);
     api.cook.boardSliceBread(pbkey);
     const pskey = Object.keys(st().dishes).find(k => /^slice\|perfect\|/.test(k));
     ok(!!pskey, '精品面包切出精品面包片');
     ok(st().dishes[pskey].value > 32, '精品面包片更贵', String(st().dishes[pskey].value));
     /* 别的菜不能切片 */
-    const stew = api.cook.addDish({ id:'stew', name:'红烩土豆', emoji:'🍲', base:50, pieces:['potato'], counts:{ potato:2 } }, 'normal');
+    const stew = api.cook.addDish({ id:'stew', name:'红烩土豆', icon:'pot', base:50, pieces:['potato'], counts:{ potato:2 } }, 'normal');
     const stkey = Object.keys(st().dishes).find(k => st().dishes[k] === stew);
     ok(!api.cook.boardSliceBread(stkey).ok, '别的菜不能切片（只有面包）');
     /* 货架上能看到面包（能拖到菜板） */
@@ -2721,12 +2778,12 @@ const frames = n => new Promise(res => {
     ok(rt.autoFarm && rt.autoFarm.box.x1 === 2 && rt.autoFarm.seeds.join() === 'wheat,carrot', '读档还原（区域 + 轮作种子）');
     /* ② 饱食度公式：材料块数 × 10 × 品质系数 */
     st().dishes = {};
-    api.cook.addDish({ id:'disanxian', name:'地三鲜', emoji:'🥘', base:100, pieces:['potato','eggplant','chili'], counts:{ potato:1, eggplant:1, chili:1 } }, 'normal');
+    api.cook.addDish({ id:'disanxian', name:'地三鲜', icon:'stew', base:100, pieces:['potato','eggplant','chili'], counts:{ potato:1, eggplant:1, chili:1 } }, 'normal');
     const k1 = Object.keys(st().dishes)[0];
     eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '3 材料的菜 = 30 点饱食度');
     eq(AF.dishSatiety(k1), 3 * AF.AF_SAT_PER_MATERIAL, '数值 = 3 块 × 每块点数（现在每块 25 点）',
       '每块 ' + AF.AF_SAT_PER_MATERIAL + ' 点 → ' + AF.dishSatiety(k1) + ' 点');
-    const pr = api.cook.addDish({ id:'soup', name:'田园浓汤', emoji:'🥣', base:100, pieces:['carrot'], counts:{ carrot:1 } }, 'perfect');
+    const pr = api.cook.addDish({ id:'soup', name:'田园浓汤', icon:'pot', base:100, pieces:['carrot'], counts:{ carrot:1 } }, 'perfect');
     const pkey = Object.keys(st().dishes).find(k => st().dishes[k] === pr);
     eq(AF.dishSatiety(pkey), Math.round(AF.AF_SAT_PER_MATERIAL * 1.5), '精品 1 材料 = 每块点数 ×1.5');
     /* ③ 只有成品菜能当饭；贵菜不能选 */
@@ -2735,7 +2792,7 @@ const frames = n => new Promise(res => {
       '原材料/菜块/面粉不会出现在口粮清单里（只有菜品仓库里的菜）');
     const cheapKey = k1, cheapValue = st().dishes[k1].value;
     ok(AF.rationOK(k1), '普通菜可以当口粮', String(cheapValue) + ' 金');
-    const rich = api.cook.addDish({ id:'mix', name:'杂烩', emoji:'🍲', base:AF.AF_RATION_MAX_VALUE + 500, pieces:['potato'], counts:{ potato:1 } }, 'normal');
+    const rich = api.cook.addDish({ id:'mix', name:'杂烩', icon:'pot', base:AF.AF_RATION_MAX_VALUE + 500, pieces:['potato'], counts:{ potato:1 } }, 'normal');
     const richKey = Object.keys(st().dishes).find(k => st().dishes[k] === rich);
     ok(!AF.rationOK(richKey), '价值 >' + AF.AF_RATION_MAX_VALUE + ' 金的菜不能当口粮', String(rich.value) + ' 金');
     /* ④ 花钱：没饱食度就自动吃口粮 */
@@ -2828,7 +2885,7 @@ const frames = n => new Promise(res => {
     ok(/饱食度/.test($('autoFarmBody').textContent) && /42/.test($('autoFarmBody').textContent),
       '面板顶部显示当前饱食度', '42 点');
     api.renderHUD();
-    ok(/🍚42/.test($('autoFarmState').textContent), '侧栏按钮也显示饱食度', $('autoFarmState').textContent);
+    ok(/42/.test($('autoFarmState').textContent) && !!$('autoFarmState').querySelector('[data-icon="rice"]'), '侧栏按钮也显示饱食度', $('autoFarmState').textContent);
 
     /* ⑨ 面板：该有的控件都在 */
     api.openAutoFarm();
@@ -3115,20 +3172,30 @@ const frames = n => new Promise(res => {
     const body2 = () => $('kitchenBody');
     const cookCell = body2().querySelector('.k-station[data-station="oven"]');
     ok(!!cookCell, '常驻工位里有烤箱');
-    const sw = cookCell.querySelector('input[data-auto="oven"]');
-    ok(!!sw, '烤箱工位上就有「自动烹饪」开关');
-    K.oven.auto = false;
-    sw.checked = true;
-    sw.dispatchEvent(new W.Event('change', { bubbles: true }));
-    ok(K.oven.auto === true, '在工位上勾选 → 自动烹饪打开');
-    /* 状态同步（kUpdateLive 会把开关刷成与逻辑一致） */
+    const sw = cookCell.querySelector('[data-cook="oven"]');
+    ok(!!sw && sw.tagName === 'BUTTON', '烤箱工位上就有「自动烹饪」按钮');
     K.oven.auto = false;
     api.renderKitchen && api.renderKitchen();
-    const all2 = [...body2().querySelectorAll('input[data-auto="oven"]')];
-    ok(all2.length === 1 && all2.every(i => i.checked === false), '自动烹饪开关与状态一致');
+    const swOff = body2().querySelector('[data-cook="oven"]');
+    eq(swOff.textContent, '自动烹饪', '关着时按钮写「自动烹饪」');
+    ok(!swOff.classList.contains('stop'), '关着时不是红色');
+    click(swOff);
+    ok(K.oven.auto === true, '按一下 → 自动烹饪打开');
+    const swOn = body2().querySelector('[data-cook="oven"]');
+    eq(swOn.textContent, '停止', '开着时按钮写「停止」');
+    ok(swOn.classList.contains('stop'), '开着时按钮变红（.stop）');
+    click(swOn);
+    ok(K.oven.auto === false, '再按一下 → 关回去');
+    /* 状态同步（kUpdateLive 会把按钮刷成与逻辑一致） */
+    K.oven.auto = false;
+    api.renderKitchen && api.renderKitchen();
+    const all2 = [...body2().querySelectorAll('[data-cook="oven"]')];
+    ok(all2.length === 1 && all2.every(b => b.textContent === '自动烹饪' && !b.classList.contains('stop')),
+      '按钮文字 / 颜色与状态一致');
 
     /* ② 切块机改名 + 缩略卡开停开关 */
-    eq(api.AUTO_DEVICES.chopper.name, '切块机', '「自动切块机」已改名为「切块机」');
+    eq(api.AUTO_DEVICES.chopper.name, '切菜板', '切块机已随工位改名「切菜板」');
+    eq(api.AUTO_DEVICES.donkey.name, '石磨', '拉磨的驴已随工位改名「石磨」');
     st().coins = 99999;
     st().bag.carrot = 20;
     api.autoSlotOf('chopper').length = 0;
@@ -3138,10 +3205,11 @@ const frames = n => new Promise(res => {
     api.autoSlotRefill('chopper');
     const devCell = body2().querySelector('.k-station[data-station="board"]');
     ok(!!devCell, '切菜板工位在');
-    const dsw = devCell.querySelector('input[data-dev-on="chopper"]');
-    ok(!!dsw, '切块机的开关并进切菜板工位（不再单独占卡）');
+    const dsw = devCell.querySelector('[data-dev="chopper"]');
+    ok(!!dsw && dsw.tagName === 'BUTTON', '切块机的开关并进切菜板工位（不再单独占卡）');
     api.renderKitchen && api.renderKitchen();
-    ok(body2().querySelector('input[data-dev-on="chopper"]').checked === true, '默认是「开」');
+    const dswOn = body2().querySelector('[data-dev="chopper"]');
+    ok(dswOn.textContent === '停止' && dswOn.classList.contains('stop'), '默认是「开」→ 红底「停止」');
     /* 停：不产出、不吃料、租期冻结 */
     api.autoPause('chopper');
     ok(api.autoPaused('chopper') === true, '能停');
@@ -3232,8 +3300,55 @@ const frames = n => new Promise(res => {
     eq(body.querySelectorAll('[data-slot-pick]').length, 4, '四个槽位都能点（石磨 / 切菜板 / 烤箱 / 锅）');
     eq(body.querySelector('[data-slot-pick="board"]').closest('.k-station').dataset.station, 'board', '菜板槽位属于切菜板工位');
     ok(!!body.querySelector('[data-bar="pot"]') && !!body.querySelector('[data-bar="oven"]'), '锅与烤箱的进度条常驻显示');
-    ok(!!body.querySelector('.k-check input[data-auto="pot"]'), '锅里就有「自动烹饪」勾选');
+    ok(!!body.querySelector('button[data-cook="pot"]'), '锅里就有「自动烹饪」按钮');
     ok(body.textContent.includes('自动烹饪') && !body.textContent.includes('全自动'), '开关名是「自动烹饪」');
+
+    /* ---- 动作行：磨粉 / 切块 / 出炉 / 出锅 和自动化按钮并排 ---- */
+    const actRow = id => body.querySelector('.k-station[data-station="' + id + '"] .k-st-actions');
+    ok(!!actRow('board') && !!actRow('board').querySelector('[data-chop]'), '切菜板有「切块」按钮');
+    eq(body.querySelectorAll('.k-st-actions .k-auto-btn').length, 4, '四个自动化按钮都在动作行里');
+    eq(body.querySelectorAll('.k-st-actions .mini:not(.k-auto-btn)').length, 4,
+      '每个工位一颗动作按钮（磨粉 / 切块 / 出炉 / 出锅）');
+    ok(!body.querySelector('.k-auto-inline'), '不再有单独的自动化行');
+    eq(body.querySelector('[data-grind]').textContent, '磨粉', '石磨按钮固定写「磨粉」（不再显示「磨 ×N」）');
+
+    /* 切块：切槽位里那份作物（用完把库存 / 菜块还原，后面的用例还要用） */
+    const bagCarrot0 = st().bag.carrot || 0, pcsCarrot0 = st().pieces.carrot || 0;
+    st().bag.carrot = 2; st().pieces.carrot = 0;
+    W.KitchenDebug.drop('crop:carrot', 'board');
+    api.renderKitchen && api.renderKitchen();
+    const chopBtn = body.querySelector('[data-chop]');
+    ok(chopBtn && !chopBtn.disabled, '放上材料后「切块」可按');
+    const pcsBefore = st().pieces.carrot || 0;
+    click(chopBtn);
+    ok((st().pieces.carrot || 0) > pcsBefore, '按「切块」直接切出菜块',
+      pcsBefore + ' → ' + (st().pieces.carrot || 0));
+    st().bag.carrot = 0;                       /* 仓库空了 → 按钮变灰 */
+    api.renderKitchen && api.renderKitchen();
+    ok(body.querySelector('[data-chop]').disabled, '仓库里没有这种作物时「切块」变灰');
+    st().bag.carrot = bagCarrot0 + 2; st().pieces.carrot = pcsCarrot0;
+    api.renderKitchen && api.renderKitchen();
+
+    /* ---- 工位图标的动画：只有「真的在干活」才播（石磨闲置不转） ---- */
+    const millCv = () => body.querySelector('.k-st-cv[data-st-ico="mill"]');
+    const millFrame = () => Number((millCv() && millCv().dataset.frame) || -1);
+    st().autoCount.donkey = 0; st().autoUntil.donkey = 0; st().bag.wheat = 0;
+    api.autoSlotOf('donkey').length = 0;
+    api.kitchenFrame(600);
+    eq(millFrame(), 0, '石磨没在磨（没有驴）→ 图标停在空闲帧');
+    st().autoCount.donkey = 1; st().autoUntil.donkey = Date.now() + 5 * 60 * 1000;
+    st().bag.wheat = 0;
+    api.kitchenFrame(600);
+    eq(millFrame(), 0, '有驴但没小麦 → 图标也不动');
+    st().bag.wheat = 20;
+    api.kitchenFrame(600);
+    ok(millFrame() > 0, '有小麦在磨 → 动画在播', 'frame=' + millFrame());
+    api.autoPause('donkey');
+    api.kitchenFrame(600);
+    eq(millFrame(), 0, '按下「停止」后图标回到空闲帧');
+    st().autoCount.donkey = 0; st().autoUntil.donkey = 0; st().bag.wheat = 0;
+    api.autoSlotOf('donkey').length = 0;
+    api.kitchenFrame(100);
 
     /* 锅直接显示时照样计时；空槽是半透明小方块 */
     const t = api.KITCHEN.pot.t;
@@ -3249,7 +3364,7 @@ const frames = n => new Promise(res => {
     /* ---- 点槽位选材料：每次点都打开菜单（哪怕只有一种材料） ---- */
     const KD5 = W.KitchenDebug;
     /* 每个槽位右下角都有「换材料」的循环箭头 SVG */
-    eq(body.querySelectorAll('[data-slot-pick] .k-slot-swap').length, 4, '四个槽位右下角都有替换提示（🔄）');
+    eq(body.querySelectorAll('[data-slot-pick] .k-slot-swap svg').length, 4, '四个槽位右下角都有替换提示图标');
     const f0 = st().prep.flour || 0;
     st().bag.wheat = 0;
     KD5.select('');
@@ -3666,7 +3781,7 @@ const frames = n => new Promise(res => {
     eq(mine.farmW, 9, '统计：田宽'); eq(mine.farmH, 7, '统计：田高');
     eq(mine.ach, 3, '统计：成就数'); eq(mine.tasks, 8, '统计：完成任务数');
     eq(api.LB_METRICS.length, 5, '正好五个榜单项目');
-    eq(api.LB_METRICS.map(m => m.icon).join(''), '💰🌾🗺️🏆✅', '五项图标各就各位');
+    eq(api.LB_METRICS.map(m => m.icon).join(','), 'coins,wheat,map,trophy,check-circle', '五项图标各就各位');
 
     /* ── 五个项目都能排序（含同分兜底） ── */
     const list = [

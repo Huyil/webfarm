@@ -20,28 +20,6 @@ function bindWarehouseToggle(){
     toast(state.warehouseEnabled ? '仓储已开启' : '仓储已关闭（收获自动卖）');
   };
 }
-/* 用厨房那套绘制函数把食材画成小图标（crop: / piece: / prep: / dish:） */
-function itemIconEl(key, size){
-  size = size || 30;
-  const c = document.createElement('canvas');
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  c.width = Math.round(size * dpr); c.height = Math.round(size * dpr);
-  c.style.width = size + 'px'; c.style.height = size + 'px';
-  const g = c.getContext && c.getContext('2d');
-  if(g) try{
-    if(g.setTransform) g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    else if(g.scale) g.scale(dpr, dpr);
-    drawItemIcon(g, key, size / 2, size / 2, size);
-  }catch(e){}
-  return c;
-}
-function iconNode(keyOrEmoji, size){
-  const s = String(keyOrEmoji == null ? '' : keyOrEmoji);
-  if(/^(crop|piece|prep|dish):/.test(s) && typeof drawItemIcon === 'function') return itemIconEl(s, size);
-  const sp = document.createElement('span');
-  sp.textContent = s;
-  return sp;
-}
 /* 某一分类下的物品：key / icon / name / count / price / sell(qty)（null = 不能卖） */
 function storeCatalog(tab){
   const out = [];
@@ -87,7 +65,7 @@ function storeCatalog(tab){
       const n = free ? 1 : (state.decorBag[id] || 0);
       if(!free && n <= 0) continue;
       out.push({
-        key: 'decor:' + id, decorId: id, icon: meta.icon, name: meta.name,
+        key: 'decor:' + id, decorId: id, icon: 'decor:' + id, name: meta.name,
         count: n, sub: free ? '∞' : '', price: DECOR_SELL[id] || 0,
         meta: `${meta.ground ? '地面层' : '立体层'} · 回收价 ${DECOR_SELL[id] || 0} 金（商店买 ${DECOR_PRICE[id] || 0} 金）`
           + (free ? ' · 免费铺装，无限使用' : ` · 库存 ${n} 件`) + ' · 选「摆放」后在地块上点一下',
@@ -115,12 +93,12 @@ function storeSelectCurrentDecor(){
   return true;
 }
 const STORE_EMPTY = {
-  crop: '仓库空空如也 ' + '🌱' + '<br><span class="r-meta">去种点东西吧</span>',
-  prep: '还没有备料 ' + '🔪' + '<br><span class="r-meta">去厨房把小麦磨成面粉、把菜切块</span>',
-  dish: '还没有做好的菜 ' + '🍳' + '<br><span class="r-meta">打开厨房试试</span>',
-  decor: '装饰仓库空空如也 ' + '🏡' + '<br><span class="r-meta">用锄头锄掉地里的树/石头/灌木/花就能收进来</span>',
+  crop: '仓库空空如也 ' + iconHTML('sprout') + '<br><span class="r-meta">去种点东西吧</span>',
+  prep: '还没有备料 ' + iconHTML('knife') + '<br><span class="r-meta">去厨房把小麦磨成面粉、把菜切块</span>',
+  dish: '还没有做好的菜 ' + iconHTML('pot') + '<br><span class="r-meta">打开厨房试试</span>',
+  decor: '装饰仓库空空如也 ' + iconHTML('house') + '<br><span class="r-meta">用锄头锄掉地里的树/石头/灌木/花就能收进来</span>',
 };
-const STORE_TABS = [['crop','作物','carrot'],['prep','备料','knife'],['dish','菜品','pan'],['decor','装饰','house']];
+const STORE_TABS = [['crop','作物','sprout'],['prep','备料','knife'],['dish','菜品','pot'],['decor','装饰','house']];
 function renderStore(){
   renderWarehouseToggle();
   const tabs = document.getElementById('storeTabs'), el = document.getElementById('storeList');
@@ -188,7 +166,7 @@ function renderStoreExtra(items){
   if(!items.length || !sellAll) return;
   const all = document.createElement('button');
   all.className = 'mini sell';
-  all.innerHTML = '💰' + ' 一键全卖';
+  all.innerHTML = iconHTML('coins') + ' 一键全卖';
   all.onclick = () => {
     const r = sellAll.run();
     if(r.gain <= 0) return;

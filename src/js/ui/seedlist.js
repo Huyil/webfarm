@@ -7,13 +7,15 @@ function pushRecentSeed(id){
   list.unshift(id);
   if(list.length > 6) list.length = 6;
 }
+/* 种子图标：直接用厨房那套 canvas 自绘（drawItemIcon），浏览器里是 canvas → dataURL 的 <img>；
+ * 无 canvas 环境（jsdom）自动回落成 SVG 图标，所以布局与旧版一样。 */
 function kSeedBtnRow(id){
   const def = CROPS[id];
   if(!def) return '';
   const cur = state.selectedSeed === id;
   const afford = state.coins >= def.seedCost;
   return '<button class="tp-row' + (cur ? ' on' : '') + (afford ? '' : ' poor') + '" data-seed="' + id + '">' +
-    '<span class="tp-ico">' + def.emoji + '</span>' +
+    '<span class="tp-ico">' + kIconHTML('crop:' + id, 20) + '</span>' +
     '<span class="tp-txt"><b>' + def.name + '</b><i>' + def.seedCost + ' 金 · 成熟 ' + Math.round(cropReadyMs(def) / 1000) + 's</i></span>' +
     (cur ? '<span class="tp-cur">已选</span>' : '') + '</button>';
 }
@@ -33,12 +35,12 @@ function renderFertPop(){
   if(!el) return;
   const opt = (tool, ico, name, desc, n) =>
     '<button class="tp-row' + (state.tool === tool ? ' on' : '') + (n > 0 ? '' : ' poor') + '" data-tool-pick="' + tool + '">' +
-      '<span class="tp-ico">' + ico + '</span>' +
+      '<span class="tp-ico">' + iconHTML(ico) + '</span>' +
       '<span class="tp-txt"><b>' + name + '</b><i>' + desc + '</i></span>' +
       '<span class="tp-n">×' + n + '</span></button>';
   el.innerHTML =
-    opt('fert', '🧪', '肥料', '生长 ×' + FERT_MULT + ' · 收完还留 ' + FERT_KEEP + ' 次耕地', state.fertilizer) +
-    opt('premium', '✨', '高级肥料', '立刻催熟 · 留 ' + PREMIUM_KEEP + ' 次耕地', state.premium);
+    opt('fert', 'flask', '肥料', '生长 ×' + FERT_MULT + ' · 收完还留 ' + FERT_KEEP + ' 次耕地', state.fertilizer) +
+    opt('premium', 'sparkles', '高级肥料', '立刻催熟 · 留 ' + PREMIUM_KEEP + ' 次耕地', state.premium);
 }
 function renderToolPops(){ renderFertPop(); renderSeedPop(); }
 function toggleToolPop(which){
@@ -79,7 +81,7 @@ function renderSeedList(){
     if(!affordable) row.style.opacity = '0.45';
     const multi = cropIsMulti(def);
     row.innerHTML = `
-      <div class="r-ico">${def.emoji}</div>
+      <div class="r-ico">${kIconHTML('crop:' + id, 24)}</div>
       <div style="flex:1">
         <div class="r-name">${def.name}${isCur ? ' · 已选' : ''} <span class="tag">${def.tag}</span></div>
         <div class="r-meta">成熟 ${Math.round(cropReadyMs(def) / 1000)}s · 卖 ${def.sellPrice} 金${multi ? ` · 收获 ×${def.harvests}（复熟 ${Math.round(def.regrowMs / 1000)}s）` : ''}</div>

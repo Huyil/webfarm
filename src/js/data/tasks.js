@@ -60,13 +60,6 @@ function todayStr(){
   const d = new Date();
   return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
 }
-function rewardText(reward){
-  const parts = [];
-  if(reward.fert)    parts.push(`🧪×${reward.fert}`);
-  if(reward.premium) parts.push(`✨×${reward.premium}`);
-  if(reward.decor)   for(const k in reward.decor) parts.push(`${DECOR_META[k] ? DECOR_META[k].icon : '🏡'}×${reward.decor[k]}`);
-  return parts.join(' ') || '—';
-}
 /* 任务是否已解锁（避免开局就发做菜/扩建类任务） */
 function taskUnlocked(def){
   if(!def || !def.need) return true;
